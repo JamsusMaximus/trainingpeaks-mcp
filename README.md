@@ -4,9 +4,9 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@JamsusMaximus/TrainingPeaks-MCP/badge" alt="TrainingPeaks MCP server" />
 </a>
 
-Connect TrainingPeaks (Training Peaks) to Claude and other AI assistants via the Model Context Protocol (MCP). Query your workouts, analyze training load, compare power data, and track fitness trends through natural conversation.
+Connect TrainingPeaks to Claude and other AI assistants via the Model Context Protocol (MCP). Query your workouts, analyze training load, compare power data, and track fitness trends through natural conversation.
 
-**No API approval required.** The Training Peaks API is approval-gated, but this server uses secure cookie authentication that any TrainingPeaks user can set up in minutes. Your credentials are stored in your system keyring, never transmitted anywhere except to TrainingPeaks.
+**No API approval required.** The official Training Peaks API is approval-gated, but this server uses secure cookie authentication that any user can set up in minutes. Your credentials are stored in your system keyring, never transmitted anywhere except to TrainingPeaks.
 
 ## What You Can Do
 
@@ -160,7 +160,7 @@ Get PRs set during a specific workout.
 
 ## What is MCP?
 
-[Model Context Protocol](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external data sources. MCP servers expose tools that AI models can call to fetch real-time data, enabling assistants like Claude to access your TrainingPeaks account through natural language.
+[Model Context Protocol](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external data sources. MCP servers expose tools that AI models can call to fetch real-time data, enabling assistants like Claude to access your Training Peaks account through natural language.
 
 ## Security
 
@@ -172,7 +172,7 @@ Get PRs set during a specific workout.
 
 ## Cookie Expiration
 
-TrainingPeaks cookies last several weeks. When expired, tools will return auth errors. Run `tp-mcp auth` again with a fresh cookie.
+Training Peaks session cookies last several weeks. When expired, tools will return auth errors. Run `tp-mcp auth` again with a fresh cookie from your browser.
 
 ## Development
 
