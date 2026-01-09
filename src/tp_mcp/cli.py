@@ -147,6 +147,35 @@ def cmd_serve() -> int:
     return run_server()
 
 
+def cmd_config() -> int:
+    """Output Claude Desktop config snippet.
+
+    Returns:
+        Exit code (0).
+    """
+    import json
+    import shutil
+
+    # Find the tp-mcp binary path
+    tp_mcp_path = shutil.which("tp-mcp")
+    if not tp_mcp_path:
+        # Fall back to sys.executable directory
+        from pathlib import Path
+        tp_mcp_path = str(Path(sys.executable).parent / "tp-mcp")
+
+    config = {
+        "trainingpeaks": {
+            "command": tp_mcp_path,
+            "args": ["serve"]
+        }
+    }
+
+    print("Add this to your Claude Desktop config inside \"mcpServers\": {}")
+    print()
+    print(json.dumps(config, indent=2))
+    return 0
+
+
 def cmd_help() -> int:
     """Show help message.
 
@@ -161,6 +190,7 @@ def cmd_help() -> int:
     print("  auth         Authenticate with TrainingPeaks")
     print("  auth-status  Check authentication status")
     print("  auth-clear   Clear stored credentials")
+    print("  config       Output Claude Desktop config snippet")
     print("  serve        Start the MCP server")
     print("  help         Show this help message")
     print()
@@ -182,6 +212,7 @@ def main() -> int:
         "auth": cmd_auth,
         "auth-status": cmd_auth_status,
         "auth-clear": cmd_auth_clear,
+        "config": cmd_config,
         "serve": cmd_serve,
         "help": cmd_help,
         "--help": cmd_help,

@@ -86,26 +86,13 @@ tp-mcp auth-clear   # Remove stored credentials
 
 #### Step 4: Add to Claude Desktop
 
-First, get your full path (run this from the repo directory):
+Run this to get your config snippet:
 
 ```bash
-echo "$(pwd)/.venv/bin/tp-mcp"
+tp-mcp config
 ```
 
-Then edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) and add:
-
-```json
-{
-  "mcpServers": {
-    "trainingpeaks": {
-      "command": "/Users/you/trainingpeaks-mcp/.venv/bin/tp-mcp",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Replace the `command` value with the path from the `echo` command above.
+This outputs the JSON to add. Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) and paste it inside the `"mcpServers": {}` object.
 
 Restart Claude Desktop. You're ready to go!
 
