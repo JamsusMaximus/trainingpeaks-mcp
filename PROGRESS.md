@@ -1,16 +1,10 @@
 # TrainingPeaks MCP Server - Progress
 
 ## Current Phase
-MVP - Complete
+MVP - Complete & Tested
 
-## Last Completed Task
-DOCS-01 - README and examples - 2025-01-08
-
-## Next Task
-Ready for human testing / V1 development
-
-## Blockers
-None
+## Last Updated
+2026-01-09
 
 ## Completed Tasks
 
@@ -30,53 +24,46 @@ None
 ### Tools (MVP)
 - [x] TOOL-01 - tp_auth_status
 - [x] TOOL-02 - tp_get_profile
-- [x] TOOL-03 - tp_get_workouts
+- [x] TOOL-03 - tp_get_workouts (with 90-day limit)
 - [x] TOOL-04 - tp_get_workout
-- [x] TOOL-05 - tp_get_peaks
+- [x] TOOL-05 - tp_get_peaks (sport-specific PRs)
+- [x] TOOL-06 - tp_get_workout_prs
+- [x] TOOL-07 - tp_get_fitness (CTL/ATL/TSB)
 
 ### Server (MVP)
 - [x] SERVER-01 - MCP server setup
+- [x] SERVER-02 - Python 3.14 async fix
 
 ### Testing & Docs (MVP)
 - [x] TEST-01 - Integration test suite (30 tests passing)
-- [x] DOCS-01 - README and examples
+- [x] DOCS-01 - README with SEO optimization
+- [x] DOCS-02 - MIT License
 
-### Tools (V1)
-- [ ] TOOL-06 - tp_create_workout
-- [ ] TOOL-07 - tp_move_workout
-- [ ] TOOL-08 - tp_schedule_workout
+### Future (V1)
+- [ ] TOOL-08 - tp_create_workout
+- [ ] TOOL-09 - tp_move_workout
+- [ ] TEST-02 - Tests for fitness/peaks tools
+- [ ] CI-01 - GitHub Actions workflow
 
-### Platform & Security (V1)
-- [ ] PLATFORM-01 - Windows support
-- [ ] SECURITY-01 - Security audit
-- [ ] TEST-02 - E2E test suite
+## API Endpoint Reference
+
+Verified against live TrainingPeaks API (2026-01-09):
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/users/v3/token` | Auth validation |
+| `/users/v3/user` | User profile (nested: `{ user: { personId } }`) |
+| `/fitness/v6/athletes/{id}/workouts/{start}/{end}` | Workout list |
+| `/fitness/v6/athletes/{id}/workouts/{workoutId}` | Single workout |
+| `/personalrecord/v2/athletes/{id}/workouts/{workoutId}` | PRs per workout |
+| `/personalrecord/v2/athletes/{id}/{Sport}?prType=...` | Sport-specific PRs |
+| `/fitness/v1/athletes/{id}/reporting/performancedata/{start}/{end}` | CTL/ATL/TSB (POST) |
+
+**Deprecated:** `/fitness/v3/athletes/{id}/powerpeaks` and `/pacepeaks` return 404.
 
 ## Architecture Decisions
-- Using Pydantic v2 with ConfigDict for models
-- Renamed date fields to workout_date/peak_date to avoid type annotation conflicts
-- Using property aliases for backwards compatibility
 
-## API Endpoint Discoveries
-Verified against live TrainingPeaks API (2026-01-09):
-- /users/v3/token - Auth validation
-- /users/v3/user - User profile (returns nested: `{ user: { personId, ... } }`)
-- /fitness/v6/athletes/{id}/workouts/{start}/{end} - Workout list
-- /fitness/v6/athletes/{id}/workouts/{workoutId} - Single workout (v6 not v1!)
-- /personalrecord/v2/athletes/{id}/workouts/{workoutId}?displayPeaksForBasic=true - Personal records per workout
-- /personalrecord/v2/athletes/{id}/{Sport}?prType=...&startDate=...&endDate=... - Sport-specific PRs by type
-- /personalrecord/v2/athletes/{id}/config - PR configuration (available types by sport)
-- /fitness/v1/athletes/{id}/reporting/performancedata/{start}/{end} (POST) - CTL/ATL/TSB fitness data
-- /fitness/v3/athletes/{id}/powerpeaks - DEPRECATED (returns 404)
-- /fitness/v3/athletes/{id}/pacepeaks - DEPRECATED (returns 404)
-
-## Known Issues
-- Old peaks endpoints (/powerpeaks, /pacepeaks) deprecated - use /personalrecord/v2/ instead
-- RESOLVED: Found correct endpoint via network traffic analysis (2026-01-09)
-
-## Session Notes
-MVP implementation complete. Ready for human testing with a real TrainingPeaks account.
-
-Test with:
-1. tp-mcp auth (paste your Production_tpAuth cookie)
-2. tp-mcp auth-status
-3. Configure Claude Desktop and test tools
+- Pydantic v2 with ConfigDict for models
+- Async validation to avoid nested asyncio.run() on Python 3.14
+- 90-day max date range to prevent context bloat
+- Tool descriptions optimized for LLM efficiency

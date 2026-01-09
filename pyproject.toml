@@ -14,14 +14,17 @@ authors = [
 ]
 keywords = ["trainingpeaks", "mcp", "ai", "training", "cycling", "running"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
+
 dependencies = [
     "mcp>=1.0.0",
     "httpx>=0.27.0",
@@ -29,6 +32,11 @@ dependencies = [
     "cryptography>=42.0.0",
     "pydantic>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/JamsusMaximus/trainingpeaks-mcp"
+Repository = "https://github.com/JamsusMaximus/trainingpeaks-mcp"
+Issues = "https://github.com/JamsusMaximus/trainingpeaks-mcp/issues"
 
 [project.optional-dependencies]
 dev = [
