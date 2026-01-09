@@ -38,7 +38,9 @@ def get_storage_backend() -> str:
 def store_credential(cookie: str) -> CredentialResult:
     """Store the TrainingPeaks auth cookie.
 
-    Uses keyring if available, otherwise falls back to encrypted file.
+    Always stores in encrypted file for reliability. Also stores in keyring
+    if available (but keyring access can be blocked by app-specific permissions
+    on macOS when spawned from different applications like Claude Desktop).
 
     Args:
         cookie: The Production_tpAuth cookie value.
@@ -46,9 +48,19 @@ def store_credential(cookie: str) -> CredentialResult:
     Returns:
         CredentialResult with success status.
     """
+    # Always store in encrypted file first (reliable fallback)
+    encrypted_result = store_credential_encrypted(cookie)
+
+    # Also try keyring if available (may fail due to app permissions)
     if is_keyring_available():
-        return store_credential_keyring(cookie)
-    return store_credential_encrypted(cookie)
+        keyring_result = store_credential_keyring(cookie)
+        if keyring_result.success:
+            return CredentialResult(
+                success=True,
+                message="Credential stored in keyring and encrypted file",
+            )
+
+    return encrypted_result
 
 
 def get_credential() -> CredentialResult:
