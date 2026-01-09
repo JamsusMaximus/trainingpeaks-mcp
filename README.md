@@ -92,7 +92,22 @@ Run this to get your config snippet:
 tp-mcp config
 ```
 
-This outputs the JSON to add. Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) and paste it inside the `"mcpServers": {}` object.
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows) and paste it inside `mcpServers`. Example with multiple servers:
+
+```json
+{
+  "mcpServers": {
+    "some-other-server": {
+      "command": "npx",
+      "args": ["some-other-mcp"]
+    },
+    "trainingpeaks": {
+      "command": "/Users/you/trainingpeaks-mcp/.venv/bin/tp-mcp",
+      "args": ["serve"]
+    }
+  }
+}
+```
 
 Restart Claude Desktop. You're ready to go!
 
