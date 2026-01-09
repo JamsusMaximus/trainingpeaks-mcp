@@ -1,13 +1,13 @@
 # TrainingPeaks MCP Server - Progress
 
 ## Current Phase
-MVP
+MVP - Complete
 
 ## Last Completed Task
-SETUP-01 - Project scaffolding - 2025-01-08
+DOCS-01 - README and examples - 2025-01-08
 
 ## Next Task
-AUTH-01 - Keyring credential storage
+Ready for human testing / V1 development
 
 ## Blockers
 None
@@ -18,28 +18,28 @@ None
 - [x] SETUP-01 - Project scaffolding
 
 ### Authentication (MVP)
-- [ ] AUTH-01 - Keyring credential storage
-- [ ] AUTH-02 - Cookie validation
-- [ ] AUTH-03 - CLI auth command
-- [ ] AUTH-04 - Encrypted file fallback
+- [x] AUTH-01 - Keyring credential storage
+- [x] AUTH-02 - Cookie validation
+- [x] AUTH-03 - CLI auth command
+- [x] AUTH-04 - Encrypted file fallback
 
 ### API Client (MVP)
-- [ ] API-01 - HTTP client wrapper
-- [ ] API-02 - Response parsing models
+- [x] API-01 - HTTP client wrapper
+- [x] API-02 - Response parsing models
 
 ### Tools (MVP)
-- [ ] TOOL-01 - tp_auth_status
-- [ ] TOOL-02 - tp_get_profile
-- [ ] TOOL-03 - tp_get_workouts
-- [ ] TOOL-04 - tp_get_workout
-- [ ] TOOL-05 - tp_get_peaks
+- [x] TOOL-01 - tp_auth_status
+- [x] TOOL-02 - tp_get_profile
+- [x] TOOL-03 - tp_get_workouts
+- [x] TOOL-04 - tp_get_workout
+- [x] TOOL-05 - tp_get_peaks
 
 ### Server (MVP)
-- [ ] SERVER-01 - MCP server setup
+- [x] SERVER-01 - MCP server setup
 
 ### Testing & Docs (MVP)
-- [ ] TEST-01 - Integration test suite
-- [ ] DOCS-01 - README and examples
+- [x] TEST-01 - Integration test suite (30 tests passing)
+- [x] DOCS-01 - README and examples
 
 ### Tools (V1)
 - [ ] TOOL-06 - tp_create_workout
@@ -52,13 +52,26 @@ None
 - [ ] TEST-02 - E2E test suite
 
 ## Architecture Decisions
-(Record decisions here as they're made)
+- Using Pydantic v2 with ConfigDict for models
+- Renamed date fields to workout_date/peak_date to avoid type annotation conflicts
+- Using property aliases for backwards compatibility
 
 ## API Endpoint Discoveries
-(Document actual endpoints found via network analysis)
+Based on PRD and tp2intervals patterns:
+- /users/v3/token - Auth validation
+- /users/v3/user - User profile
+- /fitness/v6/athletes/{id}/workouts/{start}/{end} - Workout list
+- /fitness/v1/athletes/{id}/workouts/{workoutId} - Single workout
+- /fitness/v3/athletes/{id}/powerpeaks - Power peaks
+- /fitness/v3/athletes/{id}/pacepeaks - Pace peaks
 
 ## Known Issues
-(Track issues and workarounds)
+None currently
 
 ## Session Notes
-(Brief notes that help resume after compaction)
+MVP implementation complete. Ready for human testing with a real TrainingPeaks account.
+
+Test with:
+1. tp-mcp auth (paste your Production_tpAuth cookie)
+2. tp-mcp auth-status
+3. Configure Claude Desktop and test tools

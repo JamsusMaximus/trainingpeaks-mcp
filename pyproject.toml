@@ -39,7 +39,7 @@ dev = [
 ]
 
 [project.scripts]
-tp-mcp = "tp_mcp.__main__:main"
+tp-mcp = "tp_mcp.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tp_mcp"]

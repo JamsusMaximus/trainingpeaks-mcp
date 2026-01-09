@@ -2,15 +2,7 @@
 
 import sys
 
-
-def main() -> int:
-    """Main entry point."""
-    print("TrainingPeaks MCP Server")
-    print("Commands: auth, serve")
-    print("Use 'tp-mcp auth' to authenticate")
-    print("Use 'tp-mcp serve' to start the MCP server")
-    return 0
-
+from tp_mcp.cli import main
 
 if __name__ == "__main__":
     sys.exit(main())
