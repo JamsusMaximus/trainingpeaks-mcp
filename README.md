@@ -32,7 +32,9 @@ Ask your AI assistant questions like:
 
 If you have [Claude Code](https://claude.ai/code), paste this prompt:
 
-> Set up the TrainingPeaks MCP server from https://github.com/JamsusMaximus/trainingpeaks-mcp - clone it, create a venv, install it, then walk me through getting my TrainingPeaks cookie from my browser and run tp-mcp auth. Finally, add it to my Claude Desktop config.
+```
+Set up the TrainingPeaks MCP server from https://github.com/JamsusMaximus/trainingpeaks-mcp - clone it, create a venv, install it, then walk me through getting my TrainingPeaks cookie from my browser and run tp-mcp auth. Finally, add it to my Claude Desktop config.
+```
 
 Claude will handle the installation and guide you through authentication step-by-step.
 
