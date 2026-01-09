@@ -1,7 +1,7 @@
 # TrainingPeaks MCP Server - Progress
 
 ## Current Phase
-MVP - Complete & Tested
+MVP - Complete & Production Ready
 
 ## Last Updated
 2026-01-09
@@ -16,6 +16,7 @@ MVP - Complete & Tested
 - [x] AUTH-02 - Cookie validation
 - [x] AUTH-03 - CLI auth command
 - [x] AUTH-04 - Encrypted file fallback
+- [x] AUTH-05 - Dual storage (keyring + encrypted file) for Claude Desktop compatibility
 
 ### API Client (MVP)
 - [x] API-01 - HTTP client wrapper
@@ -26,9 +27,12 @@ MVP - Complete & Tested
 - [x] TOOL-02 - tp_get_profile
 - [x] TOOL-03 - tp_get_workouts (with 90-day limit)
 - [x] TOOL-04 - tp_get_workout
-- [x] TOOL-05 - tp_get_peaks (sport-specific PRs)
+- [x] TOOL-05 - tp_get_peaks (sport-specific PRs, default 3650 days for all-time)
 - [x] TOOL-06 - tp_get_workout_prs
-- [x] TOOL-07 - tp_get_fitness (CTL/ATL/TSB)
+- [x] TOOL-07 - tp_get_fitness (CTL/ATL/TSB with historical date range support)
+
+### CLI
+- [x] CLI-01 - tp-mcp config command (outputs Claude Desktop config snippet)
 
 ### Server (MVP)
 - [x] SERVER-01 - MCP server setup
@@ -38,13 +42,35 @@ MVP - Complete & Tested
 - [x] TEST-01 - Integration test suite (44 tests passing)
 - [x] TEST-02 - Tests for fitness/peaks tools
 - [x] CI-01 - GitHub Actions workflow (Python 3.10-3.12)
-- [x] DOCS-01 - README with SEO optimization
+- [x] DOCS-01 - README with SEO optimization (trainingpeaks + training-peaks tags)
 - [x] DOCS-02 - MIT License
+- [x] DOCS-03 - Example screenshot
+- [x] DOCS-04 - Advanced analytics query examples
 
 ### Future (V1)
 - [ ] TOOL-08 - tp_create_workout
 - [ ] TOOL-09 - tp_move_workout
 - [ ] TOOL-10 - tp_get_health_metrics (sleep, resting HR, HRV, weight)
+
+## Recent Changes (2026-01-09)
+
+### Auth Fix for Claude Desktop
+macOS Keychain has app-specific access controls. When Claude Desktop spawns `tp-mcp serve`,
+it's a different app context than Terminal where `tp-mcp auth` was run. Keychain silently
+blocks access, causing auth failures.
+
+**Fix:** `store_credential()` now writes to both keyring AND encrypted file. The encrypted
+file fallback always works regardless of app permissions.
+
+### tp_get_peaks Default Changed to All-Time
+Previous default of 365 days caused "best" queries to miss PRs older than 1 year.
+Now defaults to 3650 days (~10 years) for true all-time records.
+
+### tp_get_fitness Historical Date Ranges
+Added `start_date` and `end_date` parameters (YYYY-MM-DD) for querying historical fitness
+data. Enables queries like "CTL/ATL/TSB in the 6 weeks before my Feb 2022 PR".
+
+Previously only supported querying from today backwards using `days` parameter.
 
 ## API Endpoint Reference
 
@@ -66,5 +92,8 @@ Verified against live TrainingPeaks API (2026-01-09):
 
 - Pydantic v2 with ConfigDict for models
 - Async validation to avoid nested asyncio.run() on Python 3.14
-- 90-day max date range to prevent context bloat
+- 90-day max date range for workouts to prevent context bloat
+- 3650-day default for peaks (all-time)
+- Dual credential storage (keyring + encrypted file) for cross-app compatibility
 - Tool descriptions optimized for LLM efficiency
+- Line length 120 for readable tool descriptions
