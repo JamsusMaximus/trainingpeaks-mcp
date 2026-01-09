@@ -99,13 +99,33 @@ Get full workout details including structure.
 Parameters:
 - `workout_id`: Workout ID
 
-### tp_get_peaks
-Get personal records (power and HR peaks) for a specific workout.
+### tp_get_workout_prs
+Get personal records set during a specific workout.
 
 Parameters:
 - `workout_id`: Workout ID to get PRs for
 
-Returns power records (5s, 1m, 5m, 10m, 20m) and heart rate records with rank and timeframe.
+Returns power, heart rate, and speed records set during that workout.
+
+### tp_get_peaks
+Get ranked personal records by sport and type.
+
+Parameters:
+- `sport`: "Bike" or "Run"
+- `pr_type`: PR type (see below)
+- `days`: Days of history (default: 365)
+
+**Bike PR types:** power5sec, power1min, power5min, power10min, power20min, power60min, power90min, hR5sec, hR1min, hR5min, hR10min, hR20min, hR60min, hR90min
+
+**Run PR types:** speed400Meter, speed800Meter, speed1K, speed1Mi, speed5K, speed5Mi, speed10K, speed10Mi, speedHalfMarathon, speedMarathon, speed50K, plus HR types
+
+### tp_get_fitness
+Get CTL/ATL/TSB fitness and fatigue data.
+
+Parameters:
+- `days`: Days of history (default: 90)
+
+Returns daily fitness metrics (CTL=fitness, ATL=fatigue, TSB=form) with status.
 
 ## Security
 

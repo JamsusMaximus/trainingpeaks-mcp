@@ -62,7 +62,10 @@ Verified against live TrainingPeaks API (2026-01-09):
 - /users/v3/user - User profile (returns nested: `{ user: { personId, ... } }`)
 - /fitness/v6/athletes/{id}/workouts/{start}/{end} - Workout list
 - /fitness/v6/athletes/{id}/workouts/{workoutId} - Single workout (v6 not v1!)
-- /personalrecord/v2/athletes/{id}/workouts/{workoutId}?displayPeaksForBasic=true - Personal records per workout!
+- /personalrecord/v2/athletes/{id}/workouts/{workoutId}?displayPeaksForBasic=true - Personal records per workout
+- /personalrecord/v2/athletes/{id}/{Sport}?prType=...&startDate=...&endDate=... - Sport-specific PRs by type
+- /personalrecord/v2/athletes/{id}/config - PR configuration (available types by sport)
+- /fitness/v1/athletes/{id}/reporting/performancedata/{start}/{end} (POST) - CTL/ATL/TSB fitness data
 - /fitness/v3/athletes/{id}/powerpeaks - DEPRECATED (returns 404)
 - /fitness/v3/athletes/{id}/pacepeaks - DEPRECATED (returns 404)
 

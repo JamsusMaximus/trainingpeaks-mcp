@@ -16,9 +16,11 @@ from mcp.types import (
 from tp_mcp.auth import get_credential, validate_auth_sync
 from tp_mcp.tools import (
     tp_auth_status,
+    tp_get_fitness,
     tp_get_peaks,
     tp_get_profile,
     tp_get_workout,
+    tp_get_workout_prs,
     tp_get_workouts,
 )
 
@@ -80,7 +82,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workout",
-        description="Get full workout details including structure.",
+        description="Get full workout details including metrics.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -93,8 +95,8 @@ TOOLS = [
         },
     ),
     Tool(
-        name="tp_get_peaks",
-        description="Get personal records (power/HR peaks) for a workout.",
+        name="tp_get_workout_prs",
+        description="Get personal records set during a specific workout.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -104,6 +106,45 @@ TOOLS = [
                 },
             },
             "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_get_peaks",
+        description="Get ranked personal records by sport and type.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "sport": {
+                    "type": "string",
+                    "enum": ["Bike", "Run"],
+                    "description": "Sport type",
+                },
+                "pr_type": {
+                    "type": "string",
+                    "description": "PR type: power5sec, power20min, speed5K, etc.",
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Days of history (default 365)",
+                    "default": 365,
+                },
+            },
+            "required": ["sport", "pr_type"],
+        },
+    ),
+    Tool(
+        name="tp_get_fitness",
+        description="Get CTL/ATL/TSB fitness and fatigue data.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Days of history (default 90)",
+                    "default": 90,
+                },
+            },
+            "required": [],
         },
     ),
 ]
@@ -141,9 +182,21 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 workout_id=arguments["workout_id"],
             )
 
+        elif name == "tp_get_workout_prs":
+            result = await tp_get_workout_prs(
+                workout_id=arguments["workout_id"],
+            )
+
         elif name == "tp_get_peaks":
             result = await tp_get_peaks(
-                workout_id=arguments["workout_id"],
+                sport=arguments["sport"],
+                pr_type=arguments["pr_type"],
+                days=arguments.get("days", 365),
+            )
+
+        elif name == "tp_get_fitness":
+            result = await tp_get_fitness(
+                days=arguments.get("days", 90),
             )
 
         else:
