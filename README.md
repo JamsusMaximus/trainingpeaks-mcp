@@ -4,7 +4,9 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@JamsusMaximus/TrainingPeaks-MCP/badge" alt="TrainingPeaks MCP server" />
 </a>
 
-Connect TrainingPeaks to Claude and other AI assistants via the Model Context Protocol (MCP). Query your workouts, analyze training load, compare power data, and track fitness trends through natural conversation.
+Connect TrainingPeaks (Training Peaks) to Claude and other AI assistants via the Model Context Protocol (MCP). Query your workouts, analyze training load, compare power data, and track fitness trends through natural conversation.
+
+**No API approval required.** The Training Peaks API is approval-gated, but this server uses secure cookie authentication that any TrainingPeaks user can set up in minutes. Your credentials are stored in your system keyring, never transmitted anywhere except to TrainingPeaks.
 
 ## What You Can Do
 
