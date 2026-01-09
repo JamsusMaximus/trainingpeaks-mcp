@@ -10,7 +10,7 @@ Connect TrainingPeaks to Claude and other AI assistants via the Model Context Pr
 
 ## What You Can Do
 
-![Example conversation with Claude using TrainingPeaks MCP](screenshot.png)
+![Example conversation with Claude using TrainingPeaks MCP](docs/images/screenshot.png)
 
 Ask your AI assistant questions like:
 - "Compare my FTP progression this year vs last year"
