@@ -159,6 +159,8 @@ Get PRs set during a specific workout.
 
 ## Security
 
+**TL;DR: Your cookie is encrypted on disk, never shown to Claude, and only ever sent to TrainingPeaks. The server is read-only and has no network ports.**
+
 This server is designed with defense-in-depth. Your TrainingPeaks session cookie is sensitive - it grants access to your training data - so we treat it accordingly.
 
 ### Cookie Storage
