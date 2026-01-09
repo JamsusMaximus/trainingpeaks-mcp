@@ -22,6 +22,7 @@ from tp_mcp.tools import (
     tp_get_workout,
     tp_get_workout_prs,
     tp_get_workouts,
+    tp_refresh_auth,
 )
 
 # Configure logging to stderr (stdout is used for MCP protocol)
@@ -155,6 +156,22 @@ TOOLS = [
             "required": [],
         },
     ),
+    Tool(
+        name="tp_refresh_auth",
+        description="Refresh auth by extracting cookie from user's browser. Use when other tools return auth errors.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "browser": {
+                    "type": "string",
+                    "enum": ["auto", "chrome", "firefox", "safari", "edge"],
+                    "description": "Browser to extract from. Use 'auto' to try all.",
+                    "default": "auto",
+                },
+            },
+            "required": [],
+        },
+    ),
 ]
 
 
@@ -207,6 +224,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 days=arguments.get("days", 90),
                 start_date=arguments.get("start_date"),
                 end_date=arguments.get("end_date"),
+            )
+
+        elif name == "tp_refresh_auth":
+            result = await tp_refresh_auth(
+                browser=arguments.get("browser", "auto"),
             )
 
         else:

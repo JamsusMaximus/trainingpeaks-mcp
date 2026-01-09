@@ -17,6 +17,8 @@ MVP - Complete & Production Ready
 - [x] AUTH-03 - CLI auth command
 - [x] AUTH-04 - Encrypted file fallback
 - [x] AUTH-05 - Dual storage (keyring + encrypted file) for Claude Desktop compatibility
+- [x] AUTH-06 - Browser cookie extraction (--from-browser flag)
+- [x] AUTH-07 - Don't auto-clear cookie on 401 (prevents data loss on transient errors)
 
 ### API Client (MVP)
 - [x] API-01 - HTTP client wrapper
@@ -30,6 +32,7 @@ MVP - Complete & Production Ready
 - [x] TOOL-05 - tp_get_peaks (sport-specific PRs, default 3650 days for all-time)
 - [x] TOOL-06 - tp_get_workout_prs
 - [x] TOOL-07 - tp_get_fitness (CTL/ATL/TSB with historical date range support)
+- [x] TOOL-08 - tp_refresh_auth (auto-extract cookie from browser)
 
 ### CLI
 - [x] CLI-01 - tp-mcp config command (outputs Claude Desktop config snippet)

@@ -159,11 +159,68 @@ Get PRs set during a specific workout.
 
 ## Security
 
-- Cookie stored in system keyring (not plaintext)
-- Encrypted file fallback for headless environments
-- No cookie values in logs or error messages
-- stdio transport only (no network exposure)
-- Read-only access (no workout modifications)
+This server is designed with defense-in-depth. Your TrainingPeaks session cookie is sensitive - it grants access to your training data - so we treat it accordingly.
+
+### Cookie Storage
+
+| Platform | Primary Storage | Fallback |
+|----------|----------------|----------|
+| macOS | System Keychain | Encrypted file |
+| Windows | Windows Credential Manager | Encrypted file |
+| Linux | Secret Service (GNOME/KDE) | Encrypted file |
+
+Your cookie is **never** stored in plaintext. The encrypted file fallback uses Fernet symmetric encryption with a machine-specific key.
+
+### Cookie Never Leaks to AI
+
+The AI assistant (Claude) **never sees your cookie value**. Multiple layers ensure this:
+
+1. **Return value sanitization**: Tool results are scrubbed for any keys containing `cookie`, `token`, `auth`, `credential`, `password`, or `secret` before being sent to Claude
+2. **Masked repr()**: The `BrowserCookieResult` class overrides `__repr__` to show `cookie=<present>` instead of the actual value
+3. **Sanitized exceptions**: Error messages use only exception type names, never full messages that could contain data
+4. **No logging**: Cookie values are never written to any log
+
+### Domain Hardcoding (Cannot Be Changed)
+
+The browser cookie extraction **only** accesses `.trainingpeaks.com`:
+
+```python
+# From src/tp_mcp/auth/browser.py - HARDCODED, not a parameter
+cj = func(domain_name=".trainingpeaks.com")
+```
+
+Claude cannot modify this via tool parameters. The only parameter is `browser` (chrome/firefox/etc), not the domain. To change the domain would require modifying the source code.
+
+### Read-Only Access
+
+This server provides **read-only** access to TrainingPeaks:
+- ✅ Query workouts, fitness metrics, personal records
+- ❌ Cannot create, modify, or delete workouts
+- ❌ Cannot change account settings
+- ❌ Cannot access billing or payment info
+
+### No Network Exposure
+
+The MCP server uses **stdio transport only** - it communicates with Claude Desktop via stdin/stdout, not over the network. There is no HTTP server, no open ports, no remote access.
+
+### What This Server Cannot Do
+
+| Action | Possible? |
+|--------|-----------|
+| Read your workouts | ✅ Yes |
+| Read your fitness metrics | ✅ Yes |
+| Modify any TrainingPeaks data | ❌ No |
+| Access other websites | ❌ No (domain hardcoded) |
+| Send your cookie anywhere except TrainingPeaks | ❌ No |
+| Expose your cookie to Claude | ❌ No (sanitized) |
+| Open network ports | ❌ No (stdio only) |
+
+### Open Source
+
+This server is fully open source. You can audit every line of code before running it. Key security files:
+- [`src/tp_mcp/auth/browser.py`](src/tp_mcp/auth/browser.py) - Cookie extraction with hardcoded domain
+- [`src/tp_mcp/tools/refresh_auth.py`](src/tp_mcp/tools/refresh_auth.py) - Result sanitization
+- [`tests/test_tools/test_refresh_auth_security.py`](tests/test_tools/test_refresh_auth_security.py) - Security tests
 
 ## Cookie Expiration
 

@@ -1,16 +1,33 @@
-"""Browser cookie extraction for TrainingPeaks authentication."""
+"""Browser cookie extraction for TrainingPeaks authentication.
 
-from dataclasses import dataclass
+SECURITY NOTES:
+- Domain is HARDCODED to .trainingpeaks.com - cannot be changed via parameters
+- Cookie name is HARDCODED to Production_tpAuth - cannot be changed via parameters
+- Cookie values must NEVER be included in error messages or logs
+- Only return cookie value in BrowserCookieResult.cookie field, never in message
+"""
+
+from dataclasses import dataclass, field
 
 
 @dataclass
 class BrowserCookieResult:
-    """Result of browser cookie extraction."""
+    """Result of browser cookie extraction.
+
+    SECURITY: Cookie value is stored in `cookie` field only.
+    The `message` field must NEVER contain cookie values.
+    The __repr__ is overridden to prevent accidental cookie exposure in logs.
+    """
 
     success: bool
-    cookie: str | None = None
+    cookie: str | None = field(default=None, repr=False)  # repr=False prevents logging
     message: str = ""
     browser: str | None = None
+
+    def __repr__(self) -> str:
+        """Safe repr that never exposes cookie value."""
+        cookie_status = "present" if self.cookie else "None"
+        return f"BrowserCookieResult(success={self.success}, cookie=<{cookie_status}>, message={self.message!r}, browser={self.browser!r})"
 
 
 SUPPORTED_BROWSERS = ["chrome", "firefox", "safari", "edge", "chromium", "brave", "opera"]
@@ -68,7 +85,10 @@ def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
                 message=f"Permission denied reading {name} cookies. Close {name} and try again.",
             )
         except Exception as e:
-            return BrowserCookieResult(success=False, message=f"Error reading {name}: {e}")
+            # SECURITY: Sanitize error message - use only exception type, not full message
+            # which could theoretically contain cookie data in edge cases
+            error_type = type(e).__name__
+            return BrowserCookieResult(success=False, message=f"Error reading {name}: {error_type}")
 
     # Try specific browser or all browsers
     if browser:
