@@ -58,7 +58,8 @@ async def tp_get_fitness(
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
 
-        endpoint = f"/fitness/v1/athletes/{athlete_id}/reporting/performancedata/{start_date}/{end_date}"
+        base = f"/fitness/v1/athletes/{athlete_id}/reporting/performancedata"
+        endpoint = f"{base}/{start_date}/{end_date}"
         body = {
             "atlConstant": atl_constant,
             "atlStart": 0,

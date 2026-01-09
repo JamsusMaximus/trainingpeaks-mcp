@@ -11,13 +11,10 @@ from tp_mcp.auth.encrypted import (
     get_credential_encrypted,
     store_credential_encrypted,
 )
-from tp_mcp.auth.keyring import (
-    CredentialResult,
-    clear_credential as clear_credential_keyring,
-    get_credential as get_credential_keyring,
-    is_keyring_available,
-    store_credential as store_credential_keyring,
-)
+from tp_mcp.auth.keyring import CredentialResult, is_keyring_available
+from tp_mcp.auth.keyring import clear_credential as clear_credential_keyring
+from tp_mcp.auth.keyring import get_credential as get_credential_keyring
+from tp_mcp.auth.keyring import store_credential as store_credential_keyring
 
 ENV_VAR_NAME = "TP_AUTH_COOKIE"
 

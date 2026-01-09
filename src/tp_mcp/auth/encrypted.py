@@ -5,6 +5,7 @@ This is a fallback for environments where system keyring is not available
 """
 
 import base64
+import contextlib
 import hashlib
 import os
 import platform
@@ -79,10 +80,7 @@ def _derive_key(password: str | None = None) -> bytes:
     machine_id = _get_machine_id()
     salt = b"trainingpeaks-mcp-v1"
 
-    if password:
-        key_material = machine_id + password.encode("utf-8")
-    else:
-        key_material = machine_id
+    key_material = machine_id + password.encode("utf-8") if password else machine_id
 
     # Use SHA-256 to derive a fixed-size key
     # In production, consider using PBKDF2 or Argon2 for password-based derivation
@@ -93,19 +91,16 @@ def _ensure_secure_directory() -> None:
     """Ensure the config directory exists with secure permissions."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Set directory permissions to 700 (owner only)
-    try:
+    # Set directory permissions to 700 (owner only). Windows may not support chmod.
+    with contextlib.suppress(OSError):
         os.chmod(CONFIG_DIR, stat.S_IRWXU)
-    except OSError:
-        pass  # Windows may not support chmod
 
 
 def _set_file_permissions(path: Path) -> None:
     """Set secure file permissions (600 - owner read/write only)."""
-    try:
+    # Windows may not support chmod
+    with contextlib.suppress(OSError):
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-    except OSError:
-        pass  # Windows may not support chmod
 
 
 class EncryptedCredentialStore:
@@ -181,7 +176,7 @@ class EncryptedCredentialStore:
         except Exception as e:
             return CredentialResult(
                 success=False,
-                message=f"Decryption error: {e}. The credential file may be corrupted or from another machine.",
+                message=f"Decryption error: {e}. File may be corrupted.",
             )
 
     def clear(self) -> CredentialResult:

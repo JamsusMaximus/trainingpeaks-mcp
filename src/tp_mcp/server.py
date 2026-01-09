@@ -58,7 +58,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workouts",
-        description="List workouts in date range. Query ONLY the specific days needed (e.g., 2026-01-07 to 2026-01-08 for 2 days). Max 90 days.",
+        description="List workouts in date range. Query only days needed. Max 90 days.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -82,7 +82,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workout",
-        description="Get single workout details by ID. Use after tp_get_workouts to drill into one workout.",
+        description="Get workout details by ID. Use after tp_get_workouts.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -96,7 +96,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workout_prs",
-        description="Get PRs from one workout. Use after tp_get_workouts to see records set in that session.",
+        description="Get PRs set during a specific workout.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -110,7 +110,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_peaks",
-        description="Get top performances by type. For comparing PRs across time, not single workouts.",
+        description="Get top performances by type. For comparing PRs over time.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -121,7 +121,7 @@ TOOLS = [
                 },
                 "pr_type": {
                     "type": "string",
-                    "description": "Bike: power1min, power5min, power20min. Run: speed5K, speed10K, speedHalfMarathon",
+                    "description": "Bike: power1min/5min/20min. Run: speed5K/10K/Half",
                 },
                 "days": {
                     "type": "integer",
@@ -134,7 +134,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_fitness",
-        description="Get fitness/fatigue trend (CTL/ATL/TSB). Returns daily values - use 14-30 days for recent trend, 90 for full picture.",
+        description="Get fitness/fatigue trend (CTL/ATL/TSB). Default 90 days.",
         inputSchema={
             "type": "object",
             "properties": {

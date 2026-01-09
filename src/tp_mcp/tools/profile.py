@@ -43,9 +43,13 @@ async def tp_get_profile() -> dict[str, Any]:
             is_premium = user_data.get("settings", {}).get("account", {}).get("isPremium", False)
             account_type = "premium" if is_premium else "basic"
 
+            first = user_data.get("firstName", "")
+            last = user_data.get("lastName", "")
+            name = user_data.get("fullName") or f"{first} {last}".strip()
+
             return {
                 "athlete_id": athlete_id,
-                "name": user_data.get("fullName") or f"{user_data.get('firstName', '')} {user_data.get('lastName', '')}".strip(),
+                "name": name,
                 "email": user_data.get("email"),
                 "account_type": account_type,
             }

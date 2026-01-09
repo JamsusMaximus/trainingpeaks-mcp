@@ -67,7 +67,7 @@ async def tp_get_workouts(
         return {
             "isError": True,
             "error_code": "VALIDATION_ERROR",
-            "message": f"Date range too large. Maximum {max_days} days. Use multiple smaller queries.",
+            "message": f"Date range too large. Max {max_days} days. Use smaller queries.",
         }
 
     async with TPClient() as client:

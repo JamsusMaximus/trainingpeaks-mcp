@@ -25,9 +25,7 @@ def is_keyring_available() -> bool:
         backend = keyring.get_keyring()
         # Check if it's a "fail" backend (no real keyring available)
         backend_name = type(backend).__name__.lower()
-        if "fail" in backend_name or "null" in backend_name:
-            return False
-        return True
+        return not ("fail" in backend_name or "null" in backend_name)
     except (NoKeyringError, KeyringError):
         return False
 
