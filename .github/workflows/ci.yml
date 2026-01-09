@@ -30,7 +30,7 @@ jobs:
         run: pytest tests/ -v
 
       - name: Type check
-        run: mypy src/ --ignore-missing-imports
+        run: mypy src/
 
       - name: Lint
         run: ruff check src/
