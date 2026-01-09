@@ -55,33 +55,25 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-#### Step 2: Get Your TrainingPeaks Cookie
+#### Step 2: Authenticate
 
-TrainingPeaks doesn't have a public API, so we use session cookie authentication.
+**Option A: Auto-extract from browser (easiest)**
 
-1. **Log into TrainingPeaks** at [trainingpeaks.com](https://www.trainingpeaks.com)
-
-2. **Open browser DevTools**
-   - Mac: `Cmd + Option + I`
-   - Windows/Linux: `F12`
-
-3. **Navigate to cookies**
-   - Chrome/Edge: **Application** tab → **Cookies** → `https://www.trainingpeaks.com`
-   - Firefox: **Storage** tab → **Cookies** → `https://www.trainingpeaks.com`
-   - Safari: **Storage** tab → **Cookies** (enable DevTools in Preferences → Advanced first)
-
-4. **Find and copy `Production_tpAuth`**
-   - Look for a cookie named `Production_tpAuth`
-   - Double-click the **Value** column to select it
-   - Copy (`Cmd+C` / `Ctrl+C`)
-
-#### Step 3: Store Your Cookie
+If you're logged into TrainingPeaks in your browser:
 
 ```bash
-tp-mcp auth
+pip install tp-mcp[browser]  # One-time: install browser support
+tp-mcp auth --from-browser chrome  # Or: firefox, safari, edge, auto
 ```
 
-Paste your cookie when prompted. It will be validated and stored securely in your system keyring.
+> **macOS note:** You may see security prompts for Keychain or Full Disk Access. This is normal - browser cookies are encrypted and require permission to read.
+
+**Option B: Manual cookie entry**
+
+1. Log into [app.trainingpeaks.com](https://app.trainingpeaks.com)
+2. Open DevTools (`F12`) → **Application** tab → **Cookies**
+3. Find `Production_tpAuth` and copy its value
+4. Run `tp-mcp auth` and paste when prompted
 
 **Other auth commands:**
 ```bash

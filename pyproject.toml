@@ -39,6 +39,9 @@ Repository = "https://github.com/JamsusMaximus/trainingpeaks-mcp"
 Issues = "https://github.com/JamsusMaximus/trainingpeaks-mcp/issues"
 
 [project.optional-dependencies]
+browser = [
+    "browser-cookie3>=0.19.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
