@@ -1,5 +1,7 @@
 """HTTP client wrapper for TrainingPeaks API."""
 
+import asyncio
+import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -10,6 +12,7 @@ from tp_mcp.auth import clear_credential, get_credential
 
 TP_API_BASE = "https://tpapi.trainingpeaks.com"
 DEFAULT_TIMEOUT = 30.0
+MIN_REQUEST_INTERVAL = 0.15  # 150ms between requests to avoid rate limiting
 
 
 class APIError(Exception):
@@ -80,6 +83,7 @@ class TPClient:
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
         self._athlete_id: int | None = None
+        self._last_request_time: float = 0.0
 
     async def __aenter__(self) -> "TPClient":
         """Enter async context."""
@@ -94,6 +98,13 @@ class TPClient:
         """Ensure the HTTP client is initialized."""
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
+
+    async def _throttle(self) -> None:
+        """Enforce minimum interval between requests to avoid rate limiting."""
+        elapsed = time.monotonic() - self._last_request_time
+        if elapsed < MIN_REQUEST_INTERVAL:
+            await asyncio.sleep(MIN_REQUEST_INTERVAL - elapsed)
+        self._last_request_time = time.monotonic()
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -135,6 +146,7 @@ class TPClient:
             APIResponse with data or error.
         """
         await self._ensure_client()
+        await self._throttle()
         assert self._client is not None
 
         # Get credential
