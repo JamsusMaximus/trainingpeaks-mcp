@@ -37,8 +37,7 @@ class WorkoutSummary(BaseModel):
     id: int = Field(alias="workoutId")
     workout_date: date_type = Field(alias="workoutDay")
     title: str | None = None
-    workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
-    sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
+    workout_type_id: int | None = Field(default=None, alias="workoutTypeValueId")
     duration_planned: int | float | None = Field(default=None, alias="totalTimePlanned")
     duration_actual: int | float | None = Field(default=None, alias="totalTime")
     tss_planned: float | None = Field(default=None, alias="tssPlanned")
@@ -47,6 +46,28 @@ class WorkoutSummary(BaseModel):
     distance_actual: float | None = Field(default=None, alias="distance")
     completed: bool | None = Field(default=None)
     description: str | None = None
+
+    @property
+    def sport(self) -> str:
+        """Get sport name from type ID."""
+        # Reverse map common IDs (Partial map)
+        # 2=Run, 1=Bike, 3=Run(Run?), 4=Bike? 
+        # Actually based on my investigation:
+        # 3 = Run
+        # 7 = Rest Day
+        # 9 = Strength
+        # 13 = Walk
+        
+        type_map = {
+            3: "Run",
+            4: "Bike", # Guess
+            7: "DayOff",
+            9: "Strength",
+            13: "Walk",
+            11: "Mtn Bike",
+            6: "Swim",
+        }
+        return type_map.get(self.workout_type_id, "Other")
 
     @property
     def date(self) -> date_type:

@@ -1,6 +1,7 @@
 """HTTP client wrapper for TrainingPeaks API."""
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -15,6 +16,8 @@ DEFAULT_TIMEOUT = 30.0
 MIN_REQUEST_INTERVAL = 0.15  # 150ms between requests to avoid rate limiting
 TOKEN_ENDPOINT = "/users/v3/token"
 TOKEN_REFRESH_BUFFER = 60  # Refresh token 60s before expiry
+
+logger = logging.getLogger("tp-mcp.client")
 
 
 class APIError(Exception):
@@ -292,6 +295,10 @@ class TPClient:
         headers = self._get_headers()
 
         try:
+            logger.debug(f"Request: {method} {url}")
+            if json:
+                logger.debug(f"Payload: {json}")
+            
             response = await self._client.request(
                 method=method,
                 url=url,
@@ -332,9 +339,13 @@ class TPClient:
         Returns:
             APIResponse with data or error.
         """
+        logger.debug(f"Response: {response.status_code}")
+        
         if response.status_code == 200:
             try:
                 data = response.json()
+                # Log data summary or full data if small
+                logger.debug(f"Response Data: {data}")
                 return APIResponse(success=True, data=data)
             except Exception:
                 return APIResponse(success=True, data=None)
@@ -342,6 +353,7 @@ class TPClient:
         if response.status_code == 201:
             try:
                 data = response.json()
+                logger.debug(f"Response Data: {data}")
                 return APIResponse(success=True, data=data)
             except Exception:
                 return APIResponse(success=True, data=None)
@@ -375,11 +387,18 @@ class TPClient:
                 message="Rate limited. Please wait before making more requests.",
             )
 
+        # Try to parse error details from response
+        try:
+            error_data = response.json()
+        except Exception:
+            error_data = None
+
         # Generic error
         return APIResponse(
             success=False,
             error_code=ErrorCode.API_ERROR,
             message=f"API error: {response.status_code}",
+            data=error_data,
         )
 
     async def get(

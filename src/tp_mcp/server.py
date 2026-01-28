@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import sys
 from typing import Any
 
@@ -26,11 +27,19 @@ from tp_mcp.tools import (
     tp_refresh_auth,
 )
 
-# Configure logging to stderr (stdout is used for MCP protocol)
+# Configure logging to stderr (stdout is used for MCP protocol) and file
+log_level = os.environ.get("TP_MCP_LOG_LEVEL", "DEBUG").upper()
+
+# Create handlers
+handlers = [logging.StreamHandler(sys.stderr)]
+# Use absolute path to ensure log file is found in project root
+log_path = os.path.join("/home/bkohler/code/trainingpeaks-mcp-dev", "tp_mcp.log")
+handlers.append(logging.FileHandler(log_path))
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stderr,
+    handlers=handlers,
 )
 logger = logging.getLogger("tp-mcp")
 
@@ -69,7 +78,7 @@ TOOLS = [
                 },
                 "structure_json": {
                     "type": "string",
-                    "description": "Optional JSON array for structure. E.g. [{'type': 'WarmUp', 'duration_seconds': 300, 'target_min': 150, 'target_max': 200, 'target_type': 'power'}]",
+                    "description": "JSON for structure. For simple steps: [{'type': 'WarmUp', 'duration_seconds': 600, 'target_min': 140, 'target_max': 150, 'target_type': 'hr'}]. For distance steps: [{'type': 'Interval', 'distance_meters': 400}]. For repeats: [{'type': 'Repetition', 'iterations': 5, 'steps': [{'type': 'Interval', ...}, {'type': 'Rest', ...}]}]",
                 },
             },
             "required": ["date", "sport", "title", "duration_minutes"],

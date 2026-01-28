@@ -3,19 +3,23 @@
 from datetime import date, datetime
 from typing import Any, Literal
 import json
+import logging
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
 
+logger = logging.getLogger("tp-mcp.tools.workouts")
+
 SPORT_TYPE_MAP = {
-    "Run": 2,
-    "Bike": 1,
-    "Swim": 3,
-    "Strength": 4,
-    "DayOff": 7,
-    "CrossTrain": 0,
-    "Other": 0,
-    "Mountain Bike": 1,
-    "Walk": 2,
+    # Name: (FamilyId, TypeId)
+    "Run": (2, 3),
+    "Bike": (1, 4),  # 4 is Road Bike usually, 1 is Bike
+    "Swim": (3, 6),
+    "Strength": (4, 9),
+    "DayOff": (7, 7),
+    "CrossTrain": (0, 0),
+    "Other": (0, 0),
+    "Mountain Bike": (1, 11),
+    "Walk": (2, 13),
 }
 
 INTENSITY_CLASS_MAP = {
@@ -30,13 +34,14 @@ INTENSITY_CLASS_MAP = {
 }
 
 TARGET_TYPE_MAP = {
-    "power": "power",
-    "hr": "heartRate",
-    "heartrate": "heartRate",
+    "power": "percentOfThresholdPower",
+    "hr": "percentOfThresholdHr",
+    "heartrate": "percentOfThresholdHr",
     "pace": "speed",
     "speed": "speed",
     "cadence": "cadence",
     "rpe": "rpe",
+    "open": "rpe",
 }
 
 
@@ -280,8 +285,8 @@ async def tp_create_workout(
             "message": f"Invalid date format: {e}. Use YYYY-MM-DD.",
         }
 
-    # Map sport to ID
-    sport_id = SPORT_TYPE_MAP.get(sport, 0)  # Default to Other (0)
+    # Map sport to IDs
+    family_id, type_id = SPORT_TYPE_MAP.get(sport, (0, 0))
 
     async with TPClient() as client:
         athlete_id = await _get_athlete_id(client)
@@ -296,8 +301,8 @@ async def tp_create_workout(
         payload = {
             "athleteId": athlete_id,
             "workoutDay": workout_date,
-            "workoutTypeFamilyId": sport_id,
-            "workoutTypeValueId": 0,
+            "workoutTypeFamilyId": family_id,
+            "workoutTypeValueId": type_id,
             "title": title or f"{sport} Workout",
             "description": description or "",
             "totalTimePlanned": (duration_minutes or 0) / 60.0,  # TP expects Hours
@@ -306,27 +311,44 @@ async def tp_create_workout(
         # Add structure if provided (Beta)
         if structure_json:
             try:
+                logger.debug(f"Parsing structure_json: {structure_json}")
                 segments = json.loads(structure_json)
                 tp_structure = []
-                primary_metric = "power"  # Default
+                primary_metric = "rpe"  # Default to RPE as it is safest
+                primary_length_metric = "duration" # Default
                 
                 def build_step(seg: dict[str, Any]) -> dict[str, Any]:
-                    nonlocal primary_metric
+                    nonlocal primary_metric, primary_length_metric
                     step_type = seg.get("type", "Interval")
                     intensity_class = INTENSITY_CLASS_MAP.get(step_type, "active")
-                    duration = seg.get("duration_seconds", seg.get("duration", 0))
+                    
+                    # Determine Length (Duration or Distance)
+                    distance_m = seg.get("distance_meters", seg.get("distance", None))
+                    duration_s = seg.get("duration_seconds", seg.get("duration", None))
+                    
+                    length_val = 0
+                    length_unit = "second"
+                    
+                    if distance_m is not None:
+                        length_val = distance_m
+                        length_unit = "meter"
+                        primary_length_metric = "distance"
+                    elif duration_s is not None:
+                        length_val = duration_s
+                        length_unit = "second"
+                    
                     target_min = seg.get("target_min")
                     target_max = seg.get("target_max")
                     
                     # Target type handling
-                    target_type = seg.get("target_type", "power").lower()
+                    target_type = seg.get("target_type", "rpe").lower()
                     if target_type in TARGET_TYPE_MAP:
                          primary_metric = TARGET_TYPE_MAP[target_type]
 
                     step = {
                         "name": seg.get("name", step_type),
                         "intensityClass": intensity_class,
-                        "length": {"value": duration, "unit": "second"},
+                        "length": {"value": length_val, "unit": length_unit},
                         "openDuration": False
                     }
 
@@ -361,8 +383,9 @@ async def tp_create_workout(
                     payload["structure"] = {
                         "structure": tp_structure,
                         "primaryIntensityMetric": primary_metric, 
-                        "primaryLengthMetric": "duration"
+                        "primaryLengthMetric": primary_length_metric
                     }
+                    logger.debug(f"Generated TP structure: {json.dumps(payload['structure'], indent=2)}")
 
             except json.JSONDecodeError:
                 return {
@@ -371,6 +394,7 @@ async def tp_create_workout(
                     "message": "Invalid structure_json format.",
                 }
 
+        logger.debug(f"Sending create workout payload: {json.dumps(payload, indent=2)}")
         response = await client.post(f"/fitness/v6/athletes/{athlete_id}/workouts", json=payload)
 
         if response.is_error:
