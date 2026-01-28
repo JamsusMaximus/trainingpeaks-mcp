@@ -1,9 +1,43 @@
 """TOOL-03 & TOOL-04: tp_get_workouts and tp_get_workout."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
+import json
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+
+SPORT_TYPE_MAP = {
+    "Run": 2,
+    "Bike": 1,
+    "Swim": 3,
+    "Strength": 4,
+    "DayOff": 7,
+    "CrossTrain": 0,
+    "Other": 0,
+    "Mountain Bike": 1,
+    "Walk": 2,
+}
+
+INTENSITY_CLASS_MAP = {
+    "WarmUp": "warmUp",
+    "MainSet": "active",
+    "CoolDown": "coolDown",
+    "Interval": "active",
+    "Recovery": "recovery",
+    "Rest": "rest",
+    "Work": "active",
+    "Active": "active",
+}
+
+TARGET_TYPE_MAP = {
+    "power": "power",
+    "hr": "heartRate",
+    "heartrate": "heartRate",
+    "pace": "speed",
+    "speed": "speed",
+    "cadence": "cadence",
+    "rpe": "rpe",
+}
 
 
 async def _get_athlete_id(client: TPClient) -> int | None:
@@ -203,6 +237,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "calories": workout.calories,
                 },
                 "completed": workout.completed,
+                "structure": workout.structure,
             }
 
         except Exception as e:
@@ -211,3 +246,144 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "error_code": "API_ERROR",
                 "message": f"Failed to parse workout: {e}",
             }
+
+
+async def tp_create_workout(
+    date_str: str,
+    sport: str,
+    title: str | None = None,
+    duration_minutes: int | None = None,
+    description: str | None = None,
+    structure_json: str | None = None,
+) -> dict[str, Any]:
+    """Create a new workout.
+
+    Args:
+        date_str: Date in ISO format (YYYY-MM-DD).
+        sport: Sport type (Bike, Run, Swim, Strength, DayOff, Other).
+        title: Workout title.
+        duration_minutes: Planned duration in minutes.
+        description: Workout description.
+        structure_json: Optional JSON string defining structured intervals.
+                        Format: [{"type": "WarmUp", "duration_seconds": 600, "target_min": 150, "target_max": 170}, ...]
+
+    Returns:
+        Dict with created workout details.
+    """
+    # Validate date
+    try:
+        workout_date = date.fromisoformat(date_str).isoformat()
+    except ValueError as e:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid date format: {e}. Use YYYY-MM-DD.",
+        }
+
+    # Map sport to ID
+    sport_id = SPORT_TYPE_MAP.get(sport, 0)  # Default to Other (0)
+
+    async with TPClient() as client:
+        athlete_id = await _get_athlete_id(client)
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        # Build Payload
+        payload = {
+            "athleteId": athlete_id,
+            "workoutDay": workout_date,
+            "workoutTypeFamilyId": sport_id,
+            "workoutTypeValueId": 0,
+            "title": title or f"{sport} Workout",
+            "description": description or "",
+            "totalTimePlanned": (duration_minutes or 0) / 60.0,  # TP expects Hours
+        }
+
+        # Add structure if provided (Beta)
+        if structure_json:
+            try:
+                segments = json.loads(structure_json)
+                tp_structure = []
+                primary_metric = "power"  # Default
+                
+                def build_step(seg: dict[str, Any]) -> dict[str, Any]:
+                    nonlocal primary_metric
+                    step_type = seg.get("type", "Interval")
+                    intensity_class = INTENSITY_CLASS_MAP.get(step_type, "active")
+                    duration = seg.get("duration_seconds", seg.get("duration", 0))
+                    target_min = seg.get("target_min")
+                    target_max = seg.get("target_max")
+                    
+                    # Target type handling
+                    target_type = seg.get("target_type", "power").lower()
+                    if target_type in TARGET_TYPE_MAP:
+                         primary_metric = TARGET_TYPE_MAP[target_type]
+
+                    step = {
+                        "name": seg.get("name", step_type),
+                        "intensityClass": intensity_class,
+                        "length": {"value": duration, "unit": "second"},
+                        "openDuration": False
+                    }
+
+                    if target_min is not None or target_max is not None:
+                        targets = {}
+                        if target_min is not None:
+                            targets["minValue"] = target_min
+                        if target_max is not None:
+                            targets["maxValue"] = target_max
+                        step["targets"] = [targets]
+
+                    return step
+
+                for seg in segments:
+                    if seg.get("type") == "Repetition":
+                        iterations = seg.get("iterations", 1)
+                        inner_steps = [build_step(s) for s in seg.get("steps", [])]
+                        tp_structure.append({
+                            "type": "repetition",
+                            "length": {"value": iterations, "unit": "repetition"},
+                            "steps": inner_steps
+                        })
+                    else:
+                        # Wrap single step in a 'step' type grouping for consistency with TP
+                        tp_structure.append({
+                            "type": "step",
+                            "length": {"value": 1, "unit": "repetition"},
+                            "steps": [build_step(seg)]
+                        })
+
+                if tp_structure:
+                    payload["structure"] = {
+                        "structure": tp_structure,
+                        "primaryIntensityMetric": primary_metric, 
+                        "primaryLengthMetric": "duration"
+                    }
+
+            except json.JSONDecodeError:
+                return {
+                    "isError": True,
+                    "error_code": "VALIDATION_ERROR",
+                    "message": "Invalid structure_json format.",
+                }
+
+        response = await client.post(f"/fitness/v6/athletes/{athlete_id}/workouts", json=payload)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+                "details": response.data if response.data else None
+            }
+
+        return {
+            "success": True,
+            "workout_id": response.data.get("workoutId"),
+            "title": response.data.get("title"),
+            "date": response.data.get("workoutDay"),
+        }

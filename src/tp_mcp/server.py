@@ -16,6 +16,7 @@ from mcp.types import (
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.tools import (
     tp_auth_status,
+    tp_create_workout,
     tp_get_fitness,
     tp_get_peaks,
     tp_get_profile,
@@ -39,6 +40,41 @@ server = Server("trainingpeaks-mcp")
 
 # Tool descriptions: concise but guide LLM to efficient usage
 TOOLS = [
+    Tool(
+        name="tp_create_workout",
+        description="Create a new workout (basic or structured).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD",
+                },
+                "sport": {
+                    "type": "string",
+                    "enum": ["Bike", "Run", "Swim", "Strength", "DayOff", "Other"],
+                    "description": "Sport type",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Workout title",
+                },
+                "duration_minutes": {
+                    "type": "integer",
+                    "description": "Planned duration in minutes",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Workout description (optional)",
+                },
+                "structure_json": {
+                    "type": "string",
+                    "description": "Optional JSON array for structure. E.g. [{'type': 'WarmUp', 'duration_seconds': 300, 'target_min': 150, 'target_max': 200, 'target_type': 'power'}]",
+                },
+            },
+            "required": ["date", "sport", "title", "duration_minutes"],
+        },
+    ),
     Tool(
         name="tp_auth_status",
         description="Check auth status. Use only when other tools return auth errors.",
@@ -191,6 +227,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
         if name == "tp_auth_status":
             result = await tp_auth_status()
+
+        elif name == "tp_create_workout":
+            result = await tp_create_workout(
+                date_str=arguments["date"],
+                sport=arguments["sport"],
+                title=arguments["title"],
+                duration_minutes=arguments["duration_minutes"],
+                description=arguments.get("description"),
+                structure_json=arguments.get("structure_json"),
+            )
 
         elif name == "tp_get_profile":
             result = await tp_get_profile()
