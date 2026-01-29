@@ -129,8 +129,10 @@ def mock_api_responses():
             "tssPlanned": 80,
             "tssActual": 75,
             "powerAverage": 200,
-            "normalizedPower": 220,
+            "normalizedPowerActual": 220,
             "heartRateAverage": 145,
+            "if": 0.85,
+            "ifPlanned": 0.90,
             "completed": True,
         },
         "peaks": [
