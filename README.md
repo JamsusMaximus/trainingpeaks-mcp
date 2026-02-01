@@ -28,6 +28,7 @@ Ask your AI assistant questions like:
 | `tp_get_peaks` | Compare power PRs (5sec to 90min) and running PRs (400m to marathon) |
 | `tp_get_fitness` | Track CTL, ATL, and TSB (fitness, fatigue, form) |
 | `tp_get_workout_prs` | See personal records set in a specific session |
+| `tp_refresh_auth` | Re-authenticate if your session expires (extracts fresh cookie from browser) |
 
 ---
 
@@ -159,7 +160,7 @@ Get PRs set during a specific workout.
 
 ## Security
 
-**TL;DR: Your cookie is encrypted on disk, never shown to Claude, and only ever sent to TrainingPeaks. The server is read-only and has no network ports.**
+**TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server is read-only and has no network ports.**
 
 This server is designed with defense-in-depth. Your TrainingPeaks session cookie is sensitive - it grants access to your training data - so we treat it accordingly.
 
@@ -213,7 +214,7 @@ The MCP server uses **stdio transport only** - it communicates with Claude Deskt
 | Read your fitness metrics | ✅ Yes |
 | Modify any TrainingPeaks data | ❌ No |
 | Access other websites | ❌ No (domain hardcoded) |
-| Send your cookie anywhere except TrainingPeaks | ❌ No |
+| Send your cookie/token anywhere except TrainingPeaks | ❌ No |
 | Expose your cookie to Claude | ❌ No (sanitized) |
 | Open network ports | ❌ No (stdio only) |
 
@@ -224,9 +225,17 @@ This server is fully open source. You can audit every line of code before runnin
 - [`src/tp_mcp/tools/refresh_auth.py`](src/tp_mcp/tools/refresh_auth.py) - Result sanitization
 - [`tests/test_tools/test_refresh_auth_security.py`](tests/test_tools/test_refresh_auth_security.py) - Security tests
 
-## Cookie Expiration
+## Authentication Flow
 
-Training Peaks session cookies last several weeks. When expired, tools will return auth errors. Run `tp-mcp auth` again with a fresh cookie from your browser.
+The server uses a two-step authentication process:
+
+1. **Cookie → OAuth Token**: Your stored cookie is exchanged for a short-lived OAuth access token (expires in 1 hour)
+2. **Automatic Refresh**: Tokens are cached in memory and automatically refreshed before expiry
+
+This means:
+- You only need to authenticate once with `tp-mcp auth`
+- API calls use proper Bearer token auth, not cookies
+- If your session cookie expires (typically after several weeks), use `tp_refresh_auth` in Claude or run `tp-mcp auth` again
 
 ## Development
 
