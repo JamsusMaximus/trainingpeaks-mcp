@@ -251,7 +251,7 @@ class TPClient:
                 return result
 
             # Cache the token
-            token_data = result.data["token"]  # type: ignore[index]
+            token_data = result.data["token"]  # type: ignore[index, call-overload]
             self._token_cache.access_token = token_data["access_token"]
             expires_in = token_data.get("expires_in", 3600)
             self._token_cache.expires_at = time.time() + expires_in
@@ -473,7 +473,7 @@ class TPClient:
             return result
 
         result["details"]["token_exchange"] = "success"
-        token_data = exchange_result.data["token"]  # type: ignore[index]
+        token_data = exchange_result.data["token"]  # type: ignore[index, call-overload]
         result["details"]["expires_in"] = token_data.get("expires_in")
 
         # Step 3: Verify token structure
