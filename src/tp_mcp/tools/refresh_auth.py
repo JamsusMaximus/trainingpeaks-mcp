@@ -60,7 +60,10 @@ async def tp_refresh_auth(browser: str = "auto") -> dict[str, Any]:
             "success": False,
             "message": "Could not extract cookie from browser",
             "details": result.message,
-            "action_needed": "Make sure you're logged into TrainingPeaks at app.trainingpeaks.com in your browser, then try again. Or run 'tp-mcp auth' manually.",
+            "action_needed": (
+                "Make sure you're logged into TrainingPeaks at app.trainingpeaks.com "
+                "in your browser, then try again. Or run 'tp-mcp auth' manually."
+            ),
         }
 
     # Validate the extracted cookie

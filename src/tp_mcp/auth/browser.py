@@ -27,7 +27,10 @@ class BrowserCookieResult:
     def __repr__(self) -> str:
         """Safe repr that never exposes cookie value."""
         cookie_status = "present" if self.cookie else "None"
-        return f"BrowserCookieResult(success={self.success}, cookie=<{cookie_status}>, message={self.message!r}, browser={self.browser!r})"
+        return (
+            f"BrowserCookieResult(success={self.success}, cookie=<{cookie_status}>, "
+            f"message={self.message!r}, browser={self.browser!r})"
+        )
 
 
 SUPPORTED_BROWSERS = ["chrome", "firefox", "safari", "edge", "chromium", "brave", "opera"]
