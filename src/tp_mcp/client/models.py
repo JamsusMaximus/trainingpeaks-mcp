@@ -122,6 +122,43 @@ class WorkoutDetail(BaseModel):
         return self.workout_date
 
 
+class AnalysisTotal(BaseModel):
+    """Single total metric from workout analysis."""
+
+    name: str
+    value: Any
+    unit: str | None = None
+
+
+class AnalysisChannel(BaseModel):
+    """Data channel with optional stats and zones."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    identifier: str | None = None
+    name: str | None = None
+    unit: str | None = None
+    min: float | None = None
+    max: float | None = None
+    average: float | None = None
+    zones: list[dict[str, Any]] | None = None
+
+
+class WorkoutAnalysis(BaseModel):
+    """Parsed workout analysis response."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    workout_id: int = Field(alias="workoutId")
+    start_timestamp: str | None = Field(default=None, alias="startTimestamp")
+    stop_timestamp: str | None = Field(default=None, alias="stopTimestamp")
+    totals: list[AnalysisTotal] = Field(default_factory=list)
+    data_elements: list[AnalysisChannel] = Field(default_factory=list, alias="dataElements")
+    data: list[dict[str, Any]] = Field(default_factory=list)
+    lap_data: list[dict[str, Any]] = Field(default_factory=list, alias="lapData")
+    lap_columns: list[dict[str, Any]] = Field(default_factory=list, alias="lapColumns")
+
+
 class PeakData(BaseModel):
     """Power or pace peak data point."""
 
@@ -147,6 +184,11 @@ class PeaksResponse(BaseModel):
 
 
 # Helper functions to parse API responses
+
+
+def parse_workout_analysis(data: dict[str, Any]) -> WorkoutAnalysis:
+    """Parse workout analysis from API response."""
+    return WorkoutAnalysis.model_validate(data)
 
 
 def parse_user_profile(data: dict[str, Any]) -> UserProfile:

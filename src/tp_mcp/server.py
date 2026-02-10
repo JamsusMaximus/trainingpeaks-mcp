@@ -15,6 +15,7 @@ from mcp.types import (
 
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.tools import (
+    tp_analyze_workout,
     tp_auth_status,
     tp_get_fitness,
     tp_get_peaks,
@@ -157,6 +158,20 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_analyze_workout",
+        description="Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file. Use after tp_get_workouts.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {
+                    "type": "string",
+                    "description": "Workout ID from tp_get_workouts",
+                },
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
         name="tp_refresh_auth",
         description="Refresh auth by extracting cookie from user's browser. Use when other tools return auth errors.",
         inputSchema={
@@ -224,6 +239,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 days=arguments.get("days", 90),
                 start_date=arguments.get("start_date"),
                 end_date=arguments.get("end_date"),
+            )
+
+        elif name == "tp_analyze_workout":
+            result = await tp_analyze_workout(
+                workout_id=arguments["workout_id"],
             )
 
         elif name == "tp_refresh_auth":
