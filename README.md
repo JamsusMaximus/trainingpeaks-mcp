@@ -25,6 +25,7 @@ Ask your AI assistant questions like:
 |------|-------------|
 | `tp_get_workouts` | Query workouts by date range (planned and completed) |
 | `tp_get_workout` | Get detailed metrics for a single workout |
+| `tp_create_workout` | Create new basic or structured workouts |
 | `tp_get_peaks` | Compare power PRs (5sec to 90min) and running PRs (400m to marathon) |
 | `tp_get_fitness` | Track CTL, ATL, and TSB (fitness, fatigue, form) |
 | `tp_get_workout_prs` | See personal records set in a specific session |
@@ -127,6 +128,19 @@ Get full details for one workout including power, HR, cadence, TSS.
 { "workout_id": "123456789" }
 ```
 
+### tp_create_workout
+Create a new basic or structured workout.
+
+```json
+{
+  "date": "2026-01-10",
+  "sport": "Bike",
+  "title": "Interval Session",
+  "duration_minutes": 60,
+  "structure_json": "[{\"type\": \"WarmUp\", \"duration_seconds\": 600, \"target_min\": 150, \"target_max\": 200}, ...]"
+}
+```
+
 ### tp_get_peaks
 Get ranked personal records. Bike: power metrics. Run: pace/speed metrics.
 
@@ -160,7 +174,7 @@ Get PRs set during a specific workout.
 
 ## Security
 
-**TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server is read-only and has no network ports.**
+**TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server is secure and has no network ports.**
 
 This server is designed with defense-in-depth. Your TrainingPeaks session cookie is sensitive - it grants access to your training data - so we treat it accordingly.
 
@@ -194,11 +208,11 @@ cj = func(domain_name=".trainingpeaks.com")
 
 Claude cannot modify this via tool parameters. The only parameter is `browser` (chrome/firefox/etc), not the domain. To change the domain would require modifying the source code.
 
-### Read-Only Access
+### Write Permissions
 
-This server provides **read-only** access to TrainingPeaks:
+This server provides access to TrainingPeaks:
 - ✅ Query workouts, fitness metrics, personal records
-- ❌ Cannot create, modify, or delete workouts
+- ✅ Create new workouts (basic or structured)
 - ❌ Cannot change account settings
 - ❌ Cannot access billing or payment info
 
@@ -212,7 +226,8 @@ The MCP server uses **stdio transport only** - it communicates with Claude Deskt
 |--------|-----------|
 | Read your workouts | ✅ Yes |
 | Read your fitness metrics | ✅ Yes |
-| Modify any TrainingPeaks data | ❌ No |
+| Create new workouts | ✅ Yes |
+| Modify/Delete existing data | ❌ No |
 | Access other websites | ❌ No (domain hardcoded) |
 | Send your cookie/token anywhere except TrainingPeaks | ❌ No |
 | Expose your cookie to Claude | ❌ No (sanitized) |
