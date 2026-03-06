@@ -1,11 +1,12 @@
 """Tests for workout tools."""
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from tp_mcp.client.http import APIResponse, ErrorCode
-from tp_mcp.tools.workouts import tp_get_workout, tp_get_workouts
+from tp_mcp.tools.workouts import tp_create_workout, tp_get_workout, tp_get_workouts
 
 
 class TestTpGetWorkouts:
@@ -159,3 +160,127 @@ class TestTpGetWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "NOT_FOUND"
+
+
+class TestTpCreateWorkout:
+    """Tests for tp_create_workout tool."""
+
+    @pytest.mark.asyncio
+    async def test_create_workout_basic_success(self, mock_api_responses):
+        """Test successful basic workout creation."""
+        user_response = APIResponse(
+            success=True, data={"user": {"personId": 123}}
+        )
+        create_response = APIResponse(
+            success=True,
+            data={
+                "workoutId": 5001,
+                "title": "New Run",
+                "workoutDay": "2025-01-10T00:00:00",
+            },
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=user_response)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_instance.athlete_id = None
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2025-01-10",
+                sport="Run",
+                title="New Run",
+                duration_minutes=60,
+            )
+
+        assert result["success"] is True
+        assert result["workout_id"] == 5001
+        assert result["title"] == "New Run"
+
+    @pytest.mark.asyncio
+    async def test_create_workout_structured_success(self, mock_api_responses):
+        """Test successful structured workout creation."""
+        user_response = APIResponse(
+            success=True, data={"user": {"personId": 123}}
+        )
+        create_response = APIResponse(
+            success=True,
+            data={
+                "workoutId": 5002,
+                "title": "Interval Ride",
+                "workoutDay": "2025-01-11T00:00:00",
+            },
+        )
+
+        structure = [
+            {"type": "WarmUp", "duration_seconds": 600, "target_min": 150, "target_max": 200},
+            {"type": "Interval", "duration_seconds": 300, "target_min": 300, "target_max": 350},
+        ]
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=user_response)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_instance.athlete_id = None
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2025-01-11",
+                sport="Bike",
+                title="Interval Ride",
+                duration_minutes=60,
+                structure_json=json.dumps(structure)
+            )
+
+        assert result["success"] is True
+        assert result["workout_id"] == 5002
+
+        # Verify payload sent to client (via mock_instance.post call)
+        args, kwargs = mock_instance.post.call_args
+        payload = kwargs.get("json", args[1] if len(args) > 1 else {})
+        assert "structure" in payload
+        assert payload["workoutTypeFamilyId"] == 1  # Bike
+        assert payload["workoutTypeValueId"] == 4  # Bike
+
+    @pytest.mark.asyncio
+    async def test_create_workout_invalid_date(self):
+        """Test with invalid date format."""
+        result = await tp_create_workout(
+            date_str="invalid-date",
+            sport="Run",
+            duration_minutes=30
+        )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_create_workout_api_error(self):
+        """Test API error during creation."""
+        user_response = APIResponse(
+            success=True, data={"user": {"personId": 123}}
+        )
+        error_response = APIResponse(
+            success=False,
+            error_code=ErrorCode.API_ERROR,
+            message="API Error",
+            data={"error": "Failed"}
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=user_response)
+            mock_instance.post = AsyncMock(return_value=error_response)
+            mock_instance.athlete_id = None
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2025-01-10",
+                sport="Run",
+                duration_minutes=60
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "API_ERROR"
+        assert result["message"] == "API Error"

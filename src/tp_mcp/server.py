@@ -27,19 +27,13 @@ from tp_mcp.tools import (
     tp_refresh_auth,
 )
 
-# Configure logging to stderr (stdout is used for MCP protocol) and file
-log_level = os.environ.get("TP_MCP_LOG_LEVEL", "DEBUG").upper()
-
-# Create handlers
-handlers = [logging.StreamHandler(sys.stderr)]
-# Use absolute path to ensure log file is found in project root
-log_path = os.path.join("/home/bkohler/code/trainingpeaks-mcp-dev", "tp_mcp.log")
-handlers.append(logging.FileHandler(log_path))
+# Configure logging to stderr (stdout is used for MCP protocol)
+log_level = os.environ.get("TP_MCP_LOG_LEVEL", "INFO").upper()
 
 logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=handlers,
+    stream=sys.stderr,
 )
 logger = logging.getLogger("tp-mcp")
 
