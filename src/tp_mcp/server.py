@@ -72,7 +72,13 @@ TOOLS = [
                 },
                 "structure_json": {
                     "type": "string",
-                    "description": "JSON for structure. For simple steps: [{'type': 'WarmUp', 'duration_seconds': 600, 'target_min': 140, 'target_max': 150, 'target_type': 'hr'}]. For distance steps: [{'type': 'Interval', 'distance_meters': 400}]. For repeats: [{'type': 'Repetition', 'iterations': 5, 'steps': [{'type': 'Interval', ...}, {'type': 'Rest', ...}]}]",
+                    "description": (
+                        "JSON for structure. For simple steps: [{'type': 'WarmUp', 'duration_seconds': 600, "
+                        "'target_min': 140, 'target_max': 150, 'target_type': 'hr'}]. "
+                        "For distance steps: [{'type': 'Interval', 'distance_meters': 400}]. "
+                        "For repeats: [{'type': 'Repetition', 'iterations': 5, "
+                        "'steps': [{'type': 'Interval', ...}, {'type': 'Rest', ...}]}]"
+                    ),
                 },
             },
             "required": ["date", "sport", "title", "duration_minutes"],

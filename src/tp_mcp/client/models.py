@@ -51,13 +51,13 @@ class WorkoutSummary(BaseModel):
     def sport(self) -> str:
         """Get sport name from type ID."""
         # Reverse map common IDs (Partial map)
-        # 2=Run, 1=Bike, 3=Run(Run?), 4=Bike? 
+        # 2=Run, 1=Bike, 3=Run(Run?), 4=Bike?
         # Actually based on my investigation:
         # 3 = Run
         # 7 = Rest Day
         # 9 = Strength
         # 13 = Walk
-        
+
         type_map = {
             3: "Run",
             4: "Bike", # Guess

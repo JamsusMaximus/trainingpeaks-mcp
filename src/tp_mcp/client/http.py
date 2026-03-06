@@ -298,7 +298,7 @@ class TPClient:
             logger.debug(f"Request: {method} {url}")
             if json:
                 logger.debug(f"Payload: {json}")
-            
+
             response = await self._client.request(
                 method=method,
                 url=url,
@@ -340,7 +340,7 @@ class TPClient:
             APIResponse with data or error.
         """
         logger.debug(f"Response: {response.status_code}")
-        
+
         if response.status_code == 200:
             try:
                 data = response.json()

@@ -1,9 +1,9 @@
 """TOOL-03 & TOOL-04: tp_get_workouts and tp_get_workout."""
 
-from datetime import date, datetime
-from typing import Any, Literal
 import json
 import logging
+from datetime import date
+from typing import Any, Literal
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
 
@@ -316,19 +316,19 @@ async def tp_create_workout(
                 tp_structure = []
                 primary_metric = "rpe"  # Default to RPE as it is safest
                 primary_length_metric = "duration" # Default
-                
+
                 def build_step(seg: dict[str, Any]) -> dict[str, Any]:
                     nonlocal primary_metric, primary_length_metric
                     step_type = seg.get("type", "Interval")
                     intensity_class = INTENSITY_CLASS_MAP.get(step_type, "active")
-                    
+
                     # Determine Length (Duration or Distance)
-                    distance_m = seg.get("distance_meters", seg.get("distance", None))
-                    duration_s = seg.get("duration_seconds", seg.get("duration", None))
-                    
+                    distance_m = seg.get("distance_meters", seg.get("distance"))
+                    duration_s = seg.get("duration_seconds", seg.get("duration"))
+
                     length_val = 0
                     length_unit = "second"
-                    
+
                     if distance_m is not None:
                         length_val = distance_m
                         length_unit = "meter"
@@ -336,10 +336,10 @@ async def tp_create_workout(
                     elif duration_s is not None:
                         length_val = duration_s
                         length_unit = "second"
-                    
+
                     target_min = seg.get("target_min")
                     target_max = seg.get("target_max")
-                    
+
                     # Target type handling
                     target_type = seg.get("target_type", "rpe").lower()
                     if target_type in TARGET_TYPE_MAP:
@@ -382,7 +382,7 @@ async def tp_create_workout(
                 if tp_structure:
                     payload["structure"] = {
                         "structure": tp_structure,
-                        "primaryIntensityMetric": primary_metric, 
+                        "primaryIntensityMetric": primary_metric,
                         "primaryLengthMetric": primary_length_metric
                     }
                     logger.debug(f"Generated TP structure: {json.dumps(payload['structure'], indent=2)}")
