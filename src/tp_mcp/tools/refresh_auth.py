@@ -90,10 +90,12 @@ async def tp_refresh_auth(browser: str = "auto") -> dict[str, Any]:
         }
 
     # SECURITY: Sanitize before returning to ensure no cookie leakage
-    return _sanitize_result({
-        "success": True,
-        "message": f"Authentication refreshed from {result.browser}",
-        "athlete_id": validation.athlete_id,
-        "email": validation.email,
-        "action_needed": None,
-    })
+    return _sanitize_result(
+        {
+            "success": True,
+            "message": f"Authentication refreshed from {result.browser}",
+            "athlete_id": validation.athlete_id,
+            "email": validation.email,
+            "action_needed": None,
+        }
+    )

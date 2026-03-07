@@ -55,20 +55,22 @@ def mock_credential():
     """Mock credential retrieval."""
     from tp_mcp.auth.keyring import CredentialResult
 
-    with patch("tp_mcp.auth.storage.get_credential_keyring") as mock_keyring:
-        with patch("tp_mcp.auth.storage.get_credential_encrypted") as mock_encrypted:
-            with patch("tp_mcp.auth.storage.is_keyring_available") as mock_available:
-                mock_available.return_value = True
-                mock_keyring.return_value = CredentialResult(
-                    success=True,
-                    message="Credential retrieved",
-                    cookie=TEST_COOKIE,
-                )
-                mock_encrypted.return_value = CredentialResult(
-                    success=False,
-                    message="No credential file",
-                )
-                yield
+    with (
+        patch("tp_mcp.auth.storage.get_credential_keyring") as mock_keyring,
+        patch("tp_mcp.auth.storage.get_credential_encrypted") as mock_encrypted,
+        patch("tp_mcp.auth.storage.is_keyring_available") as mock_available,
+    ):
+        mock_available.return_value = True
+        mock_keyring.return_value = CredentialResult(
+            success=True,
+            message="Credential retrieved",
+            cookie=TEST_COOKIE,
+        )
+        mock_encrypted.return_value = CredentialResult(
+            success=False,
+            message="No credential file",
+        )
+        yield
 
 
 @pytest.fixture

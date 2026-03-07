@@ -1,6 +1,5 @@
 """TOOL-03 & TOOL-04: tp_get_workouts and tp_get_workout."""
 
-import json
 import logging
 from datetime import date
 from typing import Any, Literal
@@ -20,28 +19,6 @@ SPORT_TYPE_MAP = {
     "Other": (0, 0),
     "Mountain Bike": (1, 11),
     "Walk": (2, 13),
-}
-
-INTENSITY_CLASS_MAP = {
-    "WarmUp": "warmUp",
-    "MainSet": "active",
-    "CoolDown": "coolDown",
-    "Interval": "active",
-    "Recovery": "recovery",
-    "Rest": "rest",
-    "Work": "active",
-    "Active": "active",
-}
-
-TARGET_TYPE_MAP = {
-    "power": "percentOfThresholdPower",
-    "hr": "percentOfThresholdHr",
-    "heartrate": "percentOfThresholdHr",
-    "pace": "speed",
-    "speed": "speed",
-    "cadence": "cadence",
-    "rpe": "rpe",
-    "open": "rpe",
 }
 
 
@@ -259,7 +236,6 @@ async def tp_create_workout(
     title: str | None = None,
     duration_minutes: int | None = None,
     description: str | None = None,
-    structure_json: str | None = None,
 ) -> dict[str, Any]:
     """Create a new workout.
 
@@ -269,8 +245,6 @@ async def tp_create_workout(
         title: Workout title.
         duration_minutes: Planned duration in minutes.
         description: Workout description.
-        structure_json: Optional JSON string defining structured intervals.
-                        Format: [{"type": "WarmUp", "duration_seconds": 600, "target_min": 150, "target_max": 170}, ...]
 
     Returns:
         Dict with created workout details.
@@ -308,101 +282,19 @@ async def tp_create_workout(
             "totalTimePlanned": (duration_minutes or 0) / 60.0,  # TP expects Hours
         }
 
-        # Add structure if provided (Beta)
-        if structure_json:
-            try:
-                logger.debug(f"Parsing structure_json: {structure_json}")
-                segments = json.loads(structure_json)
-                tp_structure = []
-                primary_metric = "rpe"  # Default to RPE as it is safest
-                primary_length_metric = "duration" # Default
-
-                def build_step(seg: dict[str, Any]) -> dict[str, Any]:
-                    nonlocal primary_metric, primary_length_metric
-                    step_type = seg.get("type", "Interval")
-                    intensity_class = INTENSITY_CLASS_MAP.get(step_type, "active")
-
-                    # Determine Length (Duration or Distance)
-                    distance_m = seg.get("distance_meters", seg.get("distance"))
-                    duration_s = seg.get("duration_seconds", seg.get("duration"))
-
-                    length_val = 0
-                    length_unit = "second"
-
-                    if distance_m is not None:
-                        length_val = distance_m
-                        length_unit = "meter"
-                        primary_length_metric = "distance"
-                    elif duration_s is not None:
-                        length_val = duration_s
-                        length_unit = "second"
-
-                    target_min = seg.get("target_min")
-                    target_max = seg.get("target_max")
-
-                    # Target type handling
-                    target_type = seg.get("target_type", "rpe").lower()
-                    if target_type in TARGET_TYPE_MAP:
-                         primary_metric = TARGET_TYPE_MAP[target_type]
-
-                    step = {
-                        "name": seg.get("name", step_type),
-                        "intensityClass": intensity_class,
-                        "length": {"value": length_val, "unit": length_unit},
-                        "openDuration": False
-                    }
-
-                    if target_min is not None or target_max is not None:
-                        targets = {}
-                        if target_min is not None:
-                            targets["minValue"] = target_min
-                        if target_max is not None:
-                            targets["maxValue"] = target_max
-                        step["targets"] = [targets]
-
-                    return step
-
-                for seg in segments:
-                    if seg.get("type") == "Repetition":
-                        iterations = seg.get("iterations", 1)
-                        inner_steps = [build_step(s) for s in seg.get("steps", [])]
-                        tp_structure.append({
-                            "type": "repetition",
-                            "length": {"value": iterations, "unit": "repetition"},
-                            "steps": inner_steps
-                        })
-                    else:
-                        # Wrap single step in a 'step' type grouping for consistency with TP
-                        tp_structure.append({
-                            "type": "step",
-                            "length": {"value": 1, "unit": "repetition"},
-                            "steps": [build_step(seg)]
-                        })
-
-                if tp_structure:
-                    payload["structure"] = {
-                        "structure": tp_structure,
-                        "primaryIntensityMetric": primary_metric,
-                        "primaryLengthMetric": primary_length_metric
-                    }
-                    logger.debug(f"Generated TP structure: {json.dumps(payload['structure'], indent=2)}")
-
-            except json.JSONDecodeError:
-                return {
-                    "isError": True,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": "Invalid structure_json format.",
-                }
-
-        logger.debug(f"Sending create workout payload: {json.dumps(payload, indent=2)}")
+        logger.debug(f"Sending create workout payload: {payload}")
         response = await client.post(f"/fitness/v6/athletes/{athlete_id}/workouts", json=payload)
 
         if response.is_error:
+            error_details = None
+            if isinstance(response.data, dict) and "Message" in response.data:
+                error_details = {"Message": response.data["Message"]}
+
             return {
                 "isError": True,
                 "error_code": response.error_code.value if response.error_code else "API_ERROR",
                 "message": response.message,
-                "details": response.data if response.data else None
+                "details": error_details,
             }
 
         return {

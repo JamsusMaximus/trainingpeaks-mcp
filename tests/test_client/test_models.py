@@ -3,8 +3,6 @@
 from datetime import date
 
 from tp_mcp.client.models import (
-    UserProfile,
-    WorkoutDetail,
     WorkoutSummary,
     parse_user_profile,
     parse_workout_detail,

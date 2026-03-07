@@ -3,8 +3,6 @@
 These tests verify that cookie values can NEVER leak into tool output.
 """
 
-import pytest
-
 from tp_mcp.tools.refresh_auth import _sanitize_result
 
 

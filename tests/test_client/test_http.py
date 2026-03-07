@@ -36,6 +36,7 @@ class TestThrottling:
 
         # Wait longer than the interval
         import asyncio
+
         await asyncio.sleep(MIN_REQUEST_INTERVAL + 0.05)
 
         # Next call should not block

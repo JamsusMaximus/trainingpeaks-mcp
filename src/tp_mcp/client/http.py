@@ -311,9 +311,7 @@ class TPClient:
             if response.status_code == 401 and _retry_on_401:
                 # Token might have expired mid-request, clear and retry once
                 self._token_cache.clear()
-                return await self._request(
-                    method, endpoint, json=json, params=params, _retry_on_401=False
-                )
+                return await self._request(method, endpoint, json=json, params=params, _retry_on_401=False)
 
             return self._handle_response(response)
 
@@ -345,7 +343,10 @@ class TPClient:
             try:
                 data = response.json()
                 # Log data summary or full data if small
-                logger.debug(f"Response Data: {data}")
+                log_data = data
+                if isinstance(data, dict):
+                    log_data = {k: "***REDACTED***" if "token" in k.lower() else v for k, v in data.items()}
+                logger.debug(f"Response Data: {log_data}")
                 return APIResponse(success=True, data=data)
             except Exception:
                 return APIResponse(success=True, data=None)
@@ -353,7 +354,10 @@ class TPClient:
         if response.status_code == 201:
             try:
                 data = response.json()
-                logger.debug(f"Response Data: {data}")
+                log_data = data
+                if isinstance(data, dict):
+                    log_data = {k: "***REDACTED***" if "token" in k.lower() else v for k, v in data.items()}
+                logger.debug(f"Response Data: {log_data}")
                 return APIResponse(success=True, data=data)
             except Exception:
                 return APIResponse(success=True, data=None)
@@ -401,9 +405,7 @@ class TPClient:
             data=error_data,
         )
 
-    async def get(
-        self, endpoint: str, params: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def get(self, endpoint: str, params: dict[str, Any] | None = None) -> APIResponse:
         """Make a GET request.
 
         Args:
@@ -415,9 +417,7 @@ class TPClient:
         """
         return await self._request("GET", endpoint, params=params)
 
-    async def post(
-        self, endpoint: str, json: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def post(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
         """Make a POST request.
 
         Args:
@@ -429,9 +429,7 @@ class TPClient:
         """
         return await self._request("POST", endpoint, json=json)
 
-    async def put(
-        self, endpoint: str, json: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def put(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
         """Make a PUT request.
 
         Args:
@@ -486,9 +484,7 @@ class TPClient:
         if not exchange_result.success:
             result["step"] = "token_exchange"
             result["error"] = exchange_result.message
-            result["error_code"] = (
-                exchange_result.error_code.value if exchange_result.error_code else None
-            )
+            result["error_code"] = exchange_result.error_code.value if exchange_result.error_code else None
             return result
 
         result["details"]["token_exchange"] = "success"
@@ -508,9 +504,7 @@ class TPClient:
         if not test_response.success:
             result["step"] = "api_test"
             result["error"] = test_response.message
-            result["error_code"] = (
-                test_response.error_code.value if test_response.error_code else None
-            )
+            result["error_code"] = test_response.error_code.value if test_response.error_code else None
             return result
 
         result["details"]["api_test"] = "success"

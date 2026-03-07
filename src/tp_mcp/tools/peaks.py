@@ -26,14 +26,41 @@ async def _get_athlete_id(client: TPClient) -> int | None:
 
 # Valid PR types by sport
 BIKE_PR_TYPES = [
-    "power5sec", "power1min", "power5min", "power10min", "power20min", "power60min", "power90min",
-    "hR5sec", "hR1min", "hR5min", "hR10min", "hR20min", "hR60min", "hR90min",
+    "power5sec",
+    "power1min",
+    "power5min",
+    "power10min",
+    "power20min",
+    "power60min",
+    "power90min",
+    "hR5sec",
+    "hR1min",
+    "hR5min",
+    "hR10min",
+    "hR20min",
+    "hR60min",
+    "hR90min",
 ]
 
 RUN_PR_TYPES = [
-    "hR5sec", "hR1min", "hR5min", "hR10min", "hR20min", "hR60min", "hR90min",
-    "speed400Meter", "speed800Meter", "speed1K", "speed1Mi", "speed5K",
-    "speed5Mi", "speed10K", "speed10Mi", "speedHalfMarathon", "speedMarathon", "speed50K",
+    "hR5sec",
+    "hR1min",
+    "hR5min",
+    "hR10min",
+    "hR20min",
+    "hR60min",
+    "hR90min",
+    "speed400Meter",
+    "speed800Meter",
+    "speed1K",
+    "speed1Mi",
+    "speed5K",
+    "speed5Mi",
+    "speed10K",
+    "speed10Mi",
+    "speedHalfMarathon",
+    "speedMarathon",
+    "speed50K",
 ]
 
 
@@ -100,13 +127,15 @@ async def tp_get_peaks(
         try:
             records = []
             for record in response.data:
-                records.append({
-                    "rank": record.get("rank"),
-                    "value": record.get("value"),
-                    "workout_id": record.get("workoutId"),
-                    "workout_title": record.get("workoutTitle"),
-                    "date": record.get("workoutDate", "").split("T")[0],
-                })
+                records.append(
+                    {
+                        "rank": record.get("rank"),
+                        "value": record.get("value"),
+                        "workout_id": record.get("workoutId"),
+                        "workout_title": record.get("workoutTitle"),
+                        "date": record.get("workoutDate", "").split("T")[0],
+                    }
+                )
 
             return {
                 "sport": sport,

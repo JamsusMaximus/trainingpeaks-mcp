@@ -46,9 +46,7 @@ def store_credential(cookie: str) -> CredentialResult:
         keyring.set_password(SERVICE_NAME, USERNAME, cookie.strip())
         return CredentialResult(success=True, message="Credential stored in keyring")
     except NoKeyringError:
-        return CredentialResult(
-            success=False, message="No keyring backend available. Use encrypted file storage."
-        )
+        return CredentialResult(success=False, message="No keyring backend available. Use encrypted file storage.")
     except KeyringError as e:
         return CredentialResult(success=False, message=f"Keyring error: {e}")
 
@@ -65,9 +63,7 @@ def get_credential() -> CredentialResult:
             return CredentialResult(success=True, message="Credential retrieved", cookie=cookie)
         return CredentialResult(success=False, message="No credential stored")
     except NoKeyringError:
-        return CredentialResult(
-            success=False, message="No keyring backend available. Use encrypted file storage."
-        )
+        return CredentialResult(success=False, message="No keyring backend available. Use encrypted file storage.")
     except KeyringError as e:
         return CredentialResult(success=False, message=f"Keyring error: {e}")
 

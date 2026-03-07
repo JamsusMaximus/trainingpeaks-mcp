@@ -46,9 +46,7 @@ async def validate_auth(cookie: str) -> AuthResult:
         AuthResult with validation status and user info if valid.
     """
     if not cookie or not cookie.strip():
-        return AuthResult(
-            status=AuthStatus.NO_CREDENTIAL, message="No credential provided"
-        )
+        return AuthResult(status=AuthStatus.NO_CREDENTIAL, message="No credential provided")
 
     headers = {
         "Cookie": f"Production_tpAuth={cookie.strip()}",
@@ -57,9 +55,7 @@ async def validate_auth(cookie: str) -> AuthResult:
 
     try:
         async with httpx.AsyncClient(timeout=VALIDATION_TIMEOUT) as client:
-            response = await client.get(
-                f"{TP_API_BASE}{VALIDATION_ENDPOINT}", headers=headers
-            )
+            response = await client.get(f"{TP_API_BASE}{VALIDATION_ENDPOINT}", headers=headers)
 
             if response.status_code == 200:
                 data = response.json()

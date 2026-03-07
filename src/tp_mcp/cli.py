@@ -179,16 +179,12 @@ def cmd_config() -> int:
     if not tp_mcp_path:
         # Fall back to sys.executable directory
         from pathlib import Path
+
         tp_mcp_path = str(Path(sys.executable).parent / "tp-mcp")
 
-    config = {
-        "trainingpeaks": {
-            "command": tp_mcp_path,
-            "args": ["serve"]
-        }
-    }
+    config = {"trainingpeaks": {"command": tp_mcp_path, "args": ["serve"]}}
 
-    print("Add this to your Claude Desktop config inside \"mcpServers\": {}")
+    print('Add this to your Claude Desktop config inside "mcpServers": {}')
     print()
     print(json.dumps(config, indent=2))
     return 0

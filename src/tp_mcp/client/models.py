@@ -60,7 +60,7 @@ class WorkoutSummary(BaseModel):
 
         type_map = {
             3: "Run",
-            4: "Bike", # Guess
+            4: "Bike",  # Guess
             7: "DayOff",
             9: "Strength",
             13: "Walk",

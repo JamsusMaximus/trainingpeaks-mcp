@@ -115,13 +115,15 @@ async def tp_get_fitness(
             # Format daily data
             daily_data = []
             for entry in data:
-                daily_data.append({
-                    "date": entry.get("workoutDay", "").split("T")[0],
-                    "tss": entry.get("tssActual", 0),
-                    "ctl": round(entry.get("ctl", 0), 1),
-                    "atl": round(entry.get("atl", 0), 1),
-                    "tsb": round(entry.get("tsb", 0), 1),
-                })
+                daily_data.append(
+                    {
+                        "date": entry.get("workoutDay", "").split("T")[0],
+                        "tss": entry.get("tssActual", 0),
+                        "ctl": round(entry.get("ctl", 0), 1),
+                        "atl": round(entry.get("atl", 0), 1),
+                        "tsb": round(entry.get("tsb", 0), 1),
+                    }
+                )
 
             # Get current (latest) values
             current = None

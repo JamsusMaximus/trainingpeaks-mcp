@@ -14,15 +14,31 @@ class TestTpGetPeaks:
     @pytest.mark.asyncio
     async def test_get_peaks_success(self):
         """Test successful peaks retrieval."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         peaks_response = APIResponse(
             success=True,
             data=[
-                {"rank": 1, "value": 350, "workoutId": 1001, "workoutTitle": "Best Ride", "workoutDate": "2025-01-05T00:00:00"},
-                {"rank": 2, "value": 340, "workoutId": 1002, "workoutTitle": "Good Ride", "workoutDate": "2025-01-03T00:00:00"},
-                {"rank": 3, "value": 330, "workoutId": 1003, "workoutTitle": "OK Ride", "workoutDate": "2025-01-01T00:00:00"},
+                {
+                    "rank": 1,
+                    "value": 350,
+                    "workoutId": 1001,
+                    "workoutTitle": "Best Ride",
+                    "workoutDate": "2025-01-05T00:00:00",
+                },
+                {
+                    "rank": 2,
+                    "value": 340,
+                    "workoutId": 1002,
+                    "workoutTitle": "Good Ride",
+                    "workoutDate": "2025-01-03T00:00:00",
+                },
+                {
+                    "rank": 3,
+                    "value": 330,
+                    "workoutId": 1003,
+                    "workoutTitle": "OK Ride",
+                    "workoutDate": "2025-01-01T00:00:00",
+                },
             ],
         )
 
@@ -53,13 +69,17 @@ class TestTpGetPeaks:
     @pytest.mark.asyncio
     async def test_get_peaks_run_sport(self):
         """Test peaks for running sport."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         peaks_response = APIResponse(
             success=True,
             data=[
-                {"rank": 1, "value": 4.5, "workoutId": 2001, "workoutTitle": "Fast 5K", "workoutDate": "2025-01-05T00:00:00"},
+                {
+                    "rank": 1,
+                    "value": 4.5,
+                    "workoutId": 2001,
+                    "workoutTitle": "Fast 5K",
+                    "workoutDate": "2025-01-05T00:00:00",
+                },
             ],
         )
 
@@ -78,9 +98,7 @@ class TestTpGetPeaks:
     @pytest.mark.asyncio
     async def test_get_peaks_empty_data(self):
         """Test peaks with no records."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         peaks_response = APIResponse(success=True, data=[])
 
         with patch("tp_mcp.tools.peaks.TPClient") as mock_client:
@@ -101,9 +119,7 @@ class TestTpGetWorkoutPrs:
     @pytest.mark.asyncio
     async def test_get_workout_prs_success(self):
         """Test successful workout PRs retrieval."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         prs_response = APIResponse(
             success=True,
             data={
@@ -133,9 +149,7 @@ class TestTpGetWorkoutPrs:
     @pytest.mark.asyncio
     async def test_get_workout_prs_no_records(self):
         """Test workout PRs with no records."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         prs_response = APIResponse(success=True, data=None)
 
         with patch("tp_mcp.tools.peaks.TPClient") as mock_client:

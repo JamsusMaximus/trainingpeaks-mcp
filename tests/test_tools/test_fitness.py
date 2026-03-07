@@ -14,9 +14,7 @@ class TestTpGetFitness:
     @pytest.mark.asyncio
     async def test_get_fitness_success(self):
         """Test successful fitness data retrieval."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         fitness_response = APIResponse(
             success=True,
             data=[
@@ -46,9 +44,7 @@ class TestTpGetFitness:
     @pytest.mark.asyncio
     async def test_get_fitness_empty_data(self):
         """Test fitness retrieval with no data."""
-        user_response = APIResponse(
-            success=True, data={"user": {"personId": 123}}
-        )
+        user_response = APIResponse(success=True, data={"user": {"personId": 123}})
         fitness_response = APIResponse(success=True, data=[])
 
         with patch("tp_mcp.tools.fitness.TPClient") as mock_client:
