@@ -25,7 +25,7 @@ Ask your AI assistant questions like:
 |------|-------------|
 | `tp_get_workouts` | Query workouts by date range (planned and completed) |
 | `tp_get_workout` | Get detailed metrics for a single workout |
-| `tp_create_workout` | Create new basic or structured workouts |
+| `tp_create_workout` | Create new basic workouts |
 | `tp_get_peaks` | Compare power PRs (5sec to 90min) and running PRs (400m to marathon) |
 | `tp_get_fitness` | Track CTL, ATL, and TSB (fitness, fatigue, form) |
 | `tp_get_workout_prs` | See personal records set in a specific session |
@@ -129,15 +129,14 @@ Get full details for one workout including power, HR, cadence, TSS.
 ```
 
 ### tp_create_workout
-Create a new basic or structured workout.
+Create a new basic workout.
 
 ```json
 {
   "date": "2026-01-10",
   "sport": "Bike",
   "title": "Interval Session",
-  "duration_minutes": 60,
-  "structure_json": "[{\"type\": \"WarmUp\", \"duration_seconds\": 600, \"target_min\": 150, \"target_max\": 200}, ...]"
+  "duration_minutes": 60
 }
 ```
 
@@ -212,7 +211,7 @@ Claude cannot modify this via tool parameters. The only parameter is `browser` (
 
 This server provides access to TrainingPeaks:
 - ✅ Query workouts, fitness metrics, personal records
-- ✅ Create new workouts (basic or structured)
+- ✅ Create new workouts (basic)
 - ❌ Cannot change account settings
 - ❌ Cannot access billing or payment info
 

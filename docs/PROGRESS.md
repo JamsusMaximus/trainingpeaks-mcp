@@ -4,7 +4,7 @@
 MVP - Complete & Production Ready
 
 ## Last Updated
-2026-01-09
+2026-03-07
 
 ## Completed Tasks
 
@@ -50,10 +50,22 @@ MVP - Complete & Production Ready
 - [x] DOCS-03 - Example screenshot
 - [x] DOCS-04 - Advanced analytics query examples
 
-### Future (V1)
-- [ ] TOOL-08 - tp_create_workout
+### Tools (V1)
+- [x] TOOL-08 - tp_create_workout (Basic workouts only, structured workouts deferred due to API complexity)
+
+### Future
 - [ ] TOOL-09 - tp_move_workout
 - [ ] TOOL-10 - tp_get_health_metrics (sleep, resting HR, HRV, weight)
+- [ ] TOOL-11 - tp_create_workout (Add structured workout support)
+
+## Recent Changes (2026-03-07)
+
+### PR #5: Basic Workout Creation & Security Fixes
+- Added `tp_create_workout` tool for basic workouts (Date, Sport, Title, Duration, Description).
+- **Security**: Added redaction of OAuth tokens from debug logs in `http.py`.
+- **Security**: Sanitized error details returned from the API to avoid leaking internal structures.
+- **Code Quality**: Enforced strict validation and fixed formatting/linting via Pydantic and Ruff.
+- *Note on Structured Workouts*: Support for structured workouts was initially implemented but backed out due to complex, undocumented JSON structure requirements on the TrainingPeaks API (specifically around multi-step repetitions and nested blocks). This feature is deferred for further investigation.
 
 ## Recent Changes (2026-01-09)
 
