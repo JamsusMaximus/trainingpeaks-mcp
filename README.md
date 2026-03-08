@@ -23,8 +23,11 @@ Ask your AI assistant questions like:
 
 | Tool | Description |
 |------|-------------|
+| `tp_auth_status` | Check authentication status |
+| `tp_get_profile` | Get athlete profile and ID |
 | `tp_get_workouts` | Query workouts by date range (planned and completed) |
 | `tp_get_workout` | Get detailed metrics for a single workout |
+| `tp_analyze_workout` | Detailed workout analysis with time-series data, zones, and laps |
 | `tp_create_workout` | Create a planned workout (date, sport, title, duration) |
 | `tp_get_peaks` | Compare power PRs (5sec to 90min) and running PRs (400m to marathon) |
 | `tp_get_fitness` | Track CTL, ATL, and TSB (fitness, fatigue, form) |
@@ -83,7 +86,7 @@ tp-mcp auth-status  # Check if authenticated
 tp-mcp auth-clear   # Remove stored cookie
 ```
 
-#### Step 4: Add to Claude Desktop
+#### Step 3: Add to Claude Desktop
 
 Run this to get your config snippet:
 
@@ -128,6 +131,13 @@ Get full details for one workout including power, HR, cadence, TSS.
 { "workout_id": "123456789" }
 ```
 
+### tp_analyze_workout
+Get detailed workout analysis including metrics, zones, and lap data. Full time-series data is saved to a JSON file for further analysis.
+
+```json
+{ "workout_id": "123456789" }
+```
+
 ### tp_create_workout
 Create a planned workout on a given date.
 
@@ -137,6 +147,8 @@ Create a planned workout on a given date.
 
 **Sports:** `Bike`, `Run`, `Swim`, `Strength`, `DayOff`, `Other`
 
+**Optional fields:** `description` (max 2000 chars), `distance_km`, `tss_planned`
+
 ### tp_get_peaks
 Get ranked personal records. Bike: power metrics. Run: pace/speed metrics.
 
@@ -144,15 +156,21 @@ Get ranked personal records. Bike: power metrics. Run: pace/speed metrics.
 { "sport": "Bike", "pr_type": "power20min", "days": 365 }
 ```
 
-**Bike types:** `power5sec`, `power1min`, `power5min`, `power10min`, `power20min`, `power60min`, `power90min`
+**Bike types:** `power5sec`, `power1min`, `power5min`, `power10min`, `power20min`, `power60min`, `power90min`, `hR5sec`, `hR1min`, `hR5min`, `hR10min`, `hR20min`, `hR60min`, `hR90min`
 
-**Run types:** `speed400Meter`, `speed1K`, `speed5K`, `speed10K`, `speedHalfMarathon`, `speedMarathon`
+**Run types:** `speed400Meter`, `speed800Meter`, `speed1K`, `speed1Mi`, `speed5K`, `speed5Mi`, `speed10K`, `speed10Mi`, `speedHalfMarathon`, `speedMarathon`, `speed50K`, `hR5sec`, `hR1min`, `hR5min`, `hR10min`, `hR20min`, `hR60min`, `hR90min`
 
 ### tp_get_fitness
 Get training load metrics over time.
 
 ```json
 { "days": 90 }
+```
+
+Alternatively, query a specific date range:
+
+```json
+{ "start_date": "2025-01-01", "end_date": "2025-03-31" }
 ```
 
 Returns daily CTL (chronic training load / fitness), ATL (acute training load / fatigue), and TSB (training stress balance / form).
@@ -184,14 +202,14 @@ This server is designed with defense-in-depth. Your TrainingPeaks session cookie
 | Windows | Windows Credential Manager | Encrypted file |
 | Linux | Secret Service (GNOME/KDE) | Encrypted file |
 
-Your cookie is **never** stored in plaintext. The encrypted file fallback uses Fernet symmetric encryption with a machine-specific key.
+Your cookie is **never** stored in plaintext. The encrypted file fallback uses AES-256-GCM authenticated encryption with a PBKDF2-derived key (600,000 iterations) and a machine-specific salt.
 
 ### Cookie Never Leaks to AI
 
 The AI assistant (Claude) **never sees your cookie value**. Multiple layers ensure this:
 
 1. **Return value sanitization**: Tool results are scrubbed for any keys containing `cookie`, `token`, `auth`, `credential`, `password`, or `secret` before being sent to Claude
-2. **Masked repr()**: The `BrowserCookieResult` class overrides `__repr__` to show `cookie=<present>` instead of the actual value
+2. **Masked repr()**: The `BrowserCookieResult` and `CredentialResult` classes override `__repr__` to show `cookie=<present>` instead of the actual value
 3. **Sanitized exceptions**: Error messages use only exception type names, never full messages that could contain data
 4. **No logging**: Cookie values are never written to any log
 
@@ -236,6 +254,8 @@ The MCP server uses **stdio transport only** - it communicates with Claude Deskt
 
 This server is fully open source. You can audit every line of code before running it. Key security files:
 - [`src/tp_mcp/auth/browser.py`](src/tp_mcp/auth/browser.py) - Cookie extraction with hardcoded domain
+- [`src/tp_mcp/auth/encrypted.py`](src/tp_mcp/auth/encrypted.py) - AES-256-GCM credential encryption
+- [`src/tp_mcp/tools/_validation.py`](src/tp_mcp/tools/_validation.py) - Pydantic input validation
 - [`src/tp_mcp/tools/refresh_auth.py`](src/tp_mcp/tools/refresh_auth.py) - Result sanitization
 - [`tests/test_tools/test_refresh_auth_security.py`](tests/test_tools/test_refresh_auth_security.py) - Security tests
 
