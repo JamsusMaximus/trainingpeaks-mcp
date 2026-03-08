@@ -2,6 +2,11 @@
 
 This is a fallback for environments where system keyring is not available
 (headless servers, containers, etc.).
+
+Limitations:
+- Without a user password, encryption is bound to machine identity only.
+  Anyone with access to the machine and this code can derive the key.
+  For stronger protection, pass a password to EncryptedCredentialStore.
 """
 
 import base64
@@ -12,7 +17,9 @@ import platform
 import stat
 from pathlib import Path
 
+from cryptography.hazmat.primitives import hashes as crypto_hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from tp_mcp.auth.keyring import CredentialResult
 
@@ -68,8 +75,33 @@ def _get_machine_id() -> bytes:
     return "|".join(components).encode("utf-8")
 
 
+_KDF_ITERATIONS = 600_000
+
+
 def _derive_key(password: str | None = None) -> bytes:
-    """Derive an encryption key from machine ID and optional password.
+    """Derive an encryption key using PBKDF2-HMAC-SHA256.
+
+    Uses the machine ID as salt and an optional password as key material.
+
+    Args:
+        password: Optional user password for additional security.
+
+    Returns:
+        32-byte key for AES-256.
+    """
+    machine_id = _get_machine_id()
+    key_material = password.encode("utf-8") if password else b"tp-mcp-default"
+    kdf = PBKDF2HMAC(
+        algorithm=crypto_hashes.SHA256(),
+        length=32,
+        salt=machine_id,
+        iterations=_KDF_ITERATIONS,
+    )
+    return kdf.derive(key_material)
+
+
+def _derive_key_legacy(password: str | None = None) -> bytes:
+    """Legacy key derivation (SHA-256). Kept for migration only.
 
     Args:
         password: Optional user password for additional security.
@@ -79,11 +111,7 @@ def _derive_key(password: str | None = None) -> bytes:
     """
     machine_id = _get_machine_id()
     salt = b"trainingpeaks-mcp-v1"
-
-    key_material = machine_id + password.encode("utf-8") if password else machine_id
-
-    # Use SHA-256 to derive a fixed-size key
-    # In production, consider using PBKDF2 or Argon2 for password-based derivation
+    key_material = (machine_id + password.encode("utf-8")) if password else machine_id
     return hashlib.sha256(salt + key_material).digest()
 
 
@@ -116,7 +144,9 @@ class EncryptedCredentialStore:
         Args:
             password: Optional password for additional security.
         """
+        self._password = password
         self._key = _derive_key(password)
+        self._legacy_key = _derive_key_legacy(password)
 
     def store(self, cookie: str) -> CredentialResult:
         """Store the TrainingPeaks auth cookie in an encrypted file.
@@ -149,10 +179,13 @@ class EncryptedCredentialStore:
             return CredentialResult(success=True, message="Credential stored in encrypted file")
 
         except Exception as e:
-            return CredentialResult(success=False, message=f"Encryption error: {e}")
+            return CredentialResult(success=False, message=f"Encryption error ({type(e).__name__})")
 
     def get(self) -> CredentialResult:
         """Retrieve the TrainingPeaks auth cookie from the encrypted file.
+
+        Tries the current PBKDF2 key first, then falls back to the legacy
+        SHA-256 key and auto-migrates on success.
 
         Returns:
             CredentialResult with cookie if found.
@@ -160,23 +193,32 @@ class EncryptedCredentialStore:
         if not CREDENTIALS_FILE.exists():
             return CredentialResult(success=False, message="No credential file found")
 
+        encrypted_data = base64.b64decode(CREDENTIALS_FILE.read_bytes())
+        nonce = encrypted_data[:12]
+        ciphertext = encrypted_data[12:]
+
+        # Try new key first
         try:
-            encrypted_data = base64.b64decode(CREDENTIALS_FILE.read_bytes())
-
-            # Extract nonce and ciphertext
-            nonce = encrypted_data[:12]
-            ciphertext = encrypted_data[12:]
-
-            # Decrypt
             aesgcm = AESGCM(self._key)
             cookie = aesgcm.decrypt(nonce, ciphertext, None).decode("utf-8")
-
             return CredentialResult(success=True, message="Credential retrieved", cookie=cookie)
+        except Exception:
+            pass
 
-        except Exception as e:
+        # Fall back to legacy key and auto-migrate
+        try:
+            aesgcm = AESGCM(self._legacy_key)
+            cookie = aesgcm.decrypt(nonce, ciphertext, None).decode("utf-8")
+            self.store(cookie)  # Re-encrypt with new key
+            return CredentialResult(
+                success=True,
+                message="Credential retrieved and migrated to stronger encryption",
+                cookie=cookie,
+            )
+        except Exception:
             return CredentialResult(
                 success=False,
-                message=f"Decryption error: {e}. File may be corrupted.",
+                message="Decryption failed. Run 'tp-mcp auth' to re-authenticate.",
             )
 
     def clear(self) -> CredentialResult:
@@ -186,11 +228,10 @@ class EncryptedCredentialStore:
             CredentialResult with success status.
         """
         try:
-            if CREDENTIALS_FILE.exists():
-                CREDENTIALS_FILE.unlink()
+            CREDENTIALS_FILE.unlink(missing_ok=True)
             return CredentialResult(success=True, message="Credential file removed")
         except Exception as e:
-            return CredentialResult(success=False, message=f"Error removing file: {e}")
+            return CredentialResult(success=False, message=f"Error removing file ({type(e).__name__})")
 
 
 # Module-level functions for consistency with keyring interface
