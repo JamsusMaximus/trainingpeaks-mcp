@@ -95,8 +95,16 @@ class TPClient:
     Handles authentication, error handling, and response parsing.
     """
 
-    # Class-level cache: persists across instances within the MCP server process
+    # Class-level caches: persist across instances within the MCP server process
     _cached_athlete_id: int | None = None
+    _shared_token_cache: TokenCache | None = None
+
+    @classmethod
+    def _get_token_cache(cls) -> TokenCache:
+        """Get or create the shared token cache."""
+        if cls._shared_token_cache is None:
+            cls._shared_token_cache = TokenCache()
+        return cls._shared_token_cache
 
     def __init__(self, timeout: float = DEFAULT_TIMEOUT):
         """Initialize the client.
@@ -109,7 +117,7 @@ class TPClient:
         self._client: httpx.AsyncClient | None = None
         self._athlete_id: int | None = None
         self._last_request_time: float = 0.0
-        self._token_cache: TokenCache = TokenCache()
+        self._token_cache = TPClient._get_token_cache()
 
     async def __aenter__(self) -> "TPClient":
         """Enter async context."""
@@ -307,9 +315,7 @@ class TPClient:
             if response.status_code == 401 and _retry_on_401:
                 # Token might have expired mid-request, clear and retry once
                 self._token_cache.clear()
-                return await self._request(
-                    method, endpoint, json=json, params=params, _retry_on_401=False
-                )
+                return await self._request(method, endpoint, json=json, params=params, _retry_on_401=False)
 
             return self._handle_response(response)
 
@@ -385,9 +391,7 @@ class TPClient:
             message=f"API error: {response.status_code}",
         )
 
-    async def get(
-        self, endpoint: str, params: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def get(self, endpoint: str, params: dict[str, Any] | None = None) -> APIResponse:
         """Make a GET request.
 
         Args:
@@ -399,9 +403,7 @@ class TPClient:
         """
         return await self._request("GET", endpoint, params=params)
 
-    async def post(
-        self, endpoint: str, json: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def post(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
         """Make a POST request.
 
         Args:
@@ -413,9 +415,7 @@ class TPClient:
         """
         return await self._request("POST", endpoint, json=json)
 
-    async def put(
-        self, endpoint: str, json: dict[str, Any] | None = None
-    ) -> APIResponse:
+    async def put(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
         """Make a PUT request.
 
         Args:
@@ -501,9 +501,7 @@ class TPClient:
         if not exchange_result.success:
             result["step"] = "token_exchange"
             result["error"] = exchange_result.message
-            result["error_code"] = (
-                exchange_result.error_code.value if exchange_result.error_code else None
-            )
+            result["error_code"] = exchange_result.error_code.value if exchange_result.error_code else None
             return result
 
         result["details"]["token_exchange"] = "success"
@@ -523,9 +521,7 @@ class TPClient:
         if not test_response.success:
             result["step"] = "api_test"
             result["error"] = test_response.message
-            result["error_code"] = (
-                test_response.error_code.value if test_response.error_code else None
-            )
+            result["error_code"] = test_response.error_code.value if test_response.error_code else None
             return result
 
         result["details"]["api_test"] = "success"

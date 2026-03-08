@@ -1,11 +1,11 @@
 """Tests for HTTP client, including throttling and athlete ID caching."""
 
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
-from tp_mcp.client.http import APIResponse, MIN_REQUEST_INTERVAL, TPClient
+from tp_mcp.client.http import MIN_REQUEST_INTERVAL, APIResponse, TPClient
 
 
 class TestThrottling:
@@ -37,6 +37,7 @@ class TestThrottling:
 
         # Wait longer than the interval
         import asyncio
+
         await asyncio.sleep(MIN_REQUEST_INTERVAL + 0.05)
 
         # Next call should not block
@@ -74,10 +75,12 @@ class TestEnsureAthleteId:
 
     @pytest.fixture(autouse=True)
     def _clear_cache(self):
-        """Reset class-level athlete ID cache between tests."""
+        """Reset class-level caches between tests."""
         TPClient._cached_athlete_id = None
+        TPClient._shared_token_cache = None
         yield
         TPClient._cached_athlete_id = None
+        TPClient._shared_token_cache = None
 
     @pytest.mark.asyncio
     async def test_returns_cached_class_level_value(self):
@@ -95,11 +98,7 @@ class TestEnsureAthleteId:
     async def test_fetches_from_api_and_caches(self):
         """Should fetch athlete ID from API and cache at class level."""
         client = TPClient()
-        client.get = AsyncMock(
-            return_value=APIResponse(
-                success=True, data={"user": {"personId": 42}}
-            )
-        )
+        client.get = AsyncMock(return_value=APIResponse(success=True, data={"user": {"personId": 42}}))
 
         result = await client.ensure_athlete_id()
 
@@ -127,9 +126,7 @@ class TestEnsureAthleteId:
     async def test_returns_none_on_api_failure(self):
         """Should return None when API call fails (no caching)."""
         client = TPClient()
-        client.get = AsyncMock(
-            return_value=APIResponse(success=False, message="Auth failed")
-        )
+        client.get = AsyncMock(return_value=APIResponse(success=False, message="Auth failed"))
 
         result = await client.ensure_athlete_id()
 
@@ -140,11 +137,7 @@ class TestEnsureAthleteId:
     async def test_class_cache_persists_across_instances(self):
         """Class-level cache should persist across TPClient instances."""
         client1 = TPClient()
-        client1.get = AsyncMock(
-            return_value=APIResponse(
-                success=True, data={"user": {"personId": 123}}
-            )
-        )
+        client1.get = AsyncMock(return_value=APIResponse(success=True, data={"user": {"personId": 123}}))
         await client1.ensure_athlete_id()
 
         # Second instance should use cached value without API call
@@ -167,3 +160,26 @@ class TestEnsureAthleteId:
 
         assert result == 555
         client.get.assert_not_called()
+
+
+class TestSharedTokenCache:
+    """Tests for shared TokenCache across TPClient instances."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_cache(self):
+        """Reset shared token cache between tests."""
+        TPClient._shared_token_cache = None
+        yield
+        TPClient._shared_token_cache = None
+
+    def test_token_cache_shared_across_instances(self):
+        """Multiple TPClient instances should share the same TokenCache."""
+        client1 = TPClient()
+        client2 = TPClient()
+        assert client1._token_cache is client2._token_cache
+
+    def test_token_cache_lazily_created(self):
+        """Shared cache should be None until first TPClient is created."""
+        assert TPClient._shared_token_cache is None
+        TPClient()
+        assert TPClient._shared_token_cache is not None

@@ -1,6 +1,6 @@
 """Keyring-based credential storage for TrainingPeaks authentication."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import keyring
 from keyring.errors import KeyringError, NoKeyringError
@@ -15,7 +15,12 @@ class CredentialResult:
 
     success: bool
     message: str
-    cookie: str | None = None
+    cookie: str | None = field(default=None, repr=False)
+
+    def __repr__(self) -> str:
+        """Safe repr that never exposes cookie value."""
+        cookie_status = "present" if self.cookie else "None"
+        return f"CredentialResult(success={self.success}, cookie=<{cookie_status}>, message={self.message!r})"
 
 
 def is_keyring_available() -> bool:
@@ -46,9 +51,7 @@ def store_credential(cookie: str) -> CredentialResult:
         keyring.set_password(SERVICE_NAME, USERNAME, cookie.strip())
         return CredentialResult(success=True, message="Credential stored in keyring")
     except NoKeyringError:
-        return CredentialResult(
-            success=False, message="No keyring backend available. Use encrypted file storage."
-        )
+        return CredentialResult(success=False, message="No keyring backend available. Use encrypted file storage.")
     except KeyringError as e:
         return CredentialResult(success=False, message=f"Keyring error: {e}")
 
@@ -65,9 +68,7 @@ def get_credential() -> CredentialResult:
             return CredentialResult(success=True, message="Credential retrieved", cookie=cookie)
         return CredentialResult(success=False, message="No credential stored")
     except NoKeyringError:
-        return CredentialResult(
-            success=False, message="No keyring backend available. Use encrypted file storage."
-        )
+        return CredentialResult(success=False, message="No keyring backend available. Use encrypted file storage.")
     except KeyringError as e:
         return CredentialResult(success=False, message=f"Keyring error: {e}")
 

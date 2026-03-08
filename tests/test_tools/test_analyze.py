@@ -11,7 +11,7 @@ from tp_mcp.client.http import APIResponse
 from tp_mcp.client.models import WorkoutAnalysis, parse_workout_analysis
 from tp_mcp.tools.analyze import ANALYSIS_DATA_DIR, tp_analyze_workout
 
-TEST_ATHLETE_ID = 6157627
+TEST_ATHLETE_ID = 123456
 TEST_ACCESS_TOKEN = "gAAAA_test_access_token_12345"
 
 

@@ -17,6 +17,7 @@ from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.tools import (
     tp_analyze_workout,
     tp_auth_status,
+    tp_create_workout,
     tp_get_fitness,
     tp_get_peaks,
     tp_get_profile,
@@ -175,6 +176,45 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_create_workout",
+        description="Create a planned workout. Specify date, sport, title, and duration.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD. The date for the workout.",
+                },
+                "sport": {
+                    "type": "string",
+                    "enum": ["Bike", "Run", "Swim", "Strength", "DayOff", "Other"],
+                    "description": "Sport type.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Workout title.",
+                },
+                "duration_minutes": {
+                    "type": "integer",
+                    "description": "Planned duration in minutes.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional workout description.",
+                },
+                "distance_km": {
+                    "type": "number",
+                    "description": "Optional planned distance in km.",
+                },
+                "tss_planned": {
+                    "type": "number",
+                    "description": "Optional planned TSS.",
+                },
+            },
+            "required": ["date", "sport", "title", "duration_minutes"],
+        },
+    ),
+    Tool(
         name="tp_refresh_auth",
         description="Refresh auth by extracting cookie from user's browser. Use when other tools return auth errors.",
         inputSchema={
@@ -202,7 +242,7 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
-    logger.info(f"Tool call: {name}")
+    logger.info("Tool call: %s", name)
 
     try:
         result: dict[str, Any]
@@ -244,6 +284,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 end_date=arguments.get("end_date"),
             )
 
+        elif name == "tp_create_workout":
+            result = await tp_create_workout(
+                date_str=arguments["date"],
+                sport=arguments["sport"],
+                title=arguments["title"],
+                duration_minutes=arguments["duration_minutes"],
+                description=arguments.get("description"),
+                distance_km=arguments.get("distance_km"),
+                tss_planned=arguments.get("tss_planned"),
+            )
+
         elif name == "tp_analyze_workout":
             result = await tp_analyze_workout(
                 workout_id=arguments["workout_id"],
@@ -263,12 +314,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-    except Exception as e:
-        logger.exception(f"Error in tool {name}")
+    except Exception:
+        logger.exception("Error in tool %s", name)
         error_result = {
             "isError": True,
             "error_code": "API_ERROR",
-            "message": str(e),
+            "message": "An internal error occurred. Check server logs.",
         }
         return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
 
@@ -286,10 +337,10 @@ async def _validate_auth_on_startup() -> bool:
 
     result = await validate_auth(cred.cookie)
     if result.is_valid:
-        logger.info(f"Authenticated as {result.email} (athlete_id: {result.athlete_id})")
+        logger.info("Authentication valid (athlete_id: %s)", result.athlete_id)
         return True
     else:
-        logger.warning(f"Authentication invalid: {result.message}")
+        logger.warning("Authentication invalid: %s", result.message)
         return False
 
 
@@ -321,6 +372,6 @@ def run_server() -> int:
     except KeyboardInterrupt:
         logger.info("Server stopped")
         return 0
-    except Exception as e:
-        logger.exception(f"Server error: {e}")
+    except Exception:
+        logger.exception("Server error")
         return 1

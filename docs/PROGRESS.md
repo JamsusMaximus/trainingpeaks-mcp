@@ -51,7 +51,7 @@ MVP - Complete & Production Ready
 - [x] DOCS-04 - Advanced analytics query examples
 
 ### Future (V1)
-- [ ] TOOL-08 - tp_create_workout
+- [x] TOOL-08 - tp_create_workout (basic: date, sport, title, duration; structured workouts deferred)
 - [ ] TOOL-09 - tp_move_workout
 - [ ] TOOL-10 - tp_get_health_metrics (sleep, resting HR, HRV, weight)
 

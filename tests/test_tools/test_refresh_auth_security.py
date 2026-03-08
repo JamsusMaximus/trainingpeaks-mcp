@@ -3,8 +3,6 @@
 These tests verify that cookie values can NEVER leak into tool output.
 """
 
-import pytest
-
 from tp_mcp.tools.refresh_auth import _sanitize_result
 
 
@@ -72,6 +70,31 @@ class TestSanitizeResult:
         assert "COOKIE" not in sanitized
         assert "Cookie" not in sanitized
         assert "AUTH_TOKEN" not in sanitized
+
+
+class TestCredentialResultRepr:
+    """Test that CredentialResult doesn't leak cookies in repr."""
+
+    def test_repr_hides_cookie(self):
+        """Cookie value must not appear in repr."""
+        from tp_mcp.auth.keyring import CredentialResult
+
+        result = CredentialResult(
+            success=True,
+            message="Credential retrieved",
+            cookie="SUPER_SECRET_VALUE_67890",
+        )
+        repr_str = repr(result)
+        assert "SUPER_SECRET" not in repr_str
+        assert "67890" not in repr_str
+        assert "cookie=<present>" in repr_str
+
+    def test_repr_shows_none_for_missing_cookie(self):
+        from tp_mcp.auth.keyring import CredentialResult
+
+        result = CredentialResult(success=False, message="No cred")
+        repr_str = repr(result)
+        assert "cookie=<None>" in repr_str
 
 
 class TestBrowserCookieResultRepr:

@@ -25,6 +25,7 @@ Ask your AI assistant questions like:
 |------|-------------|
 | `tp_get_workouts` | Query workouts by date range (planned and completed) |
 | `tp_get_workout` | Get detailed metrics for a single workout |
+| `tp_create_workout` | Create a planned workout (date, sport, title, duration) |
 | `tp_get_peaks` | Compare power PRs (5sec to 90min) and running PRs (400m to marathon) |
 | `tp_get_fitness` | Track CTL, ATL, and TSB (fitness, fatigue, form) |
 | `tp_get_workout_prs` | See personal records set in a specific session |
@@ -127,6 +128,15 @@ Get full details for one workout including power, HR, cadence, TSS.
 { "workout_id": "123456789" }
 ```
 
+### tp_create_workout
+Create a planned workout on a given date.
+
+```json
+{ "date": "2026-02-01", "sport": "Run", "title": "Easy 5K", "duration_minutes": 30 }
+```
+
+**Sports:** `Bike`, `Run`, `Swim`, `Strength`, `DayOff`, `Other`
+
 ### tp_get_peaks
 Get ranked personal records. Bike: power metrics. Run: pace/speed metrics.
 
@@ -160,9 +170,11 @@ Get PRs set during a specific workout.
 
 ## Security
 
-**TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server is read-only and has no network ports.**
+**TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server has no network ports.**
 
 This server is designed with defense-in-depth. Your TrainingPeaks session cookie is sensitive - it grants access to your training data - so we treat it accordingly.
+
+> **Write access:** `tp_create_workout` can create planned workouts. All other tools are read-only. The server cannot modify or delete existing workouts.
 
 ### Cookie Storage
 
@@ -196,9 +208,10 @@ Claude cannot modify this via tool parameters. The only parameter is `browser` (
 
 ### Read-Only Access
 
-This server provides **read-only** access to TrainingPeaks:
+This server provides **limited write** access to TrainingPeaks:
 - ✅ Query workouts, fitness metrics, personal records
-- ❌ Cannot create, modify, or delete workouts
+- ✅ Create planned workouts
+- ❌ Cannot modify or delete existing workouts
 - ❌ Cannot change account settings
 - ❌ Cannot access billing or payment info
 
@@ -212,7 +225,8 @@ The MCP server uses **stdio transport only** - it communicates with Claude Deskt
 |--------|-----------|
 | Read your workouts | ✅ Yes |
 | Read your fitness metrics | ✅ Yes |
-| Modify any TrainingPeaks data | ❌ No |
+| Create planned workouts | ✅ Yes |
+| Modify or delete existing workouts | ❌ No |
 | Access other websites | ❌ No (domain hardcoded) |
 | Send your cookie/token anywhere except TrainingPeaks | ❌ No |
 | Expose your cookie to Claude | ❌ No (sanitized) |

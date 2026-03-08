@@ -115,6 +115,7 @@ class WorkoutDetail(BaseModel):
     avg_cadence: float | None = Field(default=None, alias="cadenceAverage")
     elevation_gain: float | None = Field(default=None, alias="elevationGain")
     completed: bool | None = Field(default=None)
+    structure: dict[str, Any] | None = None
 
     @property
     def date(self) -> date_type:

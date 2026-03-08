@@ -1,8 +1,11 @@
 """TOOL-02: tp_get_profile - Get athlete profile and ID."""
 
+import logging
 from typing import Any
 
 from tp_mcp.client import TPClient
+
+logger = logging.getLogger("tp-mcp")
 
 
 async def tp_get_profile() -> dict[str, Any]:
@@ -53,9 +56,10 @@ async def tp_get_profile() -> dict[str, Any]:
                 "email": user_data.get("email"),
                 "account_type": account_type,
             }
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to parse profile")
             return {
                 "isError": True,
                 "error_code": "API_ERROR",
-                "message": f"Failed to parse profile: {e}",
+                "message": "Failed to parse profile.",
             }

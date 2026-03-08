@@ -1,9 +1,29 @@
-"""TOOL-03 & TOOL-04: tp_get_workouts and tp_get_workout."""
+"""TOOL-03, TOOL-04 & TOOL-08: tp_get_workouts, tp_get_workout, tp_create_workout."""
 
-from datetime import date
+import logging
 from typing import Any, Literal
 
+from pydantic import ValidationError
+
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+from tp_mcp.tools._validation import (
+    CreateWorkoutInput,
+    DateRangeInput,
+    WorkoutIdInput,
+    format_validation_error,
+)
+
+logger = logging.getLogger("tp-mcp")
+
+# Maps sport name to (workoutTypeFamilyId, workoutTypeValueId)
+SPORT_TYPE_MAP: dict[str, tuple[int, int]] = {
+    "Bike": (2, 2),
+    "Run": (3, 3),
+    "Swim": (1, 1),
+    "Strength": (7, 7),
+    "DayOff": (12, 12),
+    "Other": (10, 10),
+}
 
 
 async def tp_get_workouts(
@@ -21,31 +41,14 @@ async def tp_get_workouts(
     Returns:
         Dict with workouts list, count, and date_range.
     """
-    # Validate dates
     try:
-        start = date.fromisoformat(start_date)
-        end = date.fromisoformat(end_date)
-    except ValueError as e:
+        params = DateRangeInput(start_date=start_date, end_date=end_date)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
         return {
             "isError": True,
             "error_code": "VALIDATION_ERROR",
-            "message": f"Invalid date format: {e}. Use YYYY-MM-DD.",
-        }
-
-    if start > end:
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": "start_date must be before or equal to end_date",
-        }
-
-    # Limit date range to prevent massive queries
-    max_days = 90
-    if (end - start).days > max_days:
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": f"Date range too large. Max {max_days} days. Use smaller queries.",
+            "message": msg,
         }
 
     async with TPClient() as client:
@@ -57,9 +60,8 @@ async def tp_get_workouts(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        # Format dates for API
-        start_str = start.strftime("%Y-%m-%d")
-        end_str = end.strftime("%Y-%m-%d")
+        start_str = params.start_date.isoformat()
+        end_str = params.end_date.isoformat()
 
         endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{start_str}/{end_str}"
         response = await client.get(endpoint)
@@ -109,11 +111,12 @@ async def tp_get_workouts(
                 "date_range": {"start": start_date, "end": end_date},
             }
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to parse workouts")
             return {
                 "isError": True,
                 "error_code": "API_ERROR",
-                "message": f"Failed to parse workouts: {e}",
+                "message": "Failed to parse workouts.",
             }
 
 
@@ -126,6 +129,16 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
     Returns:
         Dict with full workout details including structure.
     """
+    try:
+        validated = WorkoutIdInput(workout_id=workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
@@ -135,7 +148,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{workout_id}"
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}"
         response = await client.get(endpoint)
 
         if response.is_error:
@@ -183,9 +196,104 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "completed": workout.completed,
             }
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to parse workout")
             return {
                 "isError": True,
                 "error_code": "API_ERROR",
-                "message": f"Failed to parse workout: {e}",
+                "message": "Failed to parse workout.",
             }
+
+
+async def tp_create_workout(
+    date_str: str,
+    sport: str,
+    title: str,
+    duration_minutes: int,
+    description: str | None = None,
+    distance_km: float | None = None,
+    tss_planned: float | None = None,
+) -> dict[str, Any]:
+    """Create a planned workout.
+
+    Args:
+        date_str: Workout date in ISO format (YYYY-MM-DD).
+        sport: Sport type (Bike, Run, Swim, Strength, DayOff, Other).
+        title: Workout title.
+        duration_minutes: Planned duration in minutes.
+        description: Optional workout description.
+        distance_km: Optional planned distance in kilometres.
+        tss_planned: Optional planned Training Stress Score.
+
+    Returns:
+        Dict with created workout details or error.
+    """
+    try:
+        params = CreateWorkoutInput(
+            date=date_str,
+            sport=sport,
+            title=title,
+            duration_minutes=duration_minutes,
+            description=description,
+            distance_km=distance_km,
+            tss_planned=tss_planned,
+        )
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    family_id, type_id = SPORT_TYPE_MAP[params.sport]
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        payload: dict[str, Any] = {
+            "athleteId": athlete_id,
+            "workoutDay": f"{params.date.isoformat()}T00:00:00",
+            "workoutTypeFamilyId": family_id,
+            "workoutTypeValueId": type_id,
+            "title": params.title,
+            "totalTimePlanned": params.duration_minutes / 60.0,
+        }
+        if params.description:
+            payload["description"] = params.description
+        if params.distance_km is not None:
+            payload["distancePlanned"] = params.distance_km
+        if params.tss_planned is not None:
+            payload["tssPlanned"] = params.tss_planned
+
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts"
+        response = await client.post(endpoint, json=payload)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        # Type guard: API should return a dict for a single created workout
+        if not isinstance(response.data, dict):
+            return {
+                "isError": True,
+                "error_code": "API_ERROR",
+                "message": "Unexpected response format from API.",
+            }
+
+        return {
+            "success": True,
+            "workout_id": response.data.get("workoutId"),
+            "title": response.data.get("title", title),
+            "date": response.data.get("workoutDay", date_str),
+            "sport": sport,
+        }
