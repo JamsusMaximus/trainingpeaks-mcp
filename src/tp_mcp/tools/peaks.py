@@ -67,7 +67,7 @@ async def tp_get_peaks(
         Dict with ranked list of personal records.
     """
     try:
-        params = PeaksInput(sport=sport, pr_type=pr_type, days=days)
+        validated = PeaksInput(sport=sport, pr_type=pr_type, days=days)
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
         return {
@@ -86,7 +86,7 @@ async def tp_get_peaks(
             }
 
         end_date = date.today()
-        start_date = end_date - timedelta(days=params.days)
+        start_date = end_date - timedelta(days=validated.days)
 
         endpoint = f"/personalrecord/v2/athletes/{athlete_id}/{sport}"
         params = {
