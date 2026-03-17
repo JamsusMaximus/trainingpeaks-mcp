@@ -172,6 +172,54 @@ class TestTpCreateWorkout:
         assert payload["totalTimePlanned"] == 1.0  # 60 min -> 1.0 hours
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "sport,expected_family,expected_value",
+        [
+            ("Swim", 1, 1),
+            ("Bike", 2, 2),
+            ("Run", 3, 3),
+            ("Brick", 4, 4),
+            ("Crosstrain", 5, 5),
+            ("Walk", 6, 6),
+            ("Strength", 7, 7),
+            ("Rowing", 8, 8),
+            ("XCSki", 9, 9),
+            ("Other", 10, 10),
+            ("Custom", 11, 11),
+            ("DayOff", 12, 12),
+            ("MtnBike", 13, 13),
+        ],
+    )
+    async def test_create_workout_all_sport_types(self, sport, expected_family, expected_value):
+        """Test that all sport types map to correct API IDs."""
+        create_response = APIResponse(
+            success=True,
+            data={
+                "workoutId": 6001,
+                "title": f"Test {sport}",
+                "workoutDay": "2026-03-01T00:00:00",
+            },
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport=sport,
+                title=f"Test {sport}",
+                duration_minutes=30,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["workoutTypeFamilyId"] == expected_family
+        assert payload["workoutTypeValueId"] == expected_value
+
+    @pytest.mark.asyncio
     async def test_create_workout_optional_fields(self):
         """Test that distance_km and tss_planned are passed to API when provided."""
         create_response = APIResponse(

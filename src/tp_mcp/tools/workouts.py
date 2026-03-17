@@ -17,12 +17,19 @@ logger = logging.getLogger("tp-mcp")
 
 # Maps sport name to (workoutTypeFamilyId, workoutTypeValueId)
 SPORT_TYPE_MAP: dict[str, tuple[int, int]] = {
+    "Swim": (1, 1),
     "Bike": (2, 2),
     "Run": (3, 3),
-    "Swim": (1, 1),
+    "Brick": (4, 4),
+    "Crosstrain": (5, 5),
+    "Walk": (6, 6),
     "Strength": (7, 7),
-    "DayOff": (12, 12),
+    "Rowing": (8, 8),
+    "XCSki": (9, 9),
     "Other": (10, 10),
+    "Custom": (11, 11),
+    "DayOff": (12, 12),
+    "MtnBike": (13, 13),
 }
 
 
@@ -218,7 +225,7 @@ async def tp_create_workout(
 
     Args:
         date_str: Workout date in ISO format (YYYY-MM-DD).
-        sport: Sport type (Bike, Run, Swim, Strength, DayOff, Other).
+        sport: Sport type (Swim, Bike, Run, Brick, Crosstrain, Walk, Strength, Rowing, XCSki, Other, Custom, DayOff, MtnBike).
         title: Workout title.
         duration_minutes: Planned duration in minutes.
         description: Optional workout description.

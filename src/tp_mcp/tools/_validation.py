@@ -54,7 +54,10 @@ class CreateWorkoutInput(BaseModel):
     """Validates input for workout creation."""
 
     date: date
-    sport: Literal["Bike", "Run", "Swim", "Strength", "DayOff", "Other"]
+    sport: Literal[
+        "Swim", "Bike", "Run", "Brick", "Crosstrain", "Walk",
+        "Strength", "Rowing", "XCSki", "Other", "Custom", "DayOff", "MtnBike",
+    ]
     title: str = Field(min_length=1, max_length=200)
     duration_minutes: int = Field(ge=1, le=1440)
     description: str | None = Field(default=None, max_length=2000)

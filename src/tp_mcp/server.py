@@ -187,7 +187,10 @@ TOOLS = [
                 },
                 "sport": {
                     "type": "string",
-                    "enum": ["Bike", "Run", "Swim", "Strength", "DayOff", "Other"],
+                    "enum": [
+                        "Swim", "Bike", "Run", "Brick", "Crosstrain", "Walk",
+                        "Strength", "Rowing", "XCSki", "Other", "Custom", "DayOff", "MtnBike",
+                    ],
                     "description": "Sport type.",
                 },
                 "title": {
