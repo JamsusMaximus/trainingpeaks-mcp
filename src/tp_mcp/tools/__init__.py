@@ -35,7 +35,7 @@ from tp_mcp.tools.library import (
 )
 from tp_mcp.tools.metrics import tp_get_metrics, tp_get_nutrition, tp_log_metrics
 from tp_mcp.tools.peaks import tp_get_peaks, tp_get_workout_prs
-from tp_mcp.tools.profile import tp_get_profile
+from tp_mcp.tools.profile import tp_get_profile, tp_list_athletes
 from tp_mcp.tools.refresh_auth import tp_refresh_auth
 from tp_mcp.tools.settings import (
     tp_get_athlete_settings,
@@ -99,6 +99,7 @@ __all__ = [
     "tp_get_workout_comments",
     "tp_get_workout_prs",
     "tp_get_workout_types",
+    "tp_list_athletes",
     "tp_get_workouts",
     "tp_log_metrics",
     "tp_refresh_auth",

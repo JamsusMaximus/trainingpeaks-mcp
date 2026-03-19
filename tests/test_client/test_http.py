@@ -77,9 +77,11 @@ class TestEnsureAthleteId:
     def _clear_cache(self):
         """Reset class-level caches between tests."""
         TPClient._cached_athlete_id = None
+        TPClient._cached_user_data = None
         TPClient._shared_token_cache = None
         yield
         TPClient._cached_athlete_id = None
+        TPClient._cached_user_data = None
         TPClient._shared_token_cache = None
 
     @pytest.mark.asyncio

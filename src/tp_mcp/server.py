@@ -54,6 +54,7 @@ from tp_mcp.tools import (
     tp_get_workout_prs,
     tp_get_workout_types,
     tp_get_workouts,
+    tp_list_athletes,
     tp_log_metrics,
     tp_refresh_auth,
     tp_reorder_workouts,
@@ -68,6 +69,7 @@ from tp_mcp.tools import (
     tp_update_workout,
     tp_validate_structure,
 )
+from tp_mcp.client.context import athlete_override
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 # Configure logging to stderr (stdout is used for MCP protocol)
@@ -777,7 +779,32 @@ TOOLS = [
             "required": ["library_id", "item_id", "date"],
         },
     ),
+    Tool(
+        name="tp_list_athletes",
+        description="List athletes available to this account (coach accounts). Returns athlete names, IDs, and which is the coach's own entry.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
 ]
+
+# ---------------------------------------------------------------------------
+# Coach account support: inject 'athlete' parameter into all applicable tools
+# ---------------------------------------------------------------------------
+_ATHLETE_EXEMPT_TOOLS = {
+    "tp_auth_status", "tp_refresh_auth", "tp_validate_structure",
+    "tp_list_athletes", "tp_get_workout_types",
+}
+
+_ATHLETE_PARAM = {
+    "type": "string",
+    "description": "Target athlete name or ID (coach accounts only). Omit to use your own profile.",
+}
+
+for _tool in TOOLS:
+    if _tool.name not in _ATHLETE_EXEMPT_TOOLS:
+        _tool.inputSchema["properties"]["athlete"] = _ATHLETE_PARAM
 
 
 @server.list_tools()
@@ -808,6 +835,9 @@ async def _h_auth_status(args): return await tp_auth_status()
 
 @_handler("tp_get_profile")
 async def _h_get_profile(args): return await tp_get_profile()
+
+@_handler("tp_list_athletes")
+async def _h_list_athletes(args): return await tp_list_athletes()
 
 @_handler("tp_refresh_auth")
 async def _h_refresh_auth(args): return await tp_refresh_auth(browser=args.get("browser", "auto"))
@@ -1073,6 +1103,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     logger.info("Tool call: %s", name)
 
+    # Extract athlete targeting for coach accounts and set context var
+    athlete_target = arguments.pop("athlete", None)
+    token = athlete_override.set(athlete_target)
     try:
         handler = _TOOL_HANDLERS.get(name)
         if handler:
@@ -1094,6 +1127,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             "message": "An internal error occurred. Check server logs.",
         }
         return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+    finally:
+        athlete_override.reset(token)
 
 
 async def _validate_auth_on_startup() -> bool:

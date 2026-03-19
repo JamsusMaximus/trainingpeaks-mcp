@@ -97,6 +97,7 @@ class TPClient:
 
     # Class-level caches: persist across instances within the MCP server process
     _cached_athlete_id: int | None = None
+    _cached_user_data: dict | None = None
     _shared_token_cache: TokenCache | None = None
 
     @classmethod
@@ -448,34 +449,92 @@ class TPClient:
         """Set the athlete ID."""
         self._athlete_id = value
 
-    async def ensure_athlete_id(self) -> int | None:
-        """Get athlete ID, using class-level cache to avoid redundant API calls.
-
-        Checks (in order): class-level cache, instance-level cache, API.
-        Caches at class level so the value persists across TPClient instances.
-        """
-        if TPClient._cached_athlete_id is not None:
-            self._athlete_id = TPClient._cached_athlete_id
-            return TPClient._cached_athlete_id
-
-        if self._athlete_id is not None:
-            TPClient._cached_athlete_id = self._athlete_id
-            return self._athlete_id
+    async def _get_user_data(self) -> dict | None:
+        """Get user data, using class-level cache to avoid redundant API calls."""
+        if TPClient._cached_user_data is not None:
+            return TPClient._cached_user_data
 
         response = await self.get("/users/v3/user")
         if not response.success or not response.data:
             return None
 
         user_data = response.data.get("user", response.data)
-        athlete_id = user_data.get("personId")
-        if not athlete_id:
-            athletes = user_data.get("athletes", [])
-            if athletes:
-                athlete_id = athletes[0].get("athleteId")
+        TPClient._cached_user_data = user_data
+        return user_data
+
+    async def ensure_athlete_id(self) -> int | None:
+        """Get athlete ID, resolving coach athlete targeting via context var.
+
+        For coach accounts, reads the athlete_override context variable to
+        target a specific athlete by name or ID. When no override is set,
+        resolves to the coach's own athlete entry.
+
+        Caches at class level only when no athlete override is active.
+        """
+        from tp_mcp.client.context import athlete_override
+
+        athlete = athlete_override.get()
+
+        # Use cache only when no specific athlete is requested
+        if athlete is None:
+            if TPClient._cached_athlete_id is not None:
+                self._athlete_id = TPClient._cached_athlete_id
+                return TPClient._cached_athlete_id
+
+            if self._athlete_id is not None:
+                TPClient._cached_athlete_id = self._athlete_id
+                return self._athlete_id
+
+        user_data = await self._get_user_data()
+        if not user_data:
+            return None
+
+        person_id = user_data.get("personId")
+        athletes = user_data.get("athletes", [])
+
+        athlete_id = None
+
+        if athlete is not None:
+            # Resolve by explicit athlete name or ID
+            try:
+                target_id = int(athlete)
+                for a in athletes:
+                    if a.get("athleteId") == target_id:
+                        athlete_id = target_id
+                        break
+            except ValueError:
+                # Search by name (case-insensitive)
+                search = athlete.lower()
+                for a in athletes:
+                    first = (a.get("firstName") or "").lower()
+                    last = (a.get("lastName") or "").lower()
+                    full = f"{first} {last}"
+                    if search in (first, last, full):
+                        athlete_id = a.get("athleteId")
+                        break
+        elif athletes:
+            # Default: find the coach's own athlete entry
+            for a in athletes:
+                if a.get("coachedBy") == person_id and a.get("email", "").lower() == user_data.get("email", "").lower():
+                    athlete_id = a.get("athleteId")
+                    break
+            # Fallback: match by last name
+            if not athlete_id:
+                user_last = (user_data.get("lastName") or "").lower()
+                for a in athletes:
+                    if (a.get("lastName") or "").lower() == user_last and a.get("coachedBy") == person_id:
+                        athlete_id = a.get("athleteId")
+                        break
+            # Final fallback: personId or first athlete entry (non-coach accounts)
+            if not athlete_id:
+                athlete_id = person_id or (athletes[0].get("athleteId") if athletes else None)
+        else:
+            athlete_id = person_id
 
         if athlete_id:
             self._athlete_id = athlete_id
-            TPClient._cached_athlete_id = athlete_id
+            if athlete is None:
+                TPClient._cached_athlete_id = athlete_id
 
         return athlete_id
 
