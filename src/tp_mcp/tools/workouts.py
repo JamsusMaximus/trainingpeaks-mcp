@@ -227,7 +227,7 @@ async def tp_create_workout(
 
     Args:
         date_str: Workout date in ISO format (YYYY-MM-DD).
-        sport: Sport type (Swim, Bike, Run, Brick, Crosstrain, Walk, Strength, Rowing, XCSki, Other, Custom, DayOff, MtnBike).
+        sport: Sport type (see SPORT_TYPE_MAP for valid values).
         title: Workout title.
         duration_minutes: Planned duration in minutes.
         description: Optional workout description.
