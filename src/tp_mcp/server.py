@@ -68,7 +68,6 @@ from tp_mcp.tools import (
     tp_update_workout,
     tp_validate_structure,
 )
-from tp_mcp.tools.events import EVENT_TYPES
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 # Configure logging to stderr (stdout is used for MCP protocol)
@@ -576,7 +575,13 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string"},
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "event_type": {"type": "string", "enum": EVENT_TYPES},
+                "event_type": {
+                    "type": "string",
+                    "description": (
+                        "e.g. Triathlon, MultisportTriathlon, RoadRunning,"
+                        " RoadCycling, MountainBiking, OpenWaterSwimming, Other"
+                    ),
+                },
                 "priority": {"type": "string", "enum": ["A", "B", "C"]},
                 "distance_km": {"type": "number"},
                 "ctl_target": {"type": "number"},

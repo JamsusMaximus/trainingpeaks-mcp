@@ -12,11 +12,13 @@ from tp_mcp.tools._validation import DateRangeInput, WorkoutIdInput, format_vali
 
 logger = logging.getLogger("tp-mcp")
 
+# Non-exhaustive list of known event types (TP API may accept others)
 EVENT_TYPES = [
     "RoadRunning", "TrailRunning", "TrackRunning", "CrossCountry", "Running",
     "RoadCycling", "MountainBiking", "Cyclocross", "TrackCycling", "Cycling",
-    "OpenWaterSwimming", "PoolSwimming", "Triathlon", "Xterra", "Duathlon",
-    "Aquabike", "Aquathon", "Multisport", "Regatta", "Rowing",
+    "OpenWaterSwimming", "PoolSwimming", "Triathlon", "MultisportTriathlon",
+    "Xterra", "Duathlon", "Aquabike", "Aquathon", "Multisport",
+    "Regatta", "Rowing",
     "AlpineSkiing", "NordicSkiing", "SkiMountaineering", "Snowshoe", "Snow",
     "Adventure", "Obstacle", "SpeedSkate", "Other",
 ]
@@ -51,8 +53,7 @@ class CreateEventInput(BaseModel):
     @field_validator("event_type")
     @classmethod
     def check_event_type(cls, v: str | None) -> str | None:
-        if v is not None and v not in EVENT_TYPES:
-            raise ValueError(f"Invalid event_type '{v}'. Valid: {', '.join(EVENT_TYPES)}")
+        # Don't reject unknown types - the TP API may accept types not in our list
         return v
 
 
@@ -283,12 +284,6 @@ async def tp_update_event(
         }
 
     # Validate optional fields before making API calls
-    if event_type is not None and event_type not in EVENT_TYPES:
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": f"Invalid event_type '{event_type}'.",
-        }
     if priority is not None and priority not in ("A", "B", "C"):
         return {
             "isError": True,
