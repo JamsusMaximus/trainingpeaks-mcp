@@ -63,7 +63,7 @@ class CreateWorkoutInput(BaseModel):
 
     @field_validator("date", mode="before")
     @classmethod
-    def coerce_date_string(cls, v: object) -> object:
+    def coerce_string(cls, v: object) -> object:
         if isinstance(v, str):
             return date.fromisoformat(v)
         return v
