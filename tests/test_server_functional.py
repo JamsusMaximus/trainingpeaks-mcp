@@ -342,7 +342,7 @@ class TestCreateWorkoutDispatch:
         assert payload["athleteId"] == 123
         assert payload["title"] == "Long Ride"
         assert payload["totalTimePlanned"] == 4.0  # 240 min -> 4 hours
-        assert payload["distancePlanned"] == 120.5
+        assert payload["distancePlanned"] == 120500.0  # 120.5 km -> metres
         assert payload["tssPlanned"] == 280.0
         assert payload["description"] == "Endurance ride with tempo intervals"
         assert payload["workoutDay"] == "2026-02-01T00:00:00"

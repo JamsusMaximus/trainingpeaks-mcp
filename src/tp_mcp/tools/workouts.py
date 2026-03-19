@@ -106,6 +106,8 @@ async def tp_get_workouts(
                     "sport": w.sport,
                     "duration_planned": w.duration_planned,
                     "duration_actual": w.duration_actual,
+                    "distance_planned_km": w.distance_planned / 1000 if w.distance_planned else None,
+                    "distance_actual_km": w.distance_actual / 1000 if w.distance_actual else None,
                     "tss": w.tss_actual or w.tss_planned,
                     "description": w.description,
                 }
@@ -191,8 +193,8 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "tss_actual": workout.tss_actual,
                     "if_planned": workout.if_planned,
                     "if_actual": workout.if_actual,
-                    "distance_planned": workout.distance_planned,
-                    "distance_actual": workout.distance_actual,
+                    "distance_planned_km": workout.distance_planned / 1000 if workout.distance_planned else None,
+                    "distance_actual_km": workout.distance_actual / 1000 if workout.distance_actual else None,
                     "avg_power": workout.avg_power,
                     "normalized_power": workout.normalized_power,
                     "avg_hr": workout.avg_hr,
@@ -275,7 +277,7 @@ async def tp_create_workout(
         if params.description:
             payload["description"] = params.description
         if params.distance_km is not None:
-            payload["distancePlanned"] = params.distance_km * 1000 # API expects distance in m
+            payload["distancePlanned"] = params.distance_km * 1000  # API expects metres
         if params.tss_planned is not None:
             payload["tssPlanned"] = params.tss_planned
 

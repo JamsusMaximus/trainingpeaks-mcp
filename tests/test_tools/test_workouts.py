@@ -248,7 +248,7 @@ class TestTpCreateWorkout:
 
         assert result["success"] is True
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["distancePlanned"] == 100.5
+        assert payload["distancePlanned"] == 100500.0  # 100.5 km -> metres
         assert payload["tssPlanned"] == 250.0
 
     @pytest.mark.asyncio
@@ -280,6 +280,20 @@ class TestTpCreateWorkout:
         payload = mock_instance.post.call_args[1]["json"]
         assert "distancePlanned" not in payload
         assert "tssPlanned" not in payload
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("sport", ["Yoga", "Tennis", "bike", ""])
+    async def test_create_workout_invalid_sport(self, sport):
+        """Test that invalid sport types are rejected."""
+        result = await tp_create_workout(
+            date_str="2026-01-10",
+            sport=sport,
+            title="Test",
+            duration_minutes=30,
+        )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
 
     @pytest.mark.asyncio
     async def test_create_workout_invalid_date(self):

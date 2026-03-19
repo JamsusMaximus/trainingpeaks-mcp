@@ -26,6 +26,7 @@ from tp_mcp.tools import (
     tp_get_workouts,
     tp_refresh_auth,
 )
+from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 # Configure logging to stderr (stdout is used for MCP protocol)
 logging.basicConfig(
@@ -187,10 +188,7 @@ TOOLS = [
                 },
                 "sport": {
                     "type": "string",
-                    "enum": [
-                        "Swim", "Bike", "Run", "Brick", "Crosstrain", "Walk",
-                        "Strength", "Rowing", "XCSki", "Other", "Custom", "DayOff", "MtnBike",
-                    ],
+                    "enum": list(SPORT_TYPE_MAP.keys()),
                     "description": "Sport type.",
                 },
                 "title": {

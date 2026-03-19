@@ -54,10 +54,7 @@ class CreateWorkoutInput(BaseModel):
     """Validates input for workout creation."""
 
     date: date
-    sport: Literal[
-        "Swim", "Bike", "Run", "Brick", "Crosstrain", "Walk",
-        "Strength", "Rowing", "XCSki", "Other", "Custom", "DayOff", "MtnBike",
-    ]
+    sport: str
     title: str = Field(min_length=1, max_length=200)
     duration_minutes: int = Field(ge=1, le=1440)
     description: str | None = Field(default=None, max_length=2000)
@@ -66,9 +63,19 @@ class CreateWorkoutInput(BaseModel):
 
     @field_validator("date", mode="before")
     @classmethod
-    def coerce_string(cls, v: object) -> object:
+    def coerce_date_string(cls, v: object) -> object:
         if isinstance(v, str):
             return date.fromisoformat(v)
+        return v
+
+    @field_validator("sport")
+    @classmethod
+    def check_sport(cls, v: str) -> str:
+        from tp_mcp.tools.workouts import SPORT_TYPE_MAP
+
+        if v not in SPORT_TYPE_MAP:
+            valid = ", ".join(SPORT_TYPE_MAP.keys())
+            raise ValueError(f"Invalid sport '{v}'. Valid: {valid}")
         return v
 
 
