@@ -82,6 +82,34 @@ logger = logging.getLogger("tp-mcp")
 # Create the MCP server
 server = Server("trainingpeaks-mcp")
 
+STRUCTURE_DESCRIPTION = (
+    "Interval structure as a JSON object or string."
+    ' Format: {"steps": [...], "primaryIntensityMetric":'
+    ' "percentOfFtp"|"percentOfThresholdHr"|"percentOfThresholdPace"}.'
+    " Each step is either a single interval or a repetition block."
+    ' SINGLE STEP: {"name": "Endurance", "duration_seconds": 1200,'
+    ' "intensity_min": 65, "intensity_max": 75,'
+    ' "intensityClass": "active"}.'
+    ' REPETITION BLOCK: {"type": "repetition", "reps": 5, "steps": ['
+    '{"name": "VO2max", "duration_seconds": 180,'
+    ' "intensity_min": 106, "intensity_max": 120,'
+    ' "intensityClass": "active"},'
+    ' {"name": "Spin", "duration_seconds": 180,'
+    ' "intensity_min": 40, "intensity_max": 50,'
+    ' "intensityClass": "rest"}]}.'
+    " FOR MULTIPLE SETS separated by longer recovery, alternate"
+    " repetition blocks with single rest steps:"
+    ' [{"type": "repetition", "reps": 4, "steps": [...]},'
+    ' {"name": "Block Recovery", "duration_seconds": 600,'
+    ' "intensity_min": 45, "intensity_max": 55,'
+    ' "intensityClass": "rest"},'
+    ' {"type": "repetition", "reps": 4, "steps": [...]}].'
+    " intensityClass values: warmUp, active (work intervals),"
+    " rest (all recovery), coolDown, other."
+    " Intensity values are % of threshold (FTP/HR/pace)."
+    " Optional per-step: cadence_min, cadence_max (rpm)."
+)
+
 
 # ---------------------------------------------------------------------------
 # Tool definitions
@@ -165,7 +193,7 @@ TOOLS = [
                 "tss_planned": {"type": "number", "description": "Optional planned TSS"},
                 "structure": {
                     "type": ["object", "string"],
-                    "description": "Optional interval structure (simplified format)",
+                    "description": STRUCTURE_DESCRIPTION,
                 },
                 "subtype_id": {
                     "type": "integer",
@@ -270,7 +298,13 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "structure": {"type": "string", "description": "JSON string of simplified structure format"},
+                "structure": {
+                    "type": "string",
+                    "description": (
+                        "Structure JSON string to validate - same format"
+                        " as the structure field in tp_create_workout."
+                    ),
+                },
             },
             "required": ["structure"],
         },
