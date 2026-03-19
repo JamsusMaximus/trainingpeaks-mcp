@@ -1,6 +1,8 @@
 """Events and calendar tools: races, notes, availability."""
 
 import logging
+from datetime import date as dt_date
+from datetime import timedelta
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -280,6 +282,20 @@ async def tp_update_event(
             "message": msg,
         }
 
+    # Validate optional fields before making API calls
+    if event_type is not None and event_type not in EVENT_TYPES:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid event_type '{event_type}'.",
+        }
+    if priority is not None and priority not in ("A", "B", "C"):
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": "priority must be 'A', 'B', or 'C'.",
+        }
+
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
@@ -289,42 +305,47 @@ async def tp_update_event(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        # We need to get the event first - use events list with a broad range
-        # or just build the payload from scratch since TP PUT replaces
-        payload: dict[str, Any] = {"eventId": validated.workout_id, "athleteId": athlete_id}
+        # GET existing event by searching a broad date range
+        today = dt_date.today()
+        search_start = (today - timedelta(days=730)).isoformat()
+        search_end = (today + timedelta(days=730)).isoformat()
+        search_endpoint = f"/fitness/v6/athletes/{athlete_id}/events/{search_start}/{search_end}"
+        search_response = await client.get(search_endpoint)
 
+        existing = None
+        if search_response.success and isinstance(search_response.data, list):
+            for evt in search_response.data:
+                if evt.get("id") == validated.workout_id:
+                    existing = evt
+                    break
+
+        if existing is None:
+            return {
+                "isError": True,
+                "error_code": "NOT_FOUND",
+                "message": f"Event {validated.workout_id} not found.",
+            }
+
+        # Merge updates into existing event
+        existing["personId"] = athlete_id
         if name is not None:
-            payload["name"] = name
+            existing["name"] = name
         if date is not None:
-            from datetime import date as date_type
-
-            date_type.fromisoformat(date)
-            payload["eventDate"] = f"{date}T00:00:00"
+            dt_date.fromisoformat(date)
+            existing["eventDate"] = f"{date}T00:00:00"
         if event_type is not None:
-            if event_type not in EVENT_TYPES:
-                return {
-                    "isError": True,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": f"Invalid event_type '{event_type}'.",
-                }
-            payload["eventType"] = event_type
+            existing["eventType"] = event_type
         if priority is not None:
-            if priority not in ("A", "B", "C"):
-                return {
-                    "isError": True,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": "priority must be 'A', 'B', or 'C'.",
-                }
-            payload["priority"] = priority
+            existing["atpPriority"] = priority
         if distance_km is not None:
-            payload["distance"] = distance_km * 1000
+            existing["distance"] = distance_km * 1000
         if ctl_target is not None:
-            payload["ctlTarget"] = ctl_target
+            existing["ctlTarget"] = ctl_target
         if description is not None:
-            payload["description"] = description
+            existing["description"] = description
 
         endpoint = f"/fitness/v6/athletes/{athlete_id}/event"
-        response = await client.put(endpoint, json=payload)
+        response = await client.put(endpoint, json=existing)
 
         if response.is_error:
             return {
