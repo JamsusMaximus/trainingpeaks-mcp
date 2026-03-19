@@ -275,7 +275,7 @@ async def tp_create_workout(
         if params.description:
             payload["description"] = params.description
         if params.distance_km is not None:
-            payload["distancePlanned"] = params.distance_km
+            payload["distancePlanned"] = params.distance_km * 1000 # API expects distance in m
         if params.tss_planned is not None:
             payload["tssPlanned"] = params.tss_planned
 
