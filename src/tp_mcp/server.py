@@ -14,6 +14,7 @@ from mcp.types import (
 )
 
 from tp_mcp.auth import get_credential, validate_auth
+from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
     tp_add_workout_comment,
     tp_analyze_workout,
@@ -69,7 +70,6 @@ from tp_mcp.tools import (
     tp_update_workout,
     tp_validate_structure,
 )
-from tp_mcp.client.context import athlete_override
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 # Configure logging to stderr (stdout is used for MCP protocol)
@@ -781,7 +781,7 @@ TOOLS = [
     ),
     Tool(
         name="tp_list_athletes",
-        description="List athletes available to this account (coach accounts). Returns athlete names, IDs, and which is the coach's own entry.",
+        description="List athletes available to this account (coach accounts).",
         inputSchema={
             "type": "object",
             "properties": {},
