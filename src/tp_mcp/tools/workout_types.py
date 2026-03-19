@@ -39,10 +39,10 @@ async def tp_get_workout_types() -> dict[str, Any]:
         types: list[dict[str, Any]] = []
         for wt in response.data:
             entry: dict[str, Any] = {
-                "id": wt.get("workoutTypeId"),
-                "name": wt.get("description", wt.get("name", "")),
+                "id": wt.get("id", wt.get("workoutTypeId")),
+                "name": wt.get("name", wt.get("description", "")),
             }
-            subtypes = wt.get("children", wt.get("subTypes", []))
+            subtypes = wt.get("subTypes", wt.get("children", []))
             if subtypes:
                 entry["subtypes"] = [
                     {
