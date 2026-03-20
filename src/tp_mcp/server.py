@@ -19,6 +19,9 @@ from tp_mcp.tools import (
     tp_analyze_workout,
     tp_auth_status,
     tp_copy_workout,
+    tp_delete_workout_file,
+    tp_download_workout_file,
+    tp_upload_workout_file,
     tp_create_availability,
     tp_create_equipment,
     tp_create_event,
@@ -286,6 +289,46 @@ TOOLS = [
                 "comment": {"type": "string"},
             },
             "required": ["workout_id", "comment"],
+        },
+    ),
+    # --- Workout Files ---
+    Tool(
+        name="tp_upload_workout_file",
+        description="Upload a workout file (.fit, .tcx, .gpx) to an existing workout.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_path": {"type": "string", "description": "Path to file on disk"},
+                "file_data_base64": {"type": "string", "description": "Base64-encoded file bytes"},
+                "workout_day": {"type": "string", "description": "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS. Auto-fetched if omitted."},
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_download_workout_file",
+        description="Download a workout file by file_id. Get file_id from tp_get_workout device_files/attachment_files.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_id": {"type": "string", "description": "File ID from tp_get_workout"},
+                "output_path": {"type": "string", "description": "Directory or full path to save file"},
+            },
+            "required": ["workout_id", "file_id"],
+        },
+    ),
+    Tool(
+        name="tp_delete_workout_file",
+        description="Delete a workout file by file_id. Get file_id from tp_get_workout device_files/attachment_files.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_id": {"type": "string", "description": "File ID from tp_get_workout"},
+            },
+            "required": ["workout_id", "file_id"],
         },
     ),
     Tool(
@@ -866,6 +909,30 @@ async def _h_get_comments(args): return await tp_get_workout_comments(workout_id
 @_handler("tp_add_workout_comment")
 async def _h_add_comment(args):
     return await tp_add_workout_comment(workout_id=args["workout_id"], comment=args["comment"])
+
+@_handler("tp_upload_workout_file")
+async def _h_upload_workout_file(args):
+    return await tp_upload_workout_file(
+        workout_id=args["workout_id"],
+        file_path=args.get("file_path"),
+        file_data_base64=args.get("file_data_base64"),
+        workout_day=args.get("workout_day"),
+    )
+
+@_handler("tp_download_workout_file")
+async def _h_download_workout_file(args):
+    return await tp_download_workout_file(
+        workout_id=args["workout_id"],
+        file_id=args["file_id"],
+        output_path=args.get("output_path"),
+    )
+
+@_handler("tp_delete_workout_file")
+async def _h_delete_workout_file(args):
+    return await tp_delete_workout_file(
+        workout_id=args["workout_id"],
+        file_id=args["file_id"],
+    )
 
 @_handler("tp_validate_structure")
 async def _h_validate_structure(args): return await tp_validate_structure(structure=args["structure"])
