@@ -391,16 +391,22 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_ftp",
-        description="Update FTP and recalculate Coggan 5-zone power model.",
+        description=(
+            "Set the athlete's FTP (Functional Threshold Power) and recalculate power zones. "
+            "Use when the user says 'set FTP to X', 'update FTP', or 'my FTP is X watts'."
+        ),
         inputSchema={
             "type": "object",
-            "properties": {"ftp": {"type": "integer", "description": "FTP in watts"}},
+            "properties": {"ftp": {"type": "integer", "description": "New FTP value in watts (e.g. 138, 250, 310)"}},
             "required": ["ftp"],
         },
     ),
     Tool(
         name="tp_update_hr_zones",
-        description="Update heart rate zones.",
+        description=(
+            "Set heart rate zones. "
+            "Use when the user says 'set threshold HR', 'update max HR', or 'my resting HR is X'."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
@@ -414,7 +420,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_speed_zones",
-        description="Update run/swim pace zones.",
+        description=(
+            "Set run or swim threshold pace and recalculate pace zones. "
+            "Use when the user says 'set run pace to X', 'my threshold pace is X'."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
@@ -426,7 +435,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_nutrition",
-        description="Update daily planned calories.",
+        description=(
+            "Set daily planned calories. "
+            "Use when the user says 'set calories to X' or 'update my calorie target'."
+        ),
         inputSchema={
             "type": "object",
             "properties": {"planned_calories": {"type": "integer"}},
