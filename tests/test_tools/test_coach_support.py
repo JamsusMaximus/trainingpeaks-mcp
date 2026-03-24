@@ -42,6 +42,36 @@ COACH_USER_DATA = {
     ],
 }
 
+AMBIGUOUS_USER_DATA = {
+    "personId": 100,
+    "firstName": "Stevan",
+    "lastName": "Coach",
+    "email": "stevan@example.com",
+    "athletes": [
+        {
+            "athleteId": 100,
+            "firstName": "Stevan",
+            "lastName": "Coach",
+            "email": "stevan@example.com",
+            "coachedBy": 100,
+        },
+        {
+            "athleteId": 201,
+            "firstName": "Charlotte",
+            "lastName": "Horton",
+            "email": "charlotte.h@example.com",
+            "coachedBy": 100,
+        },
+        {
+            "athleteId": 402,
+            "firstName": "Charlotte",
+            "lastName": "Smith",
+            "email": "charlotte.s@example.com",
+            "coachedBy": 100,
+        },
+    ],
+}
+
 SOLO_USER_DATA = {
     "personId": 500,
     "firstName": "Solo",
@@ -196,6 +226,36 @@ class TestEnsureAthleteIdNameOverride:
         try:
             await client.ensure_athlete_id()
             assert TPClient._cached_athlete_id is None
+        finally:
+            athlete_override.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_first_name_raises(self):
+        client = _mock_client(AMBIGUOUS_USER_DATA)
+        token = athlete_override.set("Charlotte")
+        try:
+            with pytest.raises(ValueError, match="Ambiguous athlete name"):
+                await client.ensure_athlete_id()
+        finally:
+            athlete_override.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_resolved_by_full_name(self):
+        client = _mock_client(AMBIGUOUS_USER_DATA)
+        token = athlete_override.set("Charlotte Smith")
+        try:
+            aid = await client.ensure_athlete_id()
+            assert aid == 402
+        finally:
+            athlete_override.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_resolved_by_id(self):
+        client = _mock_client(AMBIGUOUS_USER_DATA)
+        token = athlete_override.set("201")
+        try:
+            aid = await client.ensure_athlete_id()
+            assert aid == 201
         finally:
             athlete_override.reset(token)
 

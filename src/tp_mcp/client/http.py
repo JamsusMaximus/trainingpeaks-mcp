@@ -503,15 +503,28 @@ class TPClient:
                         athlete_id = target_id
                         break
             except ValueError:
-                # Search by name (case-insensitive)
+                # Search by name (case-insensitive), detecting ambiguity
                 search = athlete.lower()
+                matches = []
                 for a in athletes:
                     first = (a.get("firstName") or "").lower()
                     last = (a.get("lastName") or "").lower()
                     full = f"{first} {last}"
                     if search in (first, last, full):
-                        athlete_id = a.get("athleteId")
-                        break
+                        matches.append(a)
+
+                if len(matches) == 1:
+                    athlete_id = matches[0].get("athleteId")
+                elif len(matches) > 1:
+                    names = [
+                        f"{a.get('firstName', '')} {a.get('lastName', '')} (ID: {a.get('athleteId')})"
+                        for a in matches
+                    ]
+                    raise ValueError(
+                        f"Ambiguous athlete name '{athlete}' matches {len(matches)} athletes: "
+                        + ", ".join(names)
+                        + ". Use full name or athlete ID to disambiguate."
+                    ) from None
         elif athletes:
             # Default: find the coach's own athlete entry
             for a in athletes:
