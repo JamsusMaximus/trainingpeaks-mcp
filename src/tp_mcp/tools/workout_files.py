@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from tp_mcp.client import TPClient
+from tp_mcp.client.http import AuthenticationError
 
 FILE_DATA_DIR = Path(tempfile.gettempdir()) / "tp-mcp" / "files"
 
@@ -220,24 +221,12 @@ async def tp_download_workout_file(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        token_result = await client._ensure_access_token()
-        if not token_result.success:
-            return {
-                "isError": True,
-                "error_code": token_result.error_code.value if token_result.error_code else "AUTH_INVALID",
-                "message": token_result.message or "Failed to obtain access token.",
-            }
-
-        await client._ensure_client()
-        await client._throttle()
-        assert client._client is not None
-
         endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{workout_id}/rawfiledata/{file_id}"
-        url = f"{client.base_url}{endpoint}"
-        headers = {"Authorization": f"Bearer {client._token_cache.access_token}", "Accept": "*/*"}
 
         try:
-            response = await client._client.request("GET", url=url, headers=headers)
+            response = await client.get_raw(endpoint)
+        except AuthenticationError as e:
+            return {"isError": True, "error_code": "AUTH_INVALID", "message": str(e)}
         except httpx.TimeoutException:
             return {
                 "isError": True,

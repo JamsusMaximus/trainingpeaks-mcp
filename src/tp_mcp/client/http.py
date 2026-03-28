@@ -427,6 +427,57 @@ class TPClient:
         """
         return await self._request("PUT", endpoint, json=json)
 
+    async def get_raw(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        _retry_on_401: bool = True,
+    ) -> httpx.Response:
+        """Make an authenticated GET request returning the raw httpx.Response.
+
+        Use for endpoints that return binary data (file downloads, etc.)
+        where JSON parsing is not appropriate.
+
+        Args:
+            endpoint: API endpoint.
+            params: Query parameters.
+            _retry_on_401: Internal flag to prevent infinite retry loops.
+
+        Returns:
+            Raw httpx.Response (caller must check status_code).
+
+        Raises:
+            httpx.TimeoutException: On request timeout.
+            httpx.RequestError: On network errors.
+            AuthenticationError: If token cannot be obtained.
+        """
+        await self._ensure_client()
+        assert self._client is not None
+
+        token_result = await self._ensure_access_token()
+        if not token_result.success:
+            raise AuthenticationError(
+                token_result.message or "Failed to obtain access token."
+            )
+
+        await self._throttle()
+
+        url = f"{self.base_url}{endpoint}"
+        headers = {
+            "Authorization": f"Bearer {self._token_cache.access_token}",
+            "Accept": "*/*",
+        }
+
+        response = await self._client.request(
+            method="GET", url=url, headers=headers, params=params,
+        )
+
+        if response.status_code == 401 and _retry_on_401:
+            self._token_cache.clear()
+            return await self.get_raw(endpoint, params=params, _retry_on_401=False)
+
+        return response
+
     async def delete(self, endpoint: str) -> APIResponse:
         """Make a DELETE request.
 

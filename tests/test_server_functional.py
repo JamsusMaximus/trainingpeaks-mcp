@@ -92,7 +92,14 @@ class TestListTools:
             "tp_schedule_library_workout",
         }
         assert v2_tools.issubset(names)
-        assert len(names) == len(core_tools) + len(v2_tools)
+        # v3.x tools — workout file operations
+        file_tools = {
+            "tp_upload_workout_file",
+            "tp_download_workout_file",
+            "tp_delete_workout_file",
+        }
+        assert file_tools.issubset(names)
+        assert len(names) == len(core_tools) + len(v2_tools) + len(file_tools)
 
     @pytest.mark.asyncio
     async def test_create_workout_schema_includes_new_fields(self):
