@@ -90,6 +90,7 @@ class TestListTools:
             "tp_create_library_item",
             "tp_update_library_item",
             "tp_schedule_library_workout",
+            "tp_list_athletes",
         }
         assert v2_tools.issubset(names)
         assert len(names) == len(core_tools) + len(v2_tools)

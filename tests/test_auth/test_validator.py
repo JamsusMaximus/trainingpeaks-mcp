@@ -13,17 +13,29 @@ class TestValidateAuth:
     @pytest.mark.asyncio
     async def test_valid_auth(self):
         """Test validation with valid cookie."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "athleteId": 123,
-            "userId": 456,
-            "username": "test@example.com",
+        # Token endpoint returns only token data
+        token_response = MagicMock()
+        token_response.status_code = 200
+        token_response.json.return_value = {
+            "success": True,
+            "token": {"access_token": "test_token", "expires_in": 3600},
+        }
+
+        # User endpoint returns profile info
+        user_response = MagicMock()
+        user_response.status_code = 200
+        user_response.json.return_value = {
+            "user": {
+                "email": "test@example.com",
+                "userId": 456,
+                "personId": 789,
+                "athletes": [{"athleteId": 123}],
+            }
         }
 
         with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
             mock_instance = AsyncMock()
-            mock_instance.get.return_value = mock_response
+            mock_instance.get.side_effect = [token_response, user_response]
             mock_client.return_value.__aenter__.return_value = mock_instance
 
             result = await validate_auth("valid_cookie")

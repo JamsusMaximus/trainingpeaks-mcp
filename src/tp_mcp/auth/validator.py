@@ -63,11 +63,41 @@ async def validate_auth(cookie: str) -> AuthResult:
 
             if response.status_code == 200:
                 data = response.json()
+                token_info = data.get("token", {})
+                access_token = token_info.get("access_token")
+
+                # Token endpoint only returns the token, not user info.
+                # Fetch user profile with the access token.
+                email = None
+                athlete_id = None
+                user_id = None
+
+                if access_token:
+                    try:
+                        user_resp = await client.get(
+                            f"{TP_API_BASE}/users/v3/user",
+                            headers={
+                                "Authorization": f"Bearer {access_token}",
+                                "Accept": "application/json",
+                            },
+                        )
+                        if user_resp.status_code == 200:
+                            user_data = user_resp.json().get("user", {})
+                            email = user_data.get("email")
+                            user_id = user_data.get("userId")
+                            athletes = user_data.get("athletes", [])
+                            if athletes:
+                                athlete_id = athletes[0].get("athleteId")
+                            if not athlete_id:
+                                athlete_id = user_data.get("personId")
+                    except httpx.RequestError:
+                        pass  # User info is best-effort; auth is still valid
+
                 return AuthResult(
                     status=AuthStatus.VALID,
-                    athlete_id=data.get("athleteId"),
-                    user_id=data.get("userId"),
-                    email=data.get("username"),  # TP returns email as username
+                    athlete_id=athlete_id,
+                    user_id=user_id,
+                    email=email,
                     message="Authentication valid",
                 )
             elif response.status_code == 401:
