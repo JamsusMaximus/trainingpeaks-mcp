@@ -202,10 +202,18 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "message": f"Workout {workout_id} not found",
             }
 
+        # Fetch /details endpoint for file infos (not included in main endpoint)
+        details_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}/details"
+        details_response = await client.get(details_endpoint)
+        details_raw = (
+            details_response.data
+            if details_response.success and isinstance(details_response.data, dict)
+            else {}
+        )
+
         try:
             workout = parse_workout_detail(response.data)
 
-            raw = response.data if isinstance(response.data, dict) else {}
             return {
                 "id": str(workout.id),
                 "date": workout.date.isoformat(),
@@ -232,8 +240,8 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "calories": workout.calories,
                 },
                 "completed": workout.completed,
-                "device_files": _extract_file_infos(raw, "workoutDeviceFileInfos"),
-                "attachment_files": _extract_file_infos(raw, "attachmentFileInfos"),
+                "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
+                "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
 
         except Exception:
