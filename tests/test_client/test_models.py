@@ -3,6 +3,7 @@
 from datetime import date
 
 from tp_mcp.client.models import (
+    PeakData,
     UserProfile,
     WorkoutDetail,
     WorkoutSummary,
@@ -165,3 +166,44 @@ class TestParseWorkoutList:
         """Test parsing empty workout list."""
         workouts = parse_workout_list([])
         assert len(workouts) == 0
+
+
+class TestDateTimezoneStripping:
+    """UTC datetime strings must not shift date via local-timezone conversion."""
+
+    def test_workout_summary_utc_midnight(self):
+        summary = WorkoutSummary.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2024-03-24T00:00:00Z",
+        })
+        assert summary.workout_date == date(2024, 3, 24)
+
+    def test_workout_summary_utc_with_offset(self):
+        summary = WorkoutSummary.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2024-03-24T00:00:00+00:00",
+        })
+        assert summary.workout_date == date(2024, 3, 24)
+
+    def test_workout_summary_plain_date_unchanged(self):
+        summary = WorkoutSummary.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2024-03-24",
+        })
+        assert summary.workout_date == date(2024, 3, 24)
+
+    def test_workout_detail_utc_midnight(self):
+        detail = WorkoutDetail.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2024-03-24T00:00:00Z",
+        })
+        assert detail.workout_date == date(2024, 3, 24)
+
+    def test_peak_data_utc_midnight(self):
+        peak = PeakData(
+            duration="20m",
+            duration_seconds=1200,
+            value=300.0,
+            peak_date="2024-03-24T00:00:00Z",
+        )
+        assert peak.peak_date == date(2024, 3, 24)

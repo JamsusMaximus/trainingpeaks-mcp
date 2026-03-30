@@ -5,9 +5,20 @@ when returned to AI assistants.
 """
 
 from datetime import date as date_type
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+
+
+def _strip_datetime_to_date(v: Any) -> Any:
+    """Strip time/timezone from a datetime string so Pydantic takes the date
+    component directly, avoiding local-timezone conversion."""
+    if isinstance(v, str) and "T" in v:
+        return v.split("T")[0]
+    return v
+
+
+DateOnly = Annotated[date_type, BeforeValidator(_strip_datetime_to_date)]
 
 
 class UserProfile(BaseModel):
@@ -35,7 +46,7 @@ class WorkoutSummary(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: int = Field(alias="workoutId")
-    workout_date: date_type = Field(alias="workoutDay")
+    workout_date: DateOnly = Field(alias="workoutDay")
     title: str | None = None
     workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
     sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
@@ -93,7 +104,7 @@ class WorkoutDetail(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: int = Field(alias="workoutId")
-    workout_date: date_type = Field(alias="workoutDay")
+    workout_date: DateOnly = Field(alias="workoutDay")
     title: str | None = None
     sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
     workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
@@ -166,7 +177,7 @@ class PeakData(BaseModel):
     duration: str  # e.g., "5s", "1m", "5m", "20m", "60m"
     duration_seconds: int
     value: float  # watts for power, pace for running
-    peak_date: date_type
+    peak_date: DateOnly
     activity_id: int | None = None
 
     @property
