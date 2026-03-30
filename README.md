@@ -189,6 +189,10 @@ Restart Claude Desktop. You're ready to go!
 
 ---
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/jamsusmaximus-trainingpeaks-mcp).
+
 ## Structured Workouts
 
 Create workouts with full interval structure. The server auto-computes duration, IF, and TSS from the structure:
