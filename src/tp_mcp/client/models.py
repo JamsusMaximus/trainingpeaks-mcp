@@ -7,7 +7,7 @@ when returned to AI assistants.
 from datetime import date as date_type
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserProfile(BaseModel):
@@ -47,6 +47,15 @@ class WorkoutSummary(BaseModel):
     distance_actual: float | None = Field(default=None, alias="distance")
     completed: bool | None = Field(default=None)
     description: str | None = None
+
+    @field_validator("workout_date", mode="before")
+    @classmethod
+    def strip_time_component(cls, v: Any) -> Any:
+        """Strip time/timezone from workoutDay so date is taken from the date
+        string directly, not converted through local system timezone."""
+        if isinstance(v, str) and "T" in v:
+            return v.split("T")[0]
+        return v
 
     @property
     def date(self) -> date_type:
@@ -116,6 +125,15 @@ class WorkoutDetail(BaseModel):
     elevation_gain: float | None = Field(default=None, alias="elevationGain")
     completed: bool | None = Field(default=None)
     structure: dict[str, Any] | None = None
+
+    @field_validator("workout_date", mode="before")
+    @classmethod
+    def strip_time_component(cls, v: Any) -> Any:
+        """Strip time/timezone from workoutDay so date is taken from the date
+        string directly, not converted through local system timezone."""
+        if isinstance(v, str) and "T" in v:
+            return v.split("T")[0]
+        return v
 
     @property
     def date(self) -> date_type:
