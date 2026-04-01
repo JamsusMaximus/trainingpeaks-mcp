@@ -70,6 +70,23 @@ class APIResponse:
 
 
 @dataclass
+class RawResponse:
+    """Wrapper for raw binary API responses."""
+
+    success: bool
+    content: bytes = field(default_factory=bytes)
+    content_type: str | None = None
+    content_disposition: str | None = None
+    error_code: ErrorCode | None = None
+    message: str = ""
+
+    @property
+    def is_error(self) -> bool:
+        """Check if response is an error."""
+        return not self.success
+
+
+@dataclass
 class TokenCache:
     """In-memory cache for OAuth access token."""
 
@@ -97,6 +114,7 @@ class TPClient:
 
     # Class-level caches: persist across instances within the MCP server process
     _cached_athlete_id: int | None = None
+    _cached_user_data: dict | None = None
     _shared_token_cache: TokenCache | None = None
 
     @classmethod
@@ -438,6 +456,89 @@ class TPClient:
         """
         return await self._request("DELETE", endpoint)
 
+    async def get_raw(self, endpoint: str, params: dict[str, Any] | None = None) -> RawResponse:
+        """Make an authenticated GET request and return the raw binary response.
+
+        Handles token refresh and retries on 401 exactly once, mirroring _request logic.
+
+        Args:
+            endpoint: API endpoint.
+            params: Query parameters.
+
+        Returns:
+            RawResponse with binary content and headers, or error.
+        """
+        await self._ensure_client()
+        assert self._client is not None
+
+        token_result = await self._ensure_access_token()
+        if not token_result.success:
+            return RawResponse(
+                success=False,
+                error_code=token_result.error_code,
+                message=token_result.message,
+            )
+
+        await self._throttle()
+
+        url = f"{self.base_url}{endpoint}"
+        headers = {**self._get_headers(), "Accept": "*/*"}
+
+        try:
+            response = await self._client.request("GET", url=url, headers=headers, params=params)
+
+            if response.status_code == 401:
+                self._token_cache.clear()
+                token_result = await self._ensure_access_token()
+                if not token_result.success:
+                    return RawResponse(
+                        success=False,
+                        error_code=token_result.error_code,
+                        message=token_result.message,
+                    )
+                await self._throttle()
+                headers = {**self._get_headers(), "Accept": "*/*"}
+                response = await self._client.request("GET", url=url, headers=headers, params=params)
+
+        except httpx.TimeoutException:
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.NETWORK_ERROR,
+                message="Request timed out. Check your network connection.",
+            )
+        except httpx.RequestError as e:
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.NETWORK_ERROR,
+                message=f"Network error: {e}",
+            )
+
+        if response.status_code == 401:
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.AUTH_EXPIRED,
+                message="Session expired or invalid. Run 'tp-mcp auth' to re-authenticate.",
+            )
+        if response.status_code == 404:
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.NOT_FOUND,
+                message="Resource not found.",
+            )
+        if response.status_code != 200:
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.API_ERROR,
+                message=f"API error: {response.status_code} - {response.text}",
+            )
+
+        return RawResponse(
+            success=True,
+            content=response.content,
+            content_type=response.headers.get("Content-Type"),
+            content_disposition=response.headers.get("Content-Disposition"),
+        )
+
     @property
     def athlete_id(self) -> int | None:
         """Get the cached athlete ID."""
@@ -448,34 +549,105 @@ class TPClient:
         """Set the athlete ID."""
         self._athlete_id = value
 
-    async def ensure_athlete_id(self) -> int | None:
-        """Get athlete ID, using class-level cache to avoid redundant API calls.
-
-        Checks (in order): class-level cache, instance-level cache, API.
-        Caches at class level so the value persists across TPClient instances.
-        """
-        if TPClient._cached_athlete_id is not None:
-            self._athlete_id = TPClient._cached_athlete_id
-            return TPClient._cached_athlete_id
-
-        if self._athlete_id is not None:
-            TPClient._cached_athlete_id = self._athlete_id
-            return self._athlete_id
+    async def _get_user_data(self) -> dict | None:
+        """Get user data, using class-level cache to avoid redundant API calls."""
+        if TPClient._cached_user_data is not None:
+            return TPClient._cached_user_data
 
         response = await self.get("/users/v3/user")
         if not response.success or not response.data:
             return None
 
         user_data = response.data.get("user", response.data)
-        athlete_id = user_data.get("personId")
-        if not athlete_id:
-            athletes = user_data.get("athletes", [])
-            if athletes:
-                athlete_id = athletes[0].get("athleteId")
+        TPClient._cached_user_data = user_data
+        return user_data
+
+    async def ensure_athlete_id(self) -> int | None:
+        """Get athlete ID, resolving coach athlete targeting via context var.
+
+        For coach accounts, reads the athlete_override context variable to
+        target a specific athlete by name or ID. When no override is set,
+        resolves to the coach's own athlete entry.
+
+        Caches at class level only when no athlete override is active.
+        """
+        from tp_mcp.client.context import athlete_override
+
+        athlete = athlete_override.get()
+
+        # Use cache only when no specific athlete is requested
+        if athlete is None:
+            if TPClient._cached_athlete_id is not None:
+                self._athlete_id = TPClient._cached_athlete_id
+                return TPClient._cached_athlete_id
+
+            if self._athlete_id is not None:
+                TPClient._cached_athlete_id = self._athlete_id
+                return self._athlete_id
+
+        user_data = await self._get_user_data()
+        if not user_data:
+            return None
+
+        person_id = user_data.get("personId")
+        athletes = user_data.get("athletes", [])
+
+        athlete_id = None
+
+        if athlete is not None:
+            # Resolve by explicit athlete name or ID
+            try:
+                target_id = int(athlete)
+                for a in athletes:
+                    if a.get("athleteId") == target_id:
+                        athlete_id = target_id
+                        break
+            except ValueError:
+                # Search by name (case-insensitive), detecting ambiguity
+                search = athlete.lower()
+                matches = []
+                for a in athletes:
+                    first = (a.get("firstName") or "").lower()
+                    last = (a.get("lastName") or "").lower()
+                    full = f"{first} {last}"
+                    if search in (first, last, full):
+                        matches.append(a)
+
+                if len(matches) == 1:
+                    athlete_id = matches[0].get("athleteId")
+                elif len(matches) > 1:
+                    names = [
+                        f"{a.get('firstName', '')} {a.get('lastName', '')} (ID: {a.get('athleteId')})"
+                        for a in matches
+                    ]
+                    raise ValueError(
+                        f"Ambiguous athlete name '{athlete}' matches {len(matches)} athletes: "
+                        + ", ".join(names)
+                        + ". Use full name or athlete ID to disambiguate."
+                    ) from None
+        elif athletes:
+            # Default: find the coach's own athlete entry
+            for a in athletes:
+                if a.get("coachedBy") == person_id and a.get("email", "").lower() == user_data.get("email", "").lower():
+                    athlete_id = a.get("athleteId")
+                    break
+            # Fallback: match by last name
+            if not athlete_id:
+                user_last = (user_data.get("lastName") or "").lower()
+                for a in athletes:
+                    if (a.get("lastName") or "").lower() == user_last and a.get("coachedBy") == person_id:
+                        athlete_id = a.get("athleteId")
+                        break
+            # Final fallback: personId or first athlete entry (non-coach accounts)
+            if not athlete_id:
+                athlete_id = person_id or (athletes[0].get("athleteId") if athletes else None)
+        else:
+            athlete_id = person_id
 
         if athlete_id:
             self._athlete_id = athlete_id
-            TPClient._cached_athlete_id = athlete_id
+            if athlete is None:
+                TPClient._cached_athlete_id = athlete_id
 
         return athlete_id
 

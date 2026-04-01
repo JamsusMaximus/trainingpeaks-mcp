@@ -24,6 +24,25 @@ from tp_mcp.tools.structure import (
 
 logger = logging.getLogger("tp-mcp")
 
+
+def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
+    """Normalize TP workout file metadata arrays."""
+    infos = raw_data.get(key)
+    if not isinstance(infos, list):
+        return []
+    normalized = []
+    for item in infos:
+        if not isinstance(item, dict):
+            continue
+        file_id = item.get("fileId")
+        normalized.append({
+            "file_id": str(file_id) if file_id is not None else None,
+            "file_system_id": item.get("fileSystemId"),
+            "file_name": item.get("fileName"),
+            "uploaded_at": item.get("dateUploaded"),
+        })
+    return normalized
+
 # Maps sport name to (workoutTypeFamilyId, workoutTypeValueId)
 # IDs confirmed from GET /fitness/v6/workouttypes
 SPORT_TYPE_MAP: dict[str, tuple[int, int]] = {
@@ -205,6 +224,15 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "message": f"Workout {workout_id} not found",
             }
 
+        # Fetch /details endpoint for file infos (not included in main endpoint)
+        details_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}/details"
+        details_response = await client.get(details_endpoint)
+        details_raw = (
+            details_response.data
+            if details_response.success and isinstance(details_response.data, dict)
+            else {}
+        )
+
         try:
             workout = parse_workout_detail(response.data)
 
@@ -234,6 +262,8 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "calories": workout.calories,
                 },
                 "completed": workout.completed,
+                "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
+                "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
 
         except Exception:

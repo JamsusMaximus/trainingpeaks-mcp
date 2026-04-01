@@ -14,6 +14,7 @@ from mcp.types import (
 )
 
 from tp_mcp.auth import get_credential, validate_auth
+from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
     tp_add_workout_comment,
     tp_analyze_workout,
@@ -32,6 +33,8 @@ from tp_mcp.tools import (
     tp_delete_library,
     tp_delete_note,
     tp_delete_workout,
+    tp_delete_workout_file,
+    tp_download_workout_file,
     tp_get_athlete_settings,
     tp_get_atp,
     tp_get_availability,
@@ -54,6 +57,7 @@ from tp_mcp.tools import (
     tp_get_workout_prs,
     tp_get_workout_types,
     tp_get_workouts,
+    tp_list_athletes,
     tp_log_metrics,
     tp_refresh_auth,
     tp_reorder_workouts,
@@ -66,6 +70,7 @@ from tp_mcp.tools import (
     tp_update_nutrition,
     tp_update_speed_zones,
     tp_update_workout,
+    tp_upload_workout_file,
     tp_validate_structure,
 )
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
@@ -286,6 +291,52 @@ TOOLS = [
                 "comment": {"type": "string"},
             },
             "required": ["workout_id", "comment"],
+        },
+    ),
+    # --- Workout Files ---
+    Tool(
+        name="tp_upload_workout_file",
+        description="Upload a workout file (.fit, .tcx, .gpx) to an existing workout.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_path": {"type": "string", "description": "Path to file on disk"},
+                "file_data_base64": {"type": "string", "description": "Base64-encoded file bytes"},
+                "workout_day": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS. Auto-fetched if omitted.",
+                },
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_download_workout_file",
+        description=(
+            "Download a workout file by file_id."
+            " Get file_id from tp_get_workout device_files/attachment_files."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_id": {"type": "string", "description": "File ID from tp_get_workout"},
+                "output_path": {"type": "string", "description": "Directory or full path to save file"},
+            },
+            "required": ["workout_id", "file_id"],
+        },
+    ),
+    Tool(
+        name="tp_delete_workout_file",
+        description="Delete a workout file by file_id. Get file_id from tp_get_workout device_files/attachment_files.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Workout ID"},
+                "file_id": {"type": "string", "description": "File ID from tp_get_workout"},
+            },
+            "required": ["workout_id", "file_id"],
         },
     ),
     Tool(
@@ -777,7 +828,32 @@ TOOLS = [
             "required": ["library_id", "item_id", "date"],
         },
     ),
+    Tool(
+        name="tp_list_athletes",
+        description="List athletes available to this account (coach accounts).",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
 ]
+
+# ---------------------------------------------------------------------------
+# Coach account support: inject 'athlete' parameter into all applicable tools
+# ---------------------------------------------------------------------------
+_ATHLETE_EXEMPT_TOOLS = {
+    "tp_auth_status", "tp_refresh_auth", "tp_validate_structure",
+    "tp_list_athletes", "tp_get_workout_types",
+}
+
+_ATHLETE_PARAM = {
+    "type": "string",
+    "description": "Target athlete name or ID (coach accounts only). Omit to use your own profile.",
+}
+
+for _tool in TOOLS:
+    if _tool.name not in _ATHLETE_EXEMPT_TOOLS:
+        _tool.inputSchema["properties"]["athlete"] = _ATHLETE_PARAM
 
 
 @server.list_tools()
@@ -808,6 +884,9 @@ async def _h_auth_status(args): return await tp_auth_status()
 
 @_handler("tp_get_profile")
 async def _h_get_profile(args): return await tp_get_profile()
+
+@_handler("tp_list_athletes")
+async def _h_list_athletes(args): return await tp_list_athletes()
 
 @_handler("tp_refresh_auth")
 async def _h_refresh_auth(args): return await tp_refresh_auth(browser=args.get("browser", "auto"))
@@ -866,6 +945,30 @@ async def _h_get_comments(args): return await tp_get_workout_comments(workout_id
 @_handler("tp_add_workout_comment")
 async def _h_add_comment(args):
     return await tp_add_workout_comment(workout_id=args["workout_id"], comment=args["comment"])
+
+@_handler("tp_upload_workout_file")
+async def _h_upload_workout_file(args):
+    return await tp_upload_workout_file(
+        workout_id=args["workout_id"],
+        file_path=args.get("file_path"),
+        file_data_base64=args.get("file_data_base64"),
+        workout_day=args.get("workout_day"),
+    )
+
+@_handler("tp_download_workout_file")
+async def _h_download_workout_file(args):
+    return await tp_download_workout_file(
+        workout_id=args["workout_id"],
+        file_id=args["file_id"],
+        output_path=args.get("output_path"),
+    )
+
+@_handler("tp_delete_workout_file")
+async def _h_delete_workout_file(args):
+    return await tp_delete_workout_file(
+        workout_id=args["workout_id"],
+        file_id=args["file_id"],
+    )
 
 @_handler("tp_validate_structure")
 async def _h_validate_structure(args): return await tp_validate_structure(structure=args["structure"])
@@ -1073,6 +1176,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     logger.info("Tool call: %s", name)
 
+    # Extract athlete targeting for coach accounts and set context var
+    athlete_target = arguments.pop("athlete", None)
+    token = athlete_override.set(athlete_target)
     try:
         handler = _TOOL_HANDLERS.get(name)
         if handler:
@@ -1094,6 +1200,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             "message": "An internal error occurred. Check server logs.",
         }
         return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+    finally:
+        athlete_override.reset(token)
 
 
 async def _validate_auth_on_startup() -> bool:

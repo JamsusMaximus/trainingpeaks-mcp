@@ -7,6 +7,7 @@ from tp_mcp.client.http import (
     ErrorCode,
     NotFoundError,
     RateLimitError,
+    RawResponse,
     TPClient,
 )
 from tp_mcp.client.models import (
@@ -38,6 +39,7 @@ __all__ = [
     "PeakData",
     "PeaksResponse",
     "RateLimitError",
+    "RawResponse",
     "TPClient",
     "UserProfile",
     "WorkoutAnalysis",

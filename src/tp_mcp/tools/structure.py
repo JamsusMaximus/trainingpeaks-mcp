@@ -111,6 +111,19 @@ def _compute_block_duration(block: SimpleStep | SimpleRepetitionBlock) -> int:
     return block.duration_seconds
 
 
+def _polyline_bar(
+    t_start: float, t_end: float, intensity: float, polyline: list[list[float]],
+) -> None:
+    """Append a rectangular bar to the polyline (TP native format).
+
+    Each segment is drawn as: drop to 0 → rise to intensity → hold → drop to 0.
+    """
+    polyline.append([round(t_start, 4), 0])
+    polyline.append([round(t_start, 4), round(intensity, 4)])
+    polyline.append([round(t_end, 4), round(intensity, 4)])
+    polyline.append([round(t_end, 4), 0])
+
+
 def build_wire_structure(structure: SimpleWorkoutStructure) -> dict[str, Any]:
     """Convert simplified structure to TP API wire format.
 
@@ -121,8 +134,10 @@ def build_wire_structure(structure: SimpleWorkoutStructure) -> dict[str, Any]:
         Dict matching the TP API structure format.
     """
     wire_blocks: list[dict[str, Any]] = []
-    polyline: list[list[float]] = []
     cumulative_seconds = 0
+
+    # First pass: compute total duration for polyline normalisation
+    total_duration = sum(_compute_block_duration(b) for b in structure.steps)
 
     for block in structure.steps:
         block_duration = _compute_block_duration(block)
@@ -141,63 +156,39 @@ def build_wire_structure(structure: SimpleWorkoutStructure) -> dict[str, Any]:
             }
             wire_blocks.append(wire_block)
 
-            # Generate polyline points for repetition block
-            for _rep in range(block.reps):
-                for s in block.steps:
-                    midpoint = (s.intensity_min + s.intensity_max) / 2.0 / 100.0
-                    t_start = cumulative_seconds / end if end > 0 else 0
-                    cumulative_seconds += s.duration_seconds
-                    t_end = cumulative_seconds / end if end > 0 else 0
-                    polyline.append([t_start, midpoint])
-                    polyline.append([t_end, midpoint])
-
-            # Reset cumulative to the block end (already computed above)
-            cumulative_seconds = end
-
         else:
-            # Single step
+            # Single step — TP uses repetition wrapper with value=1
             wire_step = _build_step_wire(block)
             wire_block = {
                 "type": "step",
-                "length": {"value": block.duration_seconds, "unit": "second"},
+                "length": {"value": 1, "unit": "repetition"},
                 "steps": [wire_step],
                 "begin": begin,
                 "end": end,
             }
             wire_blocks.append(wire_block)
 
-            midpoint = (block.intensity_min + block.intensity_max) / 2.0 / 100.0
-            total = end  # Use final end for normalisation
-            t_start = begin / total if total > 0 else 0
-            t_end = end / total if total > 0 else 0
-            polyline.append([t_start, midpoint])
-            polyline.append([t_end, midpoint])
+        cumulative_seconds = end
 
-            cumulative_seconds = end
+    # Build polyline with zero-drop bars (matches TP native format)
+    polyline: list[list[float]] = []
+    poly_cumulative = 0
 
-    # Re-normalise polyline to 0-1 range based on total duration
-    total_duration = cumulative_seconds
-    if total_duration > 0:
-        normalised_polyline: list[list[float]] = []
-        poly_cumulative = 0
-        for block in structure.steps:
-            if isinstance(block, SimpleRepetitionBlock):
-                for _rep in range(block.reps):
-                    for s in block.steps:
-                        midpoint = (s.intensity_min + s.intensity_max) / 2.0 / 100.0
-                        t_start = poly_cumulative / total_duration
-                        poly_cumulative += s.duration_seconds
-                        t_end = poly_cumulative / total_duration
-                        normalised_polyline.append([round(t_start, 4), round(midpoint, 4)])
-                        normalised_polyline.append([round(t_end, 4), round(midpoint, 4)])
-            else:
-                midpoint = (block.intensity_min + block.intensity_max) / 2.0 / 100.0
-                t_start = poly_cumulative / total_duration
-                poly_cumulative += block.duration_seconds
-                t_end = poly_cumulative / total_duration
-                normalised_polyline.append([round(t_start, 4), round(midpoint, 4)])
-                normalised_polyline.append([round(t_end, 4), round(midpoint, 4)])
-        polyline = normalised_polyline
+    for block in structure.steps:
+        if isinstance(block, SimpleRepetitionBlock):
+            for _rep in range(block.reps):
+                for s in block.steps:
+                    t_start = poly_cumulative / total_duration if total_duration > 0 else 0
+                    poly_cumulative += s.duration_seconds
+                    t_end = poly_cumulative / total_duration if total_duration > 0 else 0
+                    intensity = s.intensity_max / 100.0
+                    _polyline_bar(t_start, t_end, intensity, polyline)
+        else:
+            t_start = poly_cumulative / total_duration if total_duration > 0 else 0
+            poly_cumulative += block.duration_seconds
+            t_end = poly_cumulative / total_duration if total_duration > 0 else 0
+            intensity = block.intensity_max / 100.0
+            _polyline_bar(t_start, t_end, intensity, polyline)
 
     return {
         "structure": wire_blocks,

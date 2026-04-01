@@ -1,4 +1,4 @@
-"""TOOL-02: tp_get_profile - Get athlete profile and ID."""
+"""TOOL-02: tp_get_profile / tp_list_athletes - Profile and coach tools."""
 
 import logging
 from typing import Any
@@ -63,3 +63,47 @@ async def tp_get_profile() -> dict[str, Any]:
                 "error_code": "API_ERROR",
                 "message": "Failed to parse profile.",
             }
+
+
+async def tp_list_athletes() -> dict[str, Any]:
+    """List athletes available to this account (coach accounts).
+
+    Returns:
+        Dict with athletes list, each containing athlete_id, name, and is_self flag.
+    """
+    async with TPClient() as client:
+        user_data = await client._get_user_data()
+
+        if not user_data:
+            return {
+                "isError": True,
+                "error_code": "API_ERROR",
+                "message": "Could not retrieve user data.",
+            }
+
+        person_id = user_data.get("personId")
+        coach_email = (user_data.get("email") or "").lower()
+        athletes = user_data.get("athletes", [])
+
+        if not athletes:
+            return {
+                "athletes": [],
+                "message": "No athletes found. This may not be a coach account.",
+            }
+
+        result = []
+        for a in athletes:
+            first = a.get("firstName", "")
+            last = a.get("lastName", "")
+            athlete_email = (a.get("email") or "").lower()
+            is_self = (
+                a.get("coachedBy") == person_id
+                and athlete_email == coach_email
+            )
+            result.append({
+                "athlete_id": a.get("athleteId"),
+                "name": f"{first} {last}".strip(),
+                "is_self": is_self,
+            })
+
+        return {"athletes": result}
