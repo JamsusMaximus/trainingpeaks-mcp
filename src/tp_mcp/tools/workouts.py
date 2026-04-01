@@ -58,6 +58,58 @@ def _prepare_structure_payload(
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
         return None, None, None, None, f"Invalid structure: {msg}"
 
+
+def _validate_structured_workout(structured_workout: dict[str, Any]) -> str | None:
+    """Validate the minimum schema needed to round-trip TP native structures."""
+    required = {
+        "structure",
+        "polyline",
+        "primaryLengthMetric",
+        "primaryIntensityMetric",
+        "primaryIntensityTargetOrRange",
+    }
+    missing = required - set(structured_workout.keys())
+    if missing:
+        return (
+            "structured_workout is missing required fields: "
+            f"{', '.join(sorted(missing))}"
+        )
+    if not isinstance(structured_workout.get("structure"), list):
+        return "structured_workout.structure must be a list."
+    return None
+
+
+def _encode_structured_workout(
+    structured_workout: dict[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    """Serialize a TP native workout structure for write endpoints."""
+    if structured_workout is None:
+        return None, None
+
+    error = _validate_structured_workout(structured_workout)
+    if error:
+        return None, error
+
+    try:
+        return json.dumps(structured_workout), None
+    except (TypeError, ValueError) as e:
+        return None, f"structured_workout must be JSON-serializable: {e}"
+
+
+def _decode_structured_workout(raw_structure: Any) -> dict[str, Any] | None:
+    """Decode TP native workout structure from API responses."""
+    if raw_structure is None:
+        return None
+    if isinstance(raw_structure, dict):
+        return raw_structure
+    if isinstance(raw_structure, str):
+        try:
+            parsed = json.loads(raw_structure)
+        except (TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
 # Maps sport name to (workoutTypeFamilyId, workoutTypeValueId)
 # IDs confirmed from GET /fitness/v6/workouttypes
 SPORT_TYPE_MAP: dict[str, tuple[int, int]] = {
@@ -229,7 +281,11 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         )
 
         try:
-            workout = parse_workout_detail(response.data)
+            raw_data = dict(response.data) if isinstance(response.data, dict) else {}
+            structured_workout = _decode_structured_workout(raw_data.get("structure"))
+            if structured_workout is not None:
+                raw_data["structure"] = structured_workout
+            workout = parse_workout_detail(raw_data)
 
             return {
                 "id": str(workout.id),
@@ -257,6 +313,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "calories": workout.calories,
                 },
                 "completed": workout.completed,
+                "structured_workout": structured_workout,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
@@ -289,6 +346,7 @@ async def tp_create_workout(
     distance_km: float | None = None,
     tss_planned: float | None = None,
     structure: dict[str, Any] | str | None = None,
+    structured_workout: dict[str, Any] | None = None,
     subtype_id: int | None = None,
     tags: str | None = None,
     feeling: int | None = None,
@@ -305,6 +363,7 @@ async def tp_create_workout(
         distance_km: Optional planned distance in kilometres.
         tss_planned: Optional planned Training Stress Score.
         structure: Optional interval structure (dict or JSON string).
+        structured_workout: Optional native TP structured workout payload.
         subtype_id: Optional workout subtype ID (e.g. Road Bike=3).
         tags: Optional comma-separated tags string.
         feeling: Optional feeling score (0-10).
@@ -323,6 +382,7 @@ async def tp_create_workout(
             distance_km=distance_km,
             tss_planned=tss_planned,
             structure=structure,
+            structured_workout=structured_workout,
             subtype_id=subtype_id,
             tags=tags,
             feeling=feeling,
@@ -346,6 +406,15 @@ async def tp_create_workout(
             "isError": True,
             "error_code": "VALIDATION_ERROR",
             "message": structure_error,
+        }
+    raw_structure_payload, raw_structure_error = _encode_structured_workout(
+        params.structured_workout,
+    )
+    if raw_structure_error is not None:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": raw_structure_error,
         }
 
     # Use explicit duration if provided, otherwise use structure-computed
@@ -395,6 +464,8 @@ async def tp_create_workout(
             payload["ifPlanned"] = effective_if
         if wire_structure is not None:
             payload["structure"] = json.dumps(wire_structure)
+        elif raw_structure_payload is not None:
+            payload["structure"] = raw_structure_payload
         if params.tags is not None:
             payload["tags"] = params.tags
         if params.feeling is not None:
@@ -445,10 +516,14 @@ async def tp_update_workout(
     feeling: int | None = None,
     rpe: int | None = None,
     structure: dict[str, Any] | str | None = None,
+    structured_workout: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Update fields of an existing workout.
 
     TP API requires full workout object on PUT - fetches existing, merges, then PUTs.
+
+    Supports either simplified ``structure`` input or a native
+    ``structured_workout`` payload, but not both in the same call.
 
     Returns:
         Dict with updated workout details or error.
@@ -470,6 +545,7 @@ async def tp_update_workout(
             feeling=feeling,
             rpe=rpe,
             structure=structure,
+            structured_workout=structured_workout,
         )
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
@@ -487,6 +563,15 @@ async def tp_update_workout(
             "isError": True,
             "error_code": "VALIDATION_ERROR",
             "message": structure_error,
+        }
+    raw_structure_payload, raw_structure_error = _encode_structured_workout(
+        params.structured_workout,
+    )
+    if raw_structure_error is not None:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": raw_structure_error,
         }
 
     effective_duration = params.duration_minutes
@@ -565,6 +650,8 @@ async def tp_update_workout(
                 existing["ifPlanned"] = effective_if
             else:
                 existing.pop("ifPlanned", None)
+        elif raw_structure_payload is not None:
+            existing["structure"] = raw_structure_payload
 
         # PUT updated workout
         put_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{params.workout_id}"

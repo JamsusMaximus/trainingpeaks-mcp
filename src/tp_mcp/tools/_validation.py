@@ -61,6 +61,7 @@ class CreateWorkoutInput(BaseModel):
     distance_km: float | None = Field(default=None, gt=0, le=1000)
     tss_planned: float | None = Field(default=None, gt=0, le=2000)
     structure: Any = None
+    structured_workout: Any = None
     subtype_id: int | None = Field(default=None, gt=0)
     tags: str | None = Field(default=None, max_length=500)
     feeling: int | None = Field(default=None, ge=0, le=10)
@@ -85,8 +86,16 @@ class CreateWorkoutInput(BaseModel):
 
     @model_validator(mode="after")
     def check_duration_or_structure(self) -> "CreateWorkoutInput":
-        if self.duration_minutes is None and self.structure is None:
-            raise ValueError("Either duration_minutes or structure must be provided")
+        if self.structure is not None and self.structured_workout is not None:
+            raise ValueError("Provide only one of structure or structured_workout")
+        if (
+            self.duration_minutes is None
+            and self.structure is None
+            and self.structured_workout is None
+        ):
+            raise ValueError(
+                "Either duration_minutes, structure, or structured_workout must be provided",
+            )
         return self
 
 
@@ -108,6 +117,7 @@ class UpdateWorkoutInput(BaseModel):
     feeling: int | None = Field(default=None, ge=0, le=10)
     rpe: int | None = Field(default=None, ge=1, le=10)
     structure: Any = None
+    structured_workout: Any = None
 
     @field_validator("workout_id", mode="before")
     @classmethod
@@ -136,6 +146,12 @@ class UpdateWorkoutInput(BaseModel):
             valid = ", ".join(SPORT_TYPE_MAP.keys())
             raise ValueError(f"Invalid sport '{v}'. Valid: {valid}")
         return v
+
+    @model_validator(mode="after")
+    def check_structure_inputs(self) -> "UpdateWorkoutInput":
+        if self.structure is not None and self.structured_workout is not None:
+            raise ValueError("Provide only one of structure or structured_workout")
+        return self
 
 
 class SingleDateInput(BaseModel):

@@ -1,5 +1,6 @@
 """Tests for workout tools."""
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -106,6 +107,53 @@ class TestTpGetWorkout:
         assert result["id"] == "1001"
         assert result["title"] == "Test Workout"
         assert result["metrics"]["avg_power"] == 200
+
+    @pytest.mark.asyncio
+    async def test_get_workout_includes_structured_workout(self, mock_api_responses):
+        """Structured workout payload should be returned when present."""
+        workout_data = dict(mock_api_responses["workout_detail"])
+        workout_data["structure"] = {
+            "structure": [],
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+        workout_response = APIResponse(success=True, data=workout_data)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workout_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["structured_workout"] == workout_data["structure"]
+
+    @pytest.mark.asyncio
+    async def test_get_workout_decodes_structured_workout_string(self, mock_api_responses):
+        """Structured workout JSON strings should be decoded in responses."""
+        workout_data = dict(mock_api_responses["workout_detail"])
+        structured_workout = {
+            "structure": [],
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+        workout_data["structure"] = json.dumps(structured_workout)
+        workout_response = APIResponse(success=True, data=workout_data)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workout_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["structured_workout"] == structured_workout
 
     @pytest.mark.asyncio
     async def test_get_workout_not_found(self):

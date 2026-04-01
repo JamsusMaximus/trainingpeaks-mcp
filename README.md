@@ -237,6 +237,23 @@ You can use the same simplified `structure` object with `tp_update_workout`:
 
 If `duration_minutes` and `tss_planned` are omitted, they are derived from the structure. If you pass them explicitly, they override the derived values.
 
+For advanced round-trip use cases, `tp_create_workout` and `tp_update_workout` also accept a native `structured_workout` payload in TrainingPeaks builder format. When a workout already has a native structure, `tp_get_workout` returns it as `structured_workout`.
+
+```json
+{
+  "workout_id": "3658666303",
+  "structured_workout": {
+    "structure": [],
+    "polyline": [],
+    "primaryLengthMetric": "duration",
+    "primaryIntensityMetric": "percentOfFtp",
+    "primaryIntensityTargetOrRange": "range"
+  }
+}
+```
+
+Use either `structure` or `structured_workout` in a single create/update call, not both.
+
 ## What is MCP?
 
 [Model Context Protocol](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external data sources. MCP servers expose tools that AI models can call to fetch real-time data, enabling assistants like Claude to access your Training Peaks account through natural language.

@@ -113,6 +113,12 @@ STRUCTURE_DESCRIPTION = (
     " Intensity values are % of threshold (FTP/HR/pace)."
     " Optional per-step: cadence_min, cadence_max (rpm)."
 )
+RAW_STRUCTURE_DESCRIPTION = (
+    "Native TrainingPeaks structured workout payload in builder format. "
+    "Use this only when you already have a TP structure object with keys like "
+    "structure, polyline, primaryLengthMetric, primaryIntensityMetric, and "
+    "primaryIntensityTargetOrRange."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +185,9 @@ TOOLS = [
     Tool(
         name="tp_create_workout",
         description=(
-            "Create a planned workout with optional interval structure. "
-            "Duration auto-computed from structure if not provided."
+            "Create a planned workout with optional simplified interval structure "
+            "or native TrainingPeaks structured_workout payload. Duration is "
+            "auto-computed only from simplified structure when not provided."
         ),
         inputSchema={
             "type": "object",
@@ -199,6 +206,10 @@ TOOLS = [
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
                 },
+                "structured_workout": {
+                    "type": "object",
+                    "description": RAW_STRUCTURE_DESCRIPTION,
+                },
                 "subtype_id": {
                     "type": "integer",
                     "description": "Workout subtype ID from tp_get_workout_types",
@@ -214,8 +225,8 @@ TOOLS = [
         name="tp_update_workout",
         description=(
             "Update fields of an existing workout. Supports the same simplified "
-            "interval structure format as tp_create_workout, then fetches existing, "
-            "merges, and saves."
+            "interval structure format as tp_create_workout plus an optional native "
+            "structured_workout payload, then fetches existing, merges, and saves."
         ),
         inputSchema={
             "type": "object",
@@ -237,6 +248,10 @@ TOOLS = [
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
+                },
+                "structured_workout": {
+                    "type": "object",
+                    "description": RAW_STRUCTURE_DESCRIPTION,
                 },
             },
             "required": ["workout_id"],
@@ -916,6 +931,7 @@ async def _h_create_workout(args):
         duration_minutes=args.get("duration_minutes"),
         description=args.get("description"), distance_km=args.get("distance_km"),
         tss_planned=args.get("tss_planned"), structure=args.get("structure"),
+        structured_workout=args.get("structured_workout"),
         subtype_id=args.get("subtype_id"), tags=args.get("tags"),
         feeling=args.get("feeling"), rpe=args.get("rpe"),
     )
@@ -931,6 +947,7 @@ async def _h_update_workout(args):
         tags=args.get("tags"), athlete_comment=args.get("athlete_comment"),
         coach_comment=args.get("coach_comment"), feeling=args.get("feeling"),
         rpe=args.get("rpe"), structure=args.get("structure"),
+        structured_workout=args.get("structured_workout"),
     )
 
 @_handler("tp_delete_workout")

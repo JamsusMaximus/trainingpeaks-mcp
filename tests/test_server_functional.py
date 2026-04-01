@@ -100,14 +100,24 @@ class TestListTools:
 
     @pytest.mark.asyncio
     async def test_create_workout_schema_includes_new_fields(self):
-        """The tp_create_workout schema should advertise distance_km and tss_planned."""
+        """The tp_create_workout schema should advertise optional structured_workout support."""
         tools = await list_tools()
         cw = next(t for t in tools if t.name == "tp_create_workout")
         props = cw.inputSchema["properties"]
         assert "distance_km" in props
         assert "tss_planned" in props
+        assert "structured_workout" in props
         assert "distance_km" not in cw.inputSchema["required"]
         assert "tss_planned" not in cw.inputSchema["required"]
+        assert "structured_workout" not in cw.inputSchema["required"]
+
+    @pytest.mark.asyncio
+    async def test_update_workout_schema_includes_structured_workout(self):
+        tools = await list_tools()
+        uw = next(t for t in tools if t.name == "tp_update_workout")
+        props = uw.inputSchema["properties"]
+        assert "structure" in props
+        assert "structured_workout" in props
 
 
 # ---------------------------------------------------------------------------
