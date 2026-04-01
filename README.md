@@ -212,7 +212,30 @@ Create workouts with full interval structure. The server auto-computes duration,
 }
 ```
 
-The LLM builds this JSON naturally from conversation - just say "build me 4x8min sweet spot with 2min rest". The same simplified `structure` format also works with `tp_update_workout`.
+The LLM builds this JSON naturally from conversation - just say "build me 4x8min sweet spot with 2min rest".
+
+You can use the same simplified `structure` object with `tp_update_workout`:
+
+```json
+{
+  "workout_id": "3658666303",
+  "duration_minutes": 57,
+  "tss_planned": 62.3,
+  "structure": {
+    "primaryIntensityMetric": "percentOfThresholdHr",
+    "steps": [
+      {"name": "Einlaufen", "duration_seconds": 900, "intensity_min": 65, "intensity_max": 80, "intensityClass": "warmUp"},
+      {"type": "repetition", "name": "4x5min zügig kontrolliert", "reps": 4, "steps": [
+        {"name": "Intervall", "duration_seconds": 300, "intensity_min": 89, "intensity_max": 94, "intensityClass": "active"},
+        {"name": "Trabpause", "duration_seconds": 180, "intensity_min": 65, "intensity_max": 83, "intensityClass": "rest"}
+      ]},
+      {"name": "Auslaufen", "duration_seconds": 600, "intensity_min": 65, "intensity_max": 80, "intensityClass": "coolDown"}
+    ]
+  }
+}
+```
+
+If `duration_minutes` and `tss_planned` are omitted, they are derived from the structure. If you pass them explicitly, they override the derived values.
 
 ## What is MCP?
 
