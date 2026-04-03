@@ -4,7 +4,7 @@
 MVP - Complete & Production Ready
 
 ## Last Updated
-2026-01-09
+2026-04-03
 
 ## Completed Tasks
 
@@ -52,8 +52,24 @@ MVP - Complete & Production Ready
 
 ### Future (V1)
 - [x] TOOL-08 - tp_create_workout (basic: date, sport, title, duration; structured workouts deferred)
+- [x] TOOL-11 - tp_pair_workout (pair completed workout with planned workout via combine endpoint)
+- [x] TOOL-12 - tp_unpair_workout (split paired workout into completed + planned via split endpoint)
 - [ ] TOOL-09 - tp_move_workout
 - [ ] TOOL-10 - tp_get_health_metrics (sleep, resting HR, HRV, weight)
+
+## Recent Changes (2026-04-03)
+
+### Pair/Unpair Workout Tools
+Added `tp_pair_workout` and `tp_unpair_workout` tools that use the TrainingPeaks
+combine/split API endpoints. These allow pairing a completed workout with a planned
+workout (merging them into one calendar entry) and unpairing them back into separate
+entries. All data is preserved in both directions — comments, metrics, planned fields.
+
+API endpoints discovered by reverse-engineering the TrainingPeaks web app:
+- Pair: `POST /fitness/v6/athletes/{id}/commands/workouts/combine`
+- Unpair: `POST /fitness/v6/athletes/{id}/commands/workouts/{workoutId}/split`
+
+9 unit tests added. Live tested against a real TrainingPeaks account.
 
 ## Recent Changes (2026-01-09)
 
@@ -85,6 +101,8 @@ Verified against live TrainingPeaks API (2026-01-09):
 | `/users/v3/user` | User profile (nested: `{ user: { personId } }`) |
 | `/fitness/v6/athletes/{id}/workouts/{start}/{end}` | Workout list |
 | `/fitness/v6/athletes/{id}/workouts/{workoutId}` | Single workout |
+| `/fitness/v6/athletes/{id}/commands/workouts/combine` | Pair workouts (POST, body: `{athleteId, completedWorkoutId, plannedWorkoutId}`) |
+| `/fitness/v6/athletes/{id}/commands/workouts/{workoutId}/split` | Unpair workout (POST, empty body) |
 | `/personalrecord/v2/athletes/{id}/workouts/{workoutId}` | PRs per workout |
 | `/personalrecord/v2/athletes/{id}/{Sport}?prType=...` | Sport-specific PRs |
 | `/fitness/v1/athletes/{id}/reporting/performancedata/{start}/{end}` | CTL/ATL/TSB (POST) |
