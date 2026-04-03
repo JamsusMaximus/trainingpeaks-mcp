@@ -59,6 +59,7 @@ from tp_mcp.tools import (
     tp_get_workouts,
     tp_list_athletes,
     tp_log_metrics,
+    tp_pair_workout,
     tp_refresh_auth,
     tp_reorder_workouts,
     tp_schedule_library_workout,
@@ -69,6 +70,7 @@ from tp_mcp.tools import (
     tp_update_library_item,
     tp_update_nutrition,
     tp_update_speed_zones,
+    tp_unpair_workout,
     tp_update_workout,
     tp_upload_workout_file,
     tp_validate_structure,
@@ -270,6 +272,44 @@ TOOLS = [
                 },
             },
             "required": ["workout_ids"],
+        },
+    ),
+    Tool(
+        name="tp_unpair_workout",
+        description=(
+            "Unpair a workout. Detaches the completed workout file from the "
+            "planned workout, creating two separate workouts. No data is lost."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {
+                    "type": "string",
+                    "description": "The ID of the paired workout to unpair.",
+                },
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_pair_workout",
+        description=(
+            "Pair a completed workout with a planned workout. Attaches the "
+            "completed data to the planned workout, merging them into one."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "completed_workout_id": {
+                    "type": "string",
+                    "description": "The ID of the completed (actual) workout.",
+                },
+                "planned_workout_id": {
+                    "type": "string",
+                    "description": "The ID of the planned workout to pair with.",
+                },
+            },
+            "required": ["completed_workout_id", "planned_workout_id"],
         },
     ),
     Tool(
@@ -938,6 +978,16 @@ async def _h_copy_workout(args):
 
 @_handler("tp_reorder_workouts")
 async def _h_reorder(args): return await tp_reorder_workouts(workout_ids=args["workout_ids"])
+
+@_handler("tp_unpair_workout")
+async def _h_unpair(args): return await tp_unpair_workout(workout_id=args["workout_id"])
+
+@_handler("tp_pair_workout")
+async def _h_pair(args):
+    return await tp_pair_workout(
+        completed_workout_id=args["completed_workout_id"],
+        planned_workout_id=args["planned_workout_id"],
+    )
 
 @_handler("tp_get_workout_comments")
 async def _h_get_comments(args): return await tp_get_workout_comments(workout_id=args["workout_id"])

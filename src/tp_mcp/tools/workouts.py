@@ -886,3 +886,150 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
             "success": True,
             "message": "Comment added.",
         }
+
+
+async def tp_unpair_workout(workout_id: str) -> dict[str, Any]:
+    """Unpair (split) a paired workout into separate completed and planned workouts.
+
+    Detaches the completed workout file from the planned workout,
+    creating two independent workouts on the same day. No data is lost.
+
+    Args:
+        workout_id: The ID of the paired workout to unpair.
+
+    Returns:
+        Dict with completed workout(s) and new planned workout info, or error.
+    """
+    try:
+        validated = WorkoutIdInput(workout_id=workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = (
+            f"/fitness/v6/athletes/{athlete_id}"
+            f"/commands/workouts/{validated.workout_id}/split"
+        )
+        response = await client.post(endpoint)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        if not isinstance(response.data, dict):
+            return {
+                "isError": True,
+                "error_code": "API_ERROR",
+                "message": "Unexpected response format from API.",
+            }
+
+        completed = response.data.get("completedWorkouts", [])
+        planned = response.data.get("plannedWorkout")
+
+        completed_ids = [w.get("workoutId") for w in completed if isinstance(w, dict)]
+        planned_id = planned.get("workoutId") if isinstance(planned, dict) else None
+
+        return {
+            "success": True,
+            "message": f"Workout {validated.workout_id} unpaired.",
+            "completed_workout_ids": completed_ids,
+            "planned_workout_id": planned_id,
+            "completed_workouts": completed,
+            "planned_workout": planned,
+        }
+
+
+async def tp_pair_workout(
+    completed_workout_id: str,
+    planned_workout_id: str,
+) -> dict[str, Any]:
+    """Pair (combine) a completed workout with a planned workout.
+
+    Attaches the completed workout data to the planned workout,
+    merging them into a single paired workout. All data from both
+    workouts is preserved.
+
+    Args:
+        completed_workout_id: The ID of the completed (actual) workout.
+        planned_workout_id: The ID of the planned workout to pair with.
+
+    Returns:
+        Dict with merged workout info, or error.
+    """
+    try:
+        validated_completed = WorkoutIdInput(workout_id=completed_workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid completed_workout_id: {msg}",
+        }
+
+    try:
+        validated_planned = WorkoutIdInput(workout_id=planned_workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid planned_workout_id: {msg}",
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/commands/workouts/combine"
+        payload = {
+            "athleteId": int(athlete_id),
+            "completedWorkoutId": int(validated_completed.workout_id),
+            "plannedWorkoutId": int(validated_planned.workout_id),
+        }
+        response = await client.post(endpoint, json=payload)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        if not isinstance(response.data, dict):
+            return {
+                "isError": True,
+                "error_code": "API_ERROR",
+                "message": "Unexpected response format from API.",
+            }
+
+        return {
+            "success": True,
+            "message": (
+                f"Workout {validated_completed.workout_id} paired with "
+                f"planned workout {validated_planned.workout_id}."
+            ),
+            "workout_id": response.data.get("workoutId"),
+            "title": response.data.get("title"),
+            "workout": response.data,
+        }

@@ -94,6 +94,8 @@ class TestListTools:
             "tp_upload_workout_file",
             "tp_download_workout_file",
             "tp_delete_workout_file",
+            "tp_pair_workout",
+            "tp_unpair_workout",
         }
         assert v2_tools.issubset(names)
         assert len(names) == len(core_tools) + len(v2_tools)
