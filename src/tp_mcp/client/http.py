@@ -291,7 +291,7 @@ class TPClient:
         self,
         method: str,
         endpoint: str,
-        json: dict[str, Any] | None = None,
+        json: dict[str, Any] | list[Any] | None = None,
         params: dict[str, Any] | None = None,
         _retry_on_401: bool = True,
     ) -> APIResponse:
@@ -424,7 +424,7 @@ class TPClient:
         """
         return await self._request("GET", endpoint, params=params)
 
-    async def post(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
+    async def post(self, endpoint: str, json: dict[str, Any] | list[Any] | None = None) -> APIResponse:
         """Make a POST request.
 
         Args:
@@ -436,7 +436,7 @@ class TPClient:
         """
         return await self._request("POST", endpoint, json=json)
 
-    async def put(self, endpoint: str, json: dict[str, Any] | None = None) -> APIResponse:
+    async def put(self, endpoint: str, json: dict[str, Any] | list[Any] | None = None) -> APIResponse:
         """Make a PUT request.
 
         Args:
