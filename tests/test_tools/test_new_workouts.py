@@ -646,6 +646,115 @@ class TestCopyWorkout:
         assert "completed" not in payload
 
     @pytest.mark.asyncio
+    async def test_copy_shifts_start_time_planned_to_target_date(self):
+        """Copy should shift startTimePlanned to the target date, preserving time-of-day."""
+        source = {
+            "workoutId": 1001,
+            "title": "Morning Ride",
+            "workoutTypeFamilyId": 2,
+            "workoutTypeValueId": 2,
+            "startTimePlanned": "2026-03-15T07:30:00",
+        }
+        get_response = APIResponse(success=True, data=source)
+        post_response = APIResponse(success=True, data={"workoutId": 2004, "title": "Morning Ride"})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_copy_workout("1001", "2026-04-01")
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["startTimePlanned"] == "2026-04-01T07:30:00"
+
+    @pytest.mark.asyncio
+    async def test_copy_without_start_time_planned_omits_field(self):
+        """Copy should not set startTimePlanned when source has none."""
+        source = {
+            "workoutId": 1001,
+            "title": "No Time Workout",
+            "workoutTypeFamilyId": 2,
+            "workoutTypeValueId": 2,
+        }
+        get_response = APIResponse(success=True, data=source)
+        post_response = APIResponse(success=True, data={"workoutId": 2005, "title": "No Time Workout"})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_copy_workout("1001", "2026-04-01")
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert "startTimePlanned" not in payload
+
+    @pytest.mark.asyncio
+    async def test_copy_preserves_raw_start_time_planned_on_parse_failure(self):
+        """When startTimePlanned cannot be parsed, raw value is preserved rather than silently dropped."""
+        source = {
+            "workoutId": 1001,
+            "title": "Weird Time Workout",
+            "workoutTypeFamilyId": 2,
+            "workoutTypeValueId": 2,
+            "startTimePlanned": "not-a-datetime",
+        }
+        get_response = APIResponse(success=True, data=source)
+        post_response = APIResponse(success=True, data={"workoutId": 2006, "title": "Weird Time Workout"})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_copy_workout("1001", "2026-04-01")
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        # Raw value preserved, not silently dropped
+        assert payload["startTimePlanned"] == "not-a-datetime"
+
+    @pytest.mark.asyncio
+    async def test_copy_preserves_utc_offset_in_start_time_planned(self):
+        """When startTimePlanned carries a UTC offset, the offset is preserved on the new date.
+
+        The TP API returns naive datetimes in practice, so DST re-localisation is not
+        performed. This test documents the intended fixed-offset behaviour.
+        """
+        source = {
+            "workoutId": 1001,
+            "title": "Offset Workout",
+            "workoutTypeFamilyId": 2,
+            "workoutTypeValueId": 2,
+            "startTimePlanned": "2026-03-15T07:30:00+02:00",
+        }
+        get_response = APIResponse(success=True, data=source)
+        post_response = APIResponse(success=True, data={"workoutId": 2007, "title": "Offset Workout"})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_copy_workout("1001", "2026-04-01")
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        # Date shifted; fixed offset carried over (TP API uses naive times so no DST risk)
+        assert payload["startTimePlanned"] == "2026-04-01T07:30:00+02:00"
+
+    @pytest.mark.asyncio
     async def test_copy_with_title_override(self):
         source = {"workoutId": 1001, "title": "Old", "workoutTypeFamilyId": 3, "workoutTypeValueId": 3}
         get_response = APIResponse(success=True, data=source)
