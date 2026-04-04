@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import date as date_type
 from datetime import datetime as datetime_type
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import ValidationError
 
@@ -23,6 +23,14 @@ from tp_mcp.tools.structure import (
 )
 
 logger = logging.getLogger("tp-mcp")
+
+
+class StructurePayload(NamedTuple):
+    wire_structure: dict | None
+    duration_minutes: float | None
+    intensity_factor: float | None
+    tss: float | None
+    error: str | None
 
 
 def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
@@ -46,19 +54,25 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
 
 def _prepare_structure_payload(
     structure: dict[str, Any] | str | None,
-) -> tuple[dict[str, Any] | None, float | None, float | None, float | None, str | None]:
+) -> StructurePayload:
     """Parse simplified structure input and derive TP payload values."""
     if structure is None:
-        return None, None, None, None, None
+        return StructurePayload(None, None, None, None, None)
 
     try:
         parsed_structure = parse_structure_input(structure)
         wire_structure = build_wire_structure(parsed_structure)
         structure_if, structure_tss, total_seconds = compute_if_tss(parsed_structure)
-        return wire_structure, total_seconds / 60.0, structure_if, structure_tss, None
+        return StructurePayload(
+            wire_structure=wire_structure,
+            duration_minutes=total_seconds / 60.0,
+            intensity_factor=structure_if,
+            tss=structure_tss,
+            error=None,
+        )
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
-        return None, None, None, None, f"Invalid structure: {msg}"
+        return StructurePayload(None, None, None, None, f"Invalid structure: {msg}")
 
 
 def _validate_structured_workout(structured_workout: dict[str, Any]) -> str | None:
@@ -420,14 +434,12 @@ async def tp_create_workout(
 
     family_id, type_id = SPORT_TYPE_MAP[params.sport]
 
-    wire_structure, structure_duration_minutes, structure_if, structure_tss, structure_error = (
-        _prepare_structure_payload(params.structure)
-    )
-    if structure_error is not None:
+    structure_payload = _prepare_structure_payload(params.structure)
+    if structure_payload.error is not None:
         return {
             "isError": True,
             "error_code": "VALIDATION_ERROR",
-            "message": structure_error,
+            "message": structure_payload.error,
         }
     raw_structure_payload, raw_structure_error = _encode_structured_workout(
         params.structured_workout,
@@ -441,18 +453,18 @@ async def tp_create_workout(
 
     # Use explicit duration if provided, otherwise use structure-computed
     effective_duration: float | None = float(params.duration_minutes) if params.duration_minutes is not None else None
-    if effective_duration is None and structure_duration_minutes is not None:
-        effective_duration = structure_duration_minutes
+    if effective_duration is None and structure_payload.duration_minutes is not None:
+        effective_duration = structure_payload.duration_minutes
 
     # Use explicit TSS if provided, otherwise use structure-computed
     effective_tss = params.tss_planned
-    if effective_tss is None and structure_tss is not None:
-        effective_tss = structure_tss
+    if effective_tss is None and structure_payload.tss is not None:
+        effective_tss = structure_payload.tss
 
     # Use structure IF if no explicit TSS was given
     effective_if = None
-    if params.tss_planned is None and structure_if is not None:
-        effective_if = structure_if
+    if params.tss_planned is None and structure_payload.intensity_factor is not None:
+        effective_if = structure_payload.intensity_factor
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
@@ -486,8 +498,8 @@ async def tp_create_workout(
             payload["tssPlanned"] = effective_tss
         if effective_if is not None:
             payload["ifPlanned"] = effective_if
-        if wire_structure is not None:
-            payload["structure"] = json.dumps(wire_structure)
+        if structure_payload.wire_structure is not None:
+            payload["structure"] = json.dumps(structure_payload.wire_structure)
         elif raw_structure_payload is not None:
             payload["structure"] = raw_structure_payload
         if params.tags is not None:
@@ -579,14 +591,12 @@ async def tp_update_workout(
             "message": msg,
         }
 
-    wire_structure, structure_duration_minutes, structure_if, structure_tss, structure_error = (
-        _prepare_structure_payload(params.structure)
-    )
-    if structure_error is not None:
+    structure_payload = _prepare_structure_payload(params.structure)
+    if structure_payload.error is not None:
         return {
             "isError": True,
             "error_code": "VALIDATION_ERROR",
-            "message": structure_error,
+            "message": structure_payload.error,
         }
     raw_structure_payload, raw_structure_error = _encode_structured_workout(
         params.structured_workout,
@@ -599,16 +609,16 @@ async def tp_update_workout(
         }
 
     effective_duration = params.duration_minutes
-    if effective_duration is None and structure_duration_minutes is not None:
-        effective_duration = structure_duration_minutes
+    if effective_duration is None and structure_payload.duration_minutes is not None:
+        effective_duration = structure_payload.duration_minutes
 
     effective_tss = params.tss_planned
-    if effective_tss is None and structure_tss is not None:
-        effective_tss = structure_tss
+    if effective_tss is None and structure_payload.tss is not None:
+        effective_tss = structure_payload.tss
 
     effective_if = None
-    if params.structure is not None and params.tss_planned is None and structure_if is not None:
-        effective_if = structure_if
+    if params.structure is not None and params.tss_planned is None and structure_payload.intensity_factor is not None:
+        effective_if = structure_payload.intensity_factor
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
@@ -675,7 +685,7 @@ async def tp_update_workout(
         if params.rpe is not None:
             existing["rpe"] = params.rpe
         if params.structure is not None:
-            existing["structure"] = json.dumps(wire_structure)
+            existing["structure"] = json.dumps(structure_payload.wire_structure)
             if effective_if is not None:
                 existing["ifPlanned"] = effective_if
             else:
