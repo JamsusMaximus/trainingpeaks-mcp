@@ -180,12 +180,71 @@ class TestCreateWorkoutWithStructure:
 
     @pytest.mark.asyncio
     async def test_create_without_duration_or_structure(self):
-        """Should fail if neither duration nor structure provided."""
+        """Should fail if no duration, simplified structure, or raw structure provided."""
         result = await tp_create_workout(
             date_str="2026-03-01", sport="Run", title="No Duration",
         )
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_create_with_structured_workout_serialises(self):
+        """Raw structured_workout should be serialized unchanged for POST."""
+        structured_workout = {
+            "structure": [],
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+        create_response = APIResponse(
+            success=True,
+            data={"workoutId": 7005, "title": "Structured Raw", "workoutDay": "2026-03-01T00:00:00"},
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport="Bike",
+                title="Structured Raw",
+                structured_workout=structured_workout,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert json.loads(payload["structure"]) == structured_workout
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_both_structure_inputs(self):
+        """Simplified structure and raw structured_workout cannot be combined."""
+        result = await tp_create_workout(
+            date_str="2026-03-01",
+            sport="Bike",
+            title="Conflict",
+            structure={"steps": [{"name": "WU", "duration_seconds": 60, "intensity_min": 50, "intensity_max": 60}]},
+            structured_workout={"structure": []},
+        )
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "Provide only one of structure or structured_workout" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_invalid_structured_workout(self):
+        """Raw structured_workout should be validated before POST."""
+        result = await tp_create_workout(
+            date_str="2026-03-01",
+            sport="Bike",
+            title="Bad Structured Raw",
+            structured_workout={"structure": []},
+        )
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "structured_workout" in result["message"]
 
 
 class TestUpdateWorkout:
@@ -429,6 +488,59 @@ class TestUpdateWorkout:
         assert result["error_code"] == "VALIDATION_ERROR"
         mock_instance.get.assert_not_called()
         mock_instance.put.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_with_structured_workout_serialises(self):
+        """Raw structured_workout should be serialized unchanged for PUT."""
+        existing = {"workoutId": 1001}
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+        structured_workout = {
+            "structure": [],
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(
+                workout_id="1001",
+                structured_workout=structured_workout,
+            )
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert json.loads(put_payload["structure"]) == structured_workout
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_both_structure_inputs(self):
+        """Simplified structure and raw structured_workout cannot be combined."""
+        result = await tp_update_workout(
+            workout_id="1001",
+            structure={"steps": [{"name": "WU", "duration_seconds": 60, "intensity_min": 50, "intensity_max": 60}]},
+            structured_workout={"structure": []},
+        )
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "Provide only one of structure or structured_workout" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_invalid_structured_workout(self):
+        """Raw structured_workout should be validated before PUT."""
+        result = await tp_update_workout(
+            workout_id="1001",
+            structured_workout={"structure": []},
+        )
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "structured_workout" in result["message"]
 
 
 class TestDeleteWorkout:
