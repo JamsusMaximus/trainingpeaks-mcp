@@ -4,7 +4,7 @@
 MVP - Complete & Production Ready
 
 ## Last Updated
-2026-04-03
+2026-04-04
 
 ## Completed Tasks
 
@@ -42,9 +42,9 @@ MVP - Complete & Production Ready
 - [x] SERVER-02 - Python 3.14 async fix
 
 ### Testing & Docs (MVP)
-- [x] TEST-01 - Integration test suite (44 tests passing)
+- [x] TEST-01 - Integration test suite (338 tests passing)
 - [x] TEST-02 - Tests for fitness/peaks tools
-- [x] CI-01 - GitHub Actions workflow (Python 3.10-3.12)
+- [x] CI-01 - GitHub Actions workflow (Python 3.10-3.14)
 - [x] DOCS-01 - README with SEO optimization (trainingpeaks + training-peaks tags)
 - [x] DOCS-02 - MIT License
 - [x] DOCS-03 - Example screenshot
@@ -56,6 +56,27 @@ MVP - Complete & Production Ready
 - [x] TOOL-12 - tp_unpair_workout (split paired workout into completed + planned via split endpoint)
 - [ ] TOOL-09 - tp_move_workout
 - [ ] TOOL-10 - tp_get_health_metrics (sleep, resting HR, HRV, weight)
+
+## Recent Changes (2026-04-04)
+
+### Structured Workout Updates (PR #35, #36)
+- `tp_update_workout` now accepts the same simplified `structure` format as `tp_create_workout`
+- Shared logic refactored into `_prepare_structure_payload` returning a `StructurePayload` NamedTuple (PR #47)
+- Native `structured_workout` payload support for raw TrainingPeaks builder round-trip (create, update, get)
+
+### Planned Workout Start Times (PR #34, #48)
+- `tp_create_workout` and `tp_update_workout` accept `YYYY-MM-DDTHH:MM:SS` for planned start times
+- Date-only updates intelligently shift existing planned start times to preserve time-of-day
+- `tp_copy_workout` now preserves `startTimePlanned` when copying workouts
+
+### FTP Update Fix (PR #37)
+- Fixed HTTP 500 errors on the powerzones endpoint by sending the full zone array
+- Added handling for 204 No Content responses
+- Zone boundaries are now scaled proportionally from old to new FTP
+
+### Type and Test Improvements (PR #49, #50)
+- Widened `TPClient._request()` json parameter type to accept list payloads
+- Added edge-case test coverage for FTP fallback and pair/unpair unexpected responses
 
 ## Recent Changes (2026-04-03)
 
@@ -103,6 +124,7 @@ Verified against live TrainingPeaks API (2026-01-09):
 | `/fitness/v6/athletes/{id}/workouts/{workoutId}` | Single workout |
 | `/fitness/v6/athletes/{id}/commands/workouts/combine` | Pair workouts (POST, body: `{athleteId, completedWorkoutId, plannedWorkoutId}`) |
 | `/fitness/v6/athletes/{id}/commands/workouts/{workoutId}/split` | Unpair workout (POST, empty body) |
+| `/fitness/v2/athletes/{id}/powerzones` | Power zones (PUT, full array of zone groups) |
 | `/personalrecord/v2/athletes/{id}/workouts/{workoutId}` | PRs per workout |
 | `/personalrecord/v2/athletes/{id}/{Sport}?prType=...` | Sport-specific PRs |
 | `/fitness/v1/athletes/{id}/reporting/performancedata/{start}/{end}` | CTL/ATL/TSB (POST) |
