@@ -835,14 +835,15 @@ async def tp_copy_workout(
             if source.get(field) is not None:
                 payload[field] = source[field]
 
-        # Shift startTimePlanned to target date, preserving time-of-day
+        # Shift startTimePlanned to target date, preserving time-of-day.
+        # If the value can't be parsed (unexpected format), fall back to the
+        # raw source string so the field is never silently dropped.
         if source.get("startTimePlanned"):
             from datetime import date as date_type
             shifted = _shift_start_time_planned(
                 source["startTimePlanned"], date_type.fromisoformat(target_date)
             )
-            if shifted is not None:
-                payload["startTimePlanned"] = shifted
+            payload["startTimePlanned"] = shifted if shifted is not None else source["startTimePlanned"]
 
         # Copy structure
         if source.get("structure") is not None:
