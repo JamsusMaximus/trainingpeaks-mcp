@@ -224,12 +224,12 @@ You can use the same simplified `structure` object with `tp_update_workout`:
   "structure": {
     "primaryIntensityMetric": "percentOfThresholdHr",
     "steps": [
-      {"name": "Einlaufen", "duration_seconds": 900, "intensity_min": 65, "intensity_max": 80, "intensityClass": "warmUp"},
-      {"type": "repetition", "name": "4x5min zügig kontrolliert", "reps": 4, "steps": [
-        {"name": "Intervall", "duration_seconds": 300, "intensity_min": 89, "intensity_max": 94, "intensityClass": "active"},
-        {"name": "Trabpause", "duration_seconds": 180, "intensity_min": 65, "intensity_max": 83, "intensityClass": "rest"}
+      {"name": "Warm-up", "duration_seconds": 900, "intensity_min": 65, "intensity_max": 80, "intensityClass": "warmUp"},
+      {"type": "repetition", "name": "4x5min controlled tempo", "reps": 4, "steps": [
+        {"name": "Interval", "duration_seconds": 300, "intensity_min": 89, "intensity_max": 94, "intensityClass": "active"},
+        {"name": "Jog recovery", "duration_seconds": 180, "intensity_min": 65, "intensity_max": 83, "intensityClass": "rest"}
       ]},
-      {"name": "Auslaufen", "duration_seconds": 600, "intensity_min": 65, "intensity_max": 80, "intensityClass": "coolDown"}
+      {"name": "Cool-down", "duration_seconds": 600, "intensity_min": 65, "intensity_max": 80, "intensityClass": "coolDown"}
     ]
   }
 }
