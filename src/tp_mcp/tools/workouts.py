@@ -839,7 +839,6 @@ async def tp_copy_workout(
         # If the value can't be parsed (unexpected format), fall back to the
         # raw source string so the field is never silently dropped.
         if source.get("startTimePlanned"):
-            from datetime import date as date_type
             shifted = _shift_start_time_planned(
                 source["startTimePlanned"], date_type.fromisoformat(target_date)
             )
