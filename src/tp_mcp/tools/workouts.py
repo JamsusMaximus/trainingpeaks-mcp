@@ -242,6 +242,8 @@ async def tp_get_workouts(
                     "distance_planned_km": w.distance_planned / 1000 if w.distance_planned else None,
                     "distance_actual_km": w.distance_actual / 1000 if w.distance_actual else None,
                     "tss": w.tss_actual or w.tss_planned,
+                    "tss_planned": w.tss_planned,
+                    "tss_actual": w.tss_actual,
                     "description": w.description,
                 }
                 for w in workouts

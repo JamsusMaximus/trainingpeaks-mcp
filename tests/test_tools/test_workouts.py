@@ -30,6 +30,36 @@ class TestTpGetWorkouts:
         assert len(result["workouts"]) == 2
 
     @pytest.mark.asyncio
+    async def test_get_workouts_exposes_planned_and_actual_tss(self, mock_api_responses):
+        """tss_planned and tss_actual are exposed alongside the coalesced tss.
+
+        Downstream tools (e.g. compliance dashboards that compare planned vs. actual
+        on the same row) need both values; the coalesced `tss` loses the planned
+        intensity once a workout is completed.
+        """
+        workouts_response = APIResponse(success=True, data=mock_api_responses["workouts"])
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workouts_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workouts("2025-01-08", "2025-01-09")
+
+        # First fixture workout is completed with both planned+actual TSS.
+        completed = next(w for w in result["workouts"] if w["type"] == "completed")
+        assert completed["tss_planned"] == 80
+        assert completed["tss_actual"] == 75
+        assert completed["tss"] == 75  # backward-compatible coalesced value unchanged
+
+        # Second fixture workout is planned-only (no actual yet).
+        planned = next(w for w in result["workouts"] if w["type"] == "planned")
+        assert planned["tss_planned"] == 40
+        assert planned["tss_actual"] is None
+        assert planned["tss"] == 40
+
+    @pytest.mark.asyncio
     async def test_get_workouts_filter_completed(self, mock_api_responses):
         """Test filtering for completed workouts only."""
         workouts_response = APIResponse(success=True, data=mock_api_responses["workouts"])
