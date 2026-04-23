@@ -503,7 +503,7 @@ async def tp_create_workout(
         elif raw_structure_payload is not None:
             payload["structure"] = raw_structure_payload
         if params.tags is not None:
-            payload["tags"] = params.tags
+            payload["userTags"] = params.tags
         if params.feeling is not None:
             payload["feeling"] = params.feeling
         if params.rpe is not None:
@@ -675,7 +675,7 @@ async def tp_update_workout(
         if effective_tss is not None:
             existing["tssPlanned"] = effective_tss
         if params.tags is not None:
-            existing["tags"] = params.tags
+            existing["userTags"] = params.tags
         if params.athlete_comment is not None:
             existing["athleteComments"] = params.athlete_comment
         if params.coach_comment is not None:
@@ -840,10 +840,13 @@ async def tp_copy_workout(
             "ifPlanned",
             "description",
             "coachComments",
-            "tags",
         ]:
             if source.get(field) is not None:
                 payload[field] = source[field]
+
+        # Copy user tags (API uses userTags, not tags)
+        if source.get("userTags") is not None:
+            payload["userTags"] = source["userTags"]
 
         # Shift startTimePlanned to target date, preserving time-of-day.
         # If the value can't be parsed (unexpected format), fall back to the

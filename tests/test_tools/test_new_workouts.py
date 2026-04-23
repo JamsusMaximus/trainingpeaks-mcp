@@ -136,7 +136,8 @@ class TestCreateWorkoutWithStructure:
 
         assert result["success"] is True
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["tags"] == "intervals,hard"
+        assert payload["userTags"] == "intervals,hard"
+        assert "tags" not in payload
 
     @pytest.mark.asyncio
     async def test_create_with_feeling_and_rpe(self):
