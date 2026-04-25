@@ -91,7 +91,7 @@ class TestWeeklySummary:
                 "count": 2,
             }
             mock_fitness.return_value = {
-                "trend": [
+                "daily_data": [
                     {"date": "2026-03-22", "ctl": 65, "atl": 72, "tsb": -7},
                 ],
             }
@@ -110,7 +110,7 @@ class TestWeeklySummary:
              patch("tp_mcp.tools.weekly_summary.tp_get_fitness") as mock_fitness:
 
             mock_workouts.return_value = {"workouts": [], "count": 0}
-            mock_fitness.return_value = {"trend": []}
+            mock_fitness.return_value = {"daily_data": []}
 
             result = await tp_get_weekly_summary()
 
