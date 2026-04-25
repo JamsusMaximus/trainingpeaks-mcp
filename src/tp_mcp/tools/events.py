@@ -12,9 +12,53 @@ from tp_mcp.tools._validation import DateRangeInput, WorkoutIdInput, format_vali
 
 logger = logging.getLogger("tp-mcp")
 
+# Default result rows expected by POST /fitness/v6/athletes/{id}/event (singular).
+DEFAULT_EVENT_RESULTS: list[dict[str, str]] = [
+    {"resultType": "Division"},
+    {"resultType": "Gender"},
+    {"resultType": "Overall"},
+]
+
+
+def _default_create_event_payload(
+    *,
+    athlete_id: int,
+    name: str,
+    event_date_yyyy_mm_dd: str,
+    event_type: str,
+    atp_priority: str,
+    distance_km: float | None,
+    ctl_target: float | None,
+    description: str | None,
+) -> dict[str, Any]:
+    """Build JSON body for POST .../event (v6 singular) per TrainingPeaks web app contract."""
+    payload: dict[str, Any] = {
+        "goals": {},
+        "atpPriority": atp_priority,
+        "legs": [],
+        "eventDate": event_date_yyyy_mm_dd,
+        "name": name,
+        "personId": athlete_id,
+        "eventType": event_type,
+        "workouts": [],
+        "results": [dict(r) for r in DEFAULT_EVENT_RESULTS],
+    }
+    if distance_km is not None:
+        payload["distance"] = float(distance_km)
+        payload["distanceUnits"] = "Kilometers"
+    else:
+        payload["distance"] = None
+        payload["distanceUnits"] = None
+    if ctl_target is not None:
+        payload["ctlTarget"] = ctl_target
+    if description:
+        payload["description"] = description
+    return payload
+
+
 # Non-exhaustive list of known event types (TP API may accept others)
 EVENT_TYPES = [
-    "RoadRunning", "TrailRunning", "TrackRunning", "CrossCountry", "Running",
+    "RoadRunning", "RunningTrack", "TrailRunning", "TrackRunning", "CrossCountry", "Running",
     "RoadCycling", "MountainBiking", "Cyclocross", "TrackCycling", "Cycling",
     "OpenWaterSwimming", "PoolSwimming", "Triathlon", "MultisportTriathlon",
     "Xterra", "Duathlon", "Aquabike", "Aquathon", "Multisport",
@@ -174,9 +218,9 @@ async def tp_create_event(
     Args:
         name: Event name.
         date: Event date (YYYY-MM-DD).
-        event_type: Event type (e.g. 'RoadRunning', 'Triathlon').
-        priority: Priority level ('A', 'B', or 'C').
-        distance_km: Event distance in km.
+        event_type: Event type (e.g. 'RoadRunning', 'RunningTrack', 'Triathlon'); defaults to 'Other'.
+        priority: Priority level ('A', 'B', or 'C'); defaults to 'C' if omitted.
+        distance_km: Event distance in km (sent as distance + distanceUnits=Kilometers).
         ctl_target: Target CTL for the event.
         description: Optional description.
 
@@ -210,23 +254,21 @@ async def tp_create_event(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        payload: dict[str, Any] = {
-            "athleteId": athlete_id,
-            "name": params.name,
-            "eventDate": f"{params.date}T00:00:00",
-        }
-        if params.event_type:
-            payload["eventType"] = params.event_type
-        if params.priority:
-            payload["priority"] = params.priority
-        if params.distance_km is not None:
-            payload["distance"] = params.distance_km * 1000
-        if params.ctl_target is not None:
-            payload["ctlTarget"] = params.ctl_target
-        if params.description:
-            payload["description"] = params.description
+        # POST /event (singular) — not /events; matches app.trainingpeaks.com HAR (v6).
+        event_type = params.event_type or "Other"
+        atp_priority = params.priority or "C"
+        payload = _default_create_event_payload(
+            athlete_id=int(athlete_id),
+            name=params.name,
+            event_date_yyyy_mm_dd=params.date,
+            event_type=event_type,
+            atp_priority=atp_priority,
+            distance_km=params.distance_km,
+            ctl_target=params.ctl_target,
+            description=params.description,
+        )
 
-        endpoint = f"/fitness/v6/athletes/{athlete_id}/events"
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/event"
         response = await client.post(endpoint, json=payload)
 
         if response.is_error:
@@ -327,13 +369,15 @@ async def tp_update_event(
             existing["name"] = name
         if date is not None:
             dt_date.fromisoformat(date)
-            existing["eventDate"] = f"{date}T00:00:00"
+            # v6 create uses YYYY-MM-DD; keep updates consistent with list/GET shape when possible.
+            existing["eventDate"] = date
         if event_type is not None:
             existing["eventType"] = event_type
         if priority is not None:
             existing["atpPriority"] = priority
         if distance_km is not None:
-            existing["distance"] = distance_km * 1000
+            existing["distance"] = float(distance_km)
+            existing["distanceUnits"] = "Kilometers"
         if ctl_target is not None:
             existing["ctlTarget"] = ctl_target
         if description is not None:

@@ -94,9 +94,21 @@ class TestCreateEvent:
 
         assert result["success"] is True
         assert result["event_id"] == 501
+        assert mock_instance.post.call_args[0][0] == "/fitness/v6/athletes/123/event"
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["priority"] == "A"
-        assert payload["distance"] == 226000.0
+        assert payload["personId"] == 123
+        assert payload["atpPriority"] == "A"
+        assert payload["eventDate"] == "2026-09-15"
+        assert payload["goals"] == {}
+        assert payload["legs"] == []
+        assert payload["workouts"] == []
+        assert payload["results"] == [
+            {"resultType": "Division"},
+            {"resultType": "Gender"},
+            {"resultType": "Overall"},
+        ]
+        assert payload["distance"] == 226.0
+        assert payload["distanceUnits"] == "Kilometers"
         assert payload["ctlTarget"] == 120.0
 
 
