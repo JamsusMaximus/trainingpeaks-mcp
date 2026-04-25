@@ -427,7 +427,7 @@ async def tp_delete_event(event_id: str) -> dict[str, Any]:
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        endpoint = f"/fitness/v6/athletes/{athlete_id}/events/{validated.workout_id}"
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/event/{validated.workout_id}"
         response = await client.delete(endpoint)
 
         if response.is_error:

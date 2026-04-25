@@ -125,6 +125,10 @@ class TestDeleteEvent:
             result = await tp_delete_event("501")
 
         assert result["success"] is True
+        # v6 uses singular /event/{id}; the plural form returns NOT_FOUND.
+        mock_instance.delete.assert_awaited_once_with(
+            "/fitness/v6/athletes/123/event/501"
+        )
 
 
 class TestCreateNote:
