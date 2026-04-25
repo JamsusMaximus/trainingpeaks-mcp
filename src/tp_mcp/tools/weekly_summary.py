@@ -74,9 +74,9 @@ async def tp_get_weekly_summary(week_of: str | None = None) -> dict[str, Any]:
     # Extract end-of-week fitness metrics
     end_of_week_fitness = None
     if not fitness_result.get("isError"):
-        trend = fitness_result.get("trend", [])
-        if trend:
-            end_of_week_fitness = trend[-1]
+        daily_data = fitness_result.get("daily_data", [])
+        if daily_data:
+            end_of_week_fitness = daily_data[-1]
 
     return {
         "week": {"start": monday.isoformat(), "end": sunday.isoformat()},
