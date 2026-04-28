@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/jamsusmaximus-trainingpeaks-mcp-badge.png)](https://mseep.ai/app/jamsusmaximus-trainingpeaks-mcp)
+
 # TrainingPeaks MCP Server
 
 <a href="https://glama.ai/mcp/servers/@JamsusMaximus/TrainingPeaks-MCP">
