@@ -780,10 +780,10 @@ class TestWorkoutComments:
     @pytest.mark.asyncio
     async def test_get_comments_success(self):
         comments_data = [
-            {"id": 1, "value": "Great workout!", "createdAt": "2026-03-01"},
-            {"id": 2, "value": "Thanks coach", "createdAt": "2026-03-02"},
+            {"id": 1, "comment": "Great workout!", "isCoach": True},
+            {"id": 2, "comment": "Thanks coach", "isCoach": False},
         ]
-        response = APIResponse(success=True, data=comments_data)
+        response = APIResponse(success=True, data={"workoutId": 1001, "workoutComments": comments_data})
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
@@ -795,11 +795,11 @@ class TestWorkoutComments:
 
         assert result["count"] == 2
         assert len(result["comments"]) == 2
-        mock_instance.get.assert_called_once_with("/fitness/v2/athletes/123/workouts/1001/comments")
+        mock_instance.get.assert_called_once_with("/fitness/v6/athletes/123/workouts/1001")
 
     @pytest.mark.asyncio
     async def test_get_comments_empty(self):
-        response = APIResponse(success=True, data=[])
+        response = APIResponse(success=True, data={"workoutId": 1001, "workoutComments": []})
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()

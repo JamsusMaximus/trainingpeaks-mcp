@@ -186,44 +186,29 @@ class TestTpGetWorkout:
         assert result["structured_workout"] == structured_workout
 
     @pytest.mark.asyncio
-    async def test_get_workout_falls_back_to_comment_stream(self, mock_api_responses):
-        """When detail comments are null, use the workout comment stream as a fallback."""
+    async def test_get_workout_includes_workout_comments(self, mock_api_responses):
+        """workoutComments from the v6 detail response are included in the result."""
         workout_data = dict(mock_api_responses["workout_detail"])
-        workout_data["coachComments"] = None
-        workout_data["athleteComments"] = None
+        workout_data["workoutComments"] = [
+            {"id": 1, "comment": "Great effort!", "isCoach": True},
+            {"id": 2, "comment": "Felt strong.", "isCoach": False},
+        ]
         workout_response = APIResponse(success=True, data=workout_data)
         details_response = APIResponse(success=True, data={})
-        comments_response = APIResponse(
-            success=True,
-            data=[
-                {
-                    "workoutCommentStreamId": 10,
-                    "comment": "Push the cooldown easy.",
-                    "commentType": "coach",
-                },
-                {
-                    "workoutCommentStreamId": 11,
-                    "comment": "Legs felt flat today.",
-                    "commentType": "athlete",
-                },
-            ],
-        )
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
             mock_instance.get = AsyncMock(
-                side_effect=[workout_response, details_response, comments_response]
+                side_effect=[workout_response, details_response]
             )
             mock_client.return_value.__aenter__.return_value = mock_instance
 
             result = await tp_get_workout("1001")
 
-        assert result["coach_comments"] == "Push the cooldown easy."
-        assert result["athlete_comments"] == "Legs felt flat today."
-        assert mock_instance.get.call_args_list[2].args[0] == (
-            "/fitness/v2/athletes/123/workouts/1001/comments"
-        )
+        assert len(result["workout_comments"]) == 2
+        assert result["workout_comments"][0]["comment"] == "Great effort!"
+        assert mock_instance.get.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_workout_not_found(self):
