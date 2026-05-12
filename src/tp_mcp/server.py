@@ -66,6 +66,7 @@ from tp_mcp.tools import (
     tp_refresh_auth,
     tp_reorder_workouts,
     tp_schedule_library_workout,
+    tp_set_workout_note,
     tp_unpair_workout,
     tp_update_equipment,
     tp_update_event,
@@ -357,6 +358,18 @@ TOOLS = [
                 "comment": {"type": "string"},
             },
             "required": ["workout_id", "comment"],
+        },
+    ),
+    Tool(
+        name="tp_set_workout_note",
+        description="Set or update the private workout note for a workout.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string"},
+                "note": {"type": "string", "description": "Private note text. Use empty string to clear."},
+            },
+            "required": ["workout_id", "note"],
         },
     ),
     # --- Workout Files ---
@@ -1068,6 +1081,10 @@ async def _h_get_comments(args): return await tp_get_workout_comments(workout_id
 @_handler("tp_add_workout_comment")
 async def _h_add_comment(args):
     return await tp_add_workout_comment(workout_id=args["workout_id"], comment=args["comment"])
+
+@_handler("tp_set_workout_note")
+async def _h_set_workout_note(args):
+    return await tp_set_workout_note(workout_id=args["workout_id"], note=args["note"])
 
 @_handler("tp_upload_workout_file")
 async def _h_upload_workout_file(args):

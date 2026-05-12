@@ -52,6 +52,78 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
     return normalized
 
 
+def _normalize_comment_text(raw_comment: Any) -> str | None:
+    """Extract comment text from known TP comment payload variants."""
+    if not isinstance(raw_comment, dict):
+        return None
+    for key in ("comment", "value", "text", "description"):
+        value = raw_comment.get(key)
+        if isinstance(value, str):
+            text = value.strip()
+            if text:
+                return text
+    return None
+
+
+def _normalize_comment_role(raw_comment: Any) -> str | None:
+    """Infer whether a comment belongs to the coach or athlete lane."""
+    if not isinstance(raw_comment, dict):
+        return None
+
+    for key in (
+        "commentType",
+        "comment_type",
+        "commenterType",
+        "commenter_type",
+        "authorType",
+        "author_type",
+        "role",
+    ):
+        value = raw_comment.get(key)
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if "coach" in lowered:
+                return "coach"
+            if "athlete" in lowered:
+                return "athlete"
+
+    for key, role in (
+        ("isCoachComment", "coach"),
+        ("isAthleteComment", "athlete"),
+    ):
+        value = raw_comment.get(key)
+        if isinstance(value, bool) and value:
+            return role
+
+    # HAR-confirmed field: isCoach bool on the comment object
+    is_coach = raw_comment.get("isCoach")
+    if isinstance(is_coach, bool):
+        return "coach" if is_coach else "athlete"
+
+    return None
+
+
+def _extract_comment_fallbacks(raw_comments: Any) -> tuple[str | None, str | None]:
+    """Derive coach and athlete comment text from the workout comment stream."""
+    if not isinstance(raw_comments, list):
+        return None, None
+
+    coach_comment = None
+    athlete_comment = None
+
+    for raw_comment in raw_comments:
+        text = _normalize_comment_text(raw_comment)
+        role = _normalize_comment_role(raw_comment)
+        if not text or not role:
+            continue
+        if role == "coach":
+            coach_comment = text
+        elif role == "athlete":
+            athlete_comment = text
+
+    return coach_comment, athlete_comment
+
+
 def _prepare_structure_payload(
     structure: dict[str, Any] | str | None,
 ) -> StructurePayload:
@@ -323,6 +395,19 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
             structured_workout = _decode_structured_workout(raw_data.get("structure"))
             if structured_workout is not None:
                 raw_data["structure"] = structured_workout
+            if raw_data.get("coachComments") is None or raw_data.get("athleteComments") is None:
+                comments_endpoint = (
+                    f"/fitness/v2/athletes/{athlete_id}/workouts/{validated.workout_id}/comments"
+                )
+                comments_response = await client.get(comments_endpoint)
+                if comments_response.success:
+                    coach_comment, athlete_comment = _extract_comment_fallbacks(
+                        comments_response.data
+                    )
+                    if raw_data.get("coachComments") is None and coach_comment is not None:
+                        raw_data["coachComments"] = coach_comment
+                    if raw_data.get("athleteComments") is None and athlete_comment is not None:
+                        raw_data["athleteComments"] = athlete_comment
             workout = parse_workout_detail(raw_data)
 
             return {
@@ -1055,6 +1140,52 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
         return {
             "success": True,
             "message": "Comment added.",
+        }
+
+
+async def tp_set_workout_note(workout_id: str, note: str) -> dict[str, Any]:
+    """Set or update the private workout note for a workout.
+
+    Args:
+        workout_id: The workout ID.
+        note: The private note text (use empty string to clear).
+
+    Returns:
+        Dict with confirmation or error.
+    """
+    try:
+        validated = WorkoutIdInput(workout_id=workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = f"/fitness/v6/workouts/{validated.workout_id}/privateWorkoutNote"
+        payload = {"note": note}
+        response = await client.put(endpoint, json=payload)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        return {
+            "success": True,
+            "message": "Workout note updated.",
         }
 
 

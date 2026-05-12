@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (62)
+## Tools (63)
 
 ### Workouts
 | Tool | Description |
@@ -40,6 +40,7 @@ Ask your AI assistant things like:
 | `tp_validate_structure` | Validate interval structure without creating a workout |
 | `tp_get_workout_comments` | Get comments on a workout |
 | `tp_add_workout_comment` | Add a comment to a workout |
+| `tp_set_workout_note` | Set or update the private workout note |
 | `tp_upload_workout_file` | Upload a FIT/TCX/GPX file to a workout |
 | `tp_download_workout_file` | Download a workout's device file |
 | `tp_delete_workout_file` | Delete an attached file from a workout |

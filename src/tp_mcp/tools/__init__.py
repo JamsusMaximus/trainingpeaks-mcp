@@ -67,6 +67,7 @@ from tp_mcp.tools.workouts import (
     tp_get_workouts,
     tp_pair_workout,
     tp_reorder_workouts,
+    tp_set_workout_note,
     tp_unpair_workout,
     tp_update_workout,
 )
@@ -122,6 +123,7 @@ __all__ = [
     "tp_refresh_auth",
     "tp_reorder_workouts",
     "tp_schedule_library_workout",
+    "tp_set_workout_note",
     "tp_unpair_workout",
     "tp_update_equipment",
     "tp_update_event",

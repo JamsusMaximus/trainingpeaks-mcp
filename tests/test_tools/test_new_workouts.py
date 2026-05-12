@@ -795,6 +795,7 @@ class TestWorkoutComments:
 
         assert result["count"] == 2
         assert len(result["comments"]) == 2
+        mock_instance.get.assert_called_once_with("/fitness/v2/athletes/123/workouts/1001/comments")
 
     @pytest.mark.asyncio
     async def test_get_comments_empty(self):
