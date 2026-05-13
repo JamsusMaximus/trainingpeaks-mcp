@@ -252,6 +252,8 @@ If `duration_minutes` and `tss_planned` are omitted, they are derived from the s
 
 For advanced round-trip use cases, `tp_create_workout` and `tp_update_workout` also accept a native `structured_workout` payload in TrainingPeaks builder format. When a workout already has a native structure, `tp_get_workout` returns it as `structured_workout`.
 
+Workout comments are exposed via `tp_get_workout()["workout_comments"]` or `tp_get_workout_comments()`. The older top-level `coach_comments` and `athlete_comments` fields are no longer returned by `tp_get_workout`.
+
 ```json
 {
   "workout_id": "3658666303",

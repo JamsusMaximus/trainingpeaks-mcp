@@ -208,6 +208,8 @@ class TestTpGetWorkout:
 
         assert len(result["workout_comments"]) == 2
         assert result["workout_comments"][0]["comment"] == "Great effort!"
+        assert "coach_comments" not in result
+        assert "athlete_comments" not in result
         assert mock_instance.get.call_count == 2
 
     @pytest.mark.asyncio

@@ -501,7 +501,7 @@ name: tp_get_workout
 description: Get full workout details including structure
 parameters:
   workout_id: string (required)
-returns: { id, date, title, sport, structure, intervals[], metrics, notes }
+returns: { id, date, title, sport, structure, intervals[], metrics, notes, workout_comments[] }
 ```
 
 #### 4. `tp_get_peaks`

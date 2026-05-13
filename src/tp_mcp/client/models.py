@@ -109,8 +109,6 @@ class WorkoutDetail(BaseModel):
     sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
     workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
     description: str | None = None
-    coach_comments: str | None = Field(default=None, alias="coachComments")
-    athlete_comments: str | None = Field(default=None, alias="athleteComments")
     duration_planned: int | float | None = Field(default=None, alias="totalTimePlanned")
     duration_actual: int | float | None = Field(default=None, alias="totalTime")
     tss_planned: float | None = Field(default=None, alias="tssPlanned")
