@@ -115,6 +115,20 @@ class TestCreateEvent:
         assert payload["distanceUnits"] == "Kilometers"
         assert payload["ctlTarget"] == 120.0
 
+    @pytest.mark.asyncio
+    async def test_default_event_type_is_other_other(self):
+        response = APIResponse(success=True, data={"eventId": 502})
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            await tp_create_event(name="No-type event", date="2026-10-01")
+
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["eventType"] == "OtherOther"
+
 
 class TestDeleteEvent:
     @pytest.mark.asyncio

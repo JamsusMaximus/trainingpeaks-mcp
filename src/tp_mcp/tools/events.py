@@ -56,8 +56,8 @@ def _default_create_event_payload(
     return payload
 
 
-# Non-exhaustive list of known event types from the TrainingPeaks event UI.
-# The API uses these web-form enum values rather than older humanized labels.
+# Known event types from the TrainingPeaks event UI (web-form enum values).
+# Not exhaustive and not enforced — the API may accept unlisted values.
 EVENT_TYPES = [
     "RunningRoad", "RunningTrail", "RunningTrack", "RunningCrossCountry", "RunningOther",
     "CyclingRoad", "CyclingMountain", "CyclingCyclocross", "CyclingTrack", "CyclingOther",
