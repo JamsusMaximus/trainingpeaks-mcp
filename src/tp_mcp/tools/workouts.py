@@ -1053,6 +1053,7 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
                 "message": response.message,
             }
 
+        # v2 POST returns a flat list; v6 GET returns {workoutComments: [...]} — shapes differ
         comments = response.data if isinstance(response.data, list) else []
         return {
             "success": True,
@@ -1151,6 +1152,8 @@ async def tp_set_workout_note(workout_id: str, note: str) -> dict[str, Any]:
         return {
             "success": True,
             "message": "Workout note updated.",
+            "workout_id": workout_id,
+            "note": note,
         }
 
 

@@ -1093,7 +1093,8 @@ async def _h_add_comment(args):
     return await tp_add_workout_comment(workout_id=args["workout_id"], comment=args["comment"])
 
 @_handler("tp_get_workout_note")
-async def _h_get_workout_note(args): return await tp_get_workout_note(workout_id=args["workout_id"])
+async def _h_get_workout_note(args):
+    return await tp_get_workout_note(workout_id=args["workout_id"])
 
 @_handler("tp_set_workout_note")
 async def _h_set_workout_note(args):
