@@ -92,7 +92,7 @@ class TestCreateEvent:
 
             result = await tp_create_event(
                 name="IRONMAN", date="2026-09-15",
-                event_type="Triathlon", priority="A",
+                event_type="MultisportTriathlon", priority="A",
                 distance_km=226.0, ctl_target=120.0,
             )
 
