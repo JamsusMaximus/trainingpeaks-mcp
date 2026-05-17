@@ -4,17 +4,62 @@ import logging
 from typing import Any
 
 from tp_mcp.client import TPClient
+from tp_mcp.client.context import athlete_override
 
 logger = logging.getLogger("tp-mcp")
+
+
+async def _targeted_athlete_profile(client: TPClient) -> dict[str, Any]:
+    """Build a profile for a coach's targeted roster athlete.
+
+    /users/v3/user only ever describes the logged-in user, so a targeted
+    athlete's profile is assembled from their entry in the coach's roster.
+    """
+    athlete_id = await client.ensure_athlete_id()
+    if not athlete_id:
+        return {
+            "isError": True,
+            "error_code": "NOT_FOUND",
+            "message": "Could not resolve that athlete. Check the name or ID against tp_list_athletes.",
+        }
+
+    user_data = await client._get_user_data()
+    athletes = user_data.get("athletes", []) if user_data else []
+    entry = next((a for a in athletes if a.get("athleteId") == athlete_id), None)
+    if entry is None:
+        return {
+            "isError": True,
+            "error_code": "NOT_FOUND",
+            "message": "That athlete is not in your roster.",
+        }
+
+    first = entry.get("firstName", "")
+    last = entry.get("lastName", "")
+    return {
+        "athlete_id": athlete_id,
+        "name": f"{first} {last}".strip(),
+        "email": entry.get("email"),
+        # Premium status belongs to the logged-in account, not a coached
+        # athlete, so it is not available when targeting one.
+        "account_type": None,
+    }
 
 
 async def tp_get_profile() -> dict[str, Any]:
     """Get TrainingPeaks athlete profile.
 
+    On a coach account, pass `athlete` to get a roster athlete's profile
+    instead of your own.
+
     Returns:
-        Dict with athlete_id, name, email, and account_type.
+        Dict with athlete_id, name, email, and account_type. account_type
+        is null when targeting a coached athlete.
     """
     async with TPClient() as client:
+        # Coach targeting a specific athlete: resolve via the roster (#68).
+        if athlete_override.get() is not None:
+            return await _targeted_athlete_profile(client)
+
         response = await client.get("/users/v3/user")
 
         if response.is_error:
