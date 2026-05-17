@@ -85,11 +85,11 @@ async def validate_auth(cookie: str) -> AuthResult:
                             user_data = user_resp.json().get("user", {})
                             email = user_data.get("email")
                             user_id = user_data.get("userId")
-                            athletes = user_data.get("athletes", [])
-                            if athletes:
-                                athlete_id = athletes[0].get("athleteId")
-                            if not athlete_id:
-                                athlete_id = user_data.get("personId")
+                            # personId is the authenticated user's own ID.
+                            # Don't read athletes[0]: on a coach account that
+                            # list is the coached roster, so athletes[0] is
+                            # another athlete, not the coach (#75).
+                            athlete_id = user_data.get("personId")
                     except httpx.RequestError:
                         pass  # User info is best-effort; auth is still valid
 
