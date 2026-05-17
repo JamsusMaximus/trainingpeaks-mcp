@@ -1,0 +1,21 @@
+tests/test_tools/test_profile.py
+  s_d6ec583d8f956c::t_d42bc56588084a 1-122
+src/tp_mcp/tools/profile.py
+  s_d6ec583d8f956c::t_800cc520cf6c08 7,12-47,51-53,55-56,59-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6958d308b78e643a48937e50072c11216a623080",
+  "prompts": {},
+  "sessions": {
+    "s_d6ec583d8f956c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "44115b95-ef96-4303-beff-af15febdef3f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
