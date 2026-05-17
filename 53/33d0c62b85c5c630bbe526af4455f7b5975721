@@ -1,0 +1,21 @@
+src/tp_mcp/auth/validator.py
+  s_d6ec583d8f956c::t_7c279755f2c820 88-92
+tests/test_auth/test_validator.py
+  s_d6ec583d8f956c::t_29cbfda3013a61 32,45,48-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5333d0c62b85c5c630bbe526af4455f7b5975721",
+  "prompts": {},
+  "sessions": {
+    "s_d6ec583d8f956c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "44115b95-ef96-4303-beff-af15febdef3f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
