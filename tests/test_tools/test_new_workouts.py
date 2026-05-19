@@ -816,19 +816,27 @@ class TestWorkoutComments:
 
     @pytest.mark.asyncio
     async def test_add_comment_success(self):
-        response = APIResponse(success=True, data=None)
+        post_response = APIResponse(success=True, data=None)
+        comments_data = [{"id": 1, "comment": "Nice ride!", "isCoach": False}]
+        get_response = APIResponse(
+            success=True, data={"workoutId": 1001, "workoutComments": comments_data}
+        )
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
-            mock_instance.post = AsyncMock(return_value=response)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_instance.get = AsyncMock(return_value=get_response)
             mock_client.return_value.__aenter__.return_value = mock_instance
 
             result = await tp_add_workout_comment("1001", "Nice ride!")
 
         assert result["success"] is True
+        assert result["count"] == 1
+        assert result["comments"] == comments_data
         payload = mock_instance.post.call_args[1]["json"]
         assert payload["value"] == "Nice ride!"
+        mock_instance.get.assert_called_once_with("/fitness/v6/athletes/123/workouts/1001")
 
     @pytest.mark.asyncio
     async def test_add_empty_comment_rejected(self):

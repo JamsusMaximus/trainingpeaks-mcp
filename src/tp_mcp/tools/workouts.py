@@ -1053,8 +1053,12 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
                 "message": response.message,
             }
 
-        # v2 POST returns a flat list; v6 GET returns {workoutComments: [...]} — shapes differ
-        comments = response.data if isinstance(response.data, list) else []
+        get_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}"
+        get_response = await client.get(get_endpoint)
+        if get_response.is_error:
+            return {"success": True, "message": "Comment added.", "comments": [], "count": 0}
+
+        comments = (get_response.data or {}).get("workoutComments") or []
         return {
             "success": True,
             "message": "Comment added.",
