@@ -324,6 +324,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
             if structured_workout is not None:
                 raw_data["structure"] = structured_workout
             workout = parse_workout_detail(raw_data)
+            workout_comments = raw_data.get("workoutComments") or []
 
             return {
                 "id": str(workout.id),
@@ -332,8 +333,6 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "sport": workout.sport,
                 "workout_type": workout.workout_type,
                 "description": workout.description,
-                "coach_comments": workout.coach_comments,
-                "athlete_comments": workout.athlete_comments,
                 "metrics": {
                     "duration_planned": workout.duration_planned,
                     "duration_actual": workout.duration_actual,
@@ -352,6 +351,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 },
                 "completed": workout.completed,
                 "structured_workout": structured_workout,
+                "workout_comments": workout_comments,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
@@ -981,7 +981,7 @@ async def tp_get_workout_comments(workout_id: str) -> dict[str, Any]:
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        endpoint = f"/fitness/v2/athletes/{athlete_id}/workouts/{validated.workout_id}/comments"
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}"
         response = await client.get(endpoint)
 
         if response.is_error:
@@ -991,14 +991,15 @@ async def tp_get_workout_comments(workout_id: str) -> dict[str, Any]:
                 "message": response.message,
             }
 
-        if not response.data:
+        raw = response.data if isinstance(response.data, dict) else {}
+        comments = raw.get("workoutComments") or []
+        if not comments:
             return {
                 "comments": [],
                 "count": 0,
                 "message": "No comments on this workout.",
             }
 
-        comments = response.data if isinstance(response.data, list) else []
         return {
             "comments": comments,
             "count": len(comments),
@@ -1052,9 +1053,107 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
                 "message": response.message,
             }
 
+        # v2 POST returns a flat list; v6 GET returns {workoutComments: [...]} — shapes differ
+        comments = response.data if isinstance(response.data, list) else []
         return {
             "success": True,
             "message": "Comment added.",
+            "comments": comments,
+            "count": len(comments),
+        }
+
+
+async def tp_get_workout_note(workout_id: str) -> dict[str, Any]:
+    """Get the private workout note for a workout.
+
+    Args:
+        workout_id: The workout ID.
+
+    Returns:
+        Dict with note text or error.
+    """
+    try:
+        validated = WorkoutIdInput(workout_id=workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = f"/fitness/v6/workouts/{validated.workout_id}/privateWorkoutNote"
+        response = await client.get(endpoint)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        data = response.data if isinstance(response.data, dict) else {}
+        return {
+            "workout_id": workout_id,
+            "note": data.get("note", ""),
+            "updated_at": data.get("dateTimeUpdatedUtc"),
+        }
+
+
+async def tp_set_workout_note(workout_id: str, note: str) -> dict[str, Any]:
+    """Set or update the private workout note for a workout.
+
+    Args:
+        workout_id: The workout ID.
+        note: The private note text (use empty string to clear).
+
+    Returns:
+        Dict with confirmation or error.
+    """
+    try:
+        validated = WorkoutIdInput(workout_id=workout_id)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = f"/fitness/v6/workouts/{validated.workout_id}/privateWorkoutNote"
+        payload = {"note": note}
+        response = await client.put(endpoint, json=payload)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        return {
+            "success": True,
+            "message": "Workout note updated.",
+            "workout_id": workout_id,
+            "note": note,
         }
 
 

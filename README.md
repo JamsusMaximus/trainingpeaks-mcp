@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (62)
+## Tools (64)
 
 ### Workouts
 | Tool | Description |
@@ -40,6 +40,8 @@ Ask your AI assistant things like:
 | `tp_validate_structure` | Validate interval structure without creating a workout |
 | `tp_get_workout_comments` | Get comments on a workout |
 | `tp_add_workout_comment` | Add a comment to a workout |
+| `tp_get_workout_note` | Get the private workout note for a workout |
+| `tp_set_workout_note` | Set or update the private workout note |
 | `tp_upload_workout_file` | Upload a FIT/TCX/GPX file to a workout |
 | `tp_download_workout_file` | Download a workout's device file |
 | `tp_delete_workout_file` | Delete an attached file from a workout |
@@ -249,6 +251,8 @@ You can use the same simplified `structure` object with `tp_update_workout`:
 If `duration_minutes` and `tss_planned` are omitted, they are derived from the structure. If you pass them explicitly, they override the derived values.
 
 For advanced round-trip use cases, `tp_create_workout` and `tp_update_workout` also accept a native `structured_workout` payload in TrainingPeaks builder format. When a workout already has a native structure, `tp_get_workout` returns it as `structured_workout`.
+
+Workout comments are exposed via `tp_get_workout()["workout_comments"]` or `tp_get_workout_comments()`. The older top-level `coach_comments` and `athlete_comments` fields are no longer returned by `tp_get_workout`.
 
 ```json
 {

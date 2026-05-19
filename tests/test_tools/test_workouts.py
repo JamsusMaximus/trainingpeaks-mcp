@@ -186,6 +186,33 @@ class TestTpGetWorkout:
         assert result["structured_workout"] == structured_workout
 
     @pytest.mark.asyncio
+    async def test_get_workout_includes_workout_comments(self, mock_api_responses):
+        """workoutComments from the v6 detail response are included in the result."""
+        workout_data = dict(mock_api_responses["workout_detail"])
+        workout_data["workoutComments"] = [
+            {"id": 1, "comment": "Great effort!", "isCoach": True},
+            {"id": 2, "comment": "Felt strong.", "isCoach": False},
+        ]
+        workout_response = APIResponse(success=True, data=workout_data)
+        details_response = APIResponse(success=True, data={})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(
+                side_effect=[workout_response, details_response]
+            )
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert len(result["workout_comments"]) == 2
+        assert result["workout_comments"][0]["comment"] == "Great effort!"
+        assert "coach_comments" not in result
+        assert "athlete_comments" not in result
+        assert mock_instance.get.call_count == 2
+
+    @pytest.mark.asyncio
     async def test_get_workout_not_found(self):
         """Test workout not found."""
         workout_response = APIResponse(

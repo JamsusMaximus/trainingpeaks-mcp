@@ -5,13 +5,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tp_mcp.client.http import APIResponse
+from tp_mcp.client.http import APIResponse, ErrorCode
 from tp_mcp.tools.workouts import (
     tp_add_workout_comment,
     tp_copy_workout,
     tp_create_workout,
     tp_delete_workout,
     tp_get_workout_comments,
+    tp_get_workout_note,
+    tp_set_workout_note,
     tp_update_workout,
 )
 
@@ -780,10 +782,10 @@ class TestWorkoutComments:
     @pytest.mark.asyncio
     async def test_get_comments_success(self):
         comments_data = [
-            {"id": 1, "value": "Great workout!", "createdAt": "2026-03-01"},
-            {"id": 2, "value": "Thanks coach", "createdAt": "2026-03-02"},
+            {"id": 1, "comment": "Great workout!", "isCoach": True},
+            {"id": 2, "comment": "Thanks coach", "isCoach": False},
         ]
-        response = APIResponse(success=True, data=comments_data)
+        response = APIResponse(success=True, data={"workoutId": 1001, "workoutComments": comments_data})
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
@@ -795,10 +797,11 @@ class TestWorkoutComments:
 
         assert result["count"] == 2
         assert len(result["comments"]) == 2
+        mock_instance.get.assert_called_once_with("/fitness/v6/athletes/123/workouts/1001")
 
     @pytest.mark.asyncio
     async def test_get_comments_empty(self):
-        response = APIResponse(success=True, data=[])
+        response = APIResponse(success=True, data={"workoutId": 1001, "workoutComments": []})
 
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
@@ -830,5 +833,147 @@ class TestWorkoutComments:
     @pytest.mark.asyncio
     async def test_add_empty_comment_rejected(self):
         result = await tp_add_workout_comment("1001", "")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+
+
+class TestWorkoutNote:
+    """Tests for tp_get_workout_note and tp_set_workout_note."""
+
+    @pytest.mark.asyncio
+    async def test_get_note_success(self):
+        response = APIResponse(
+            success=True,
+            data={"note": "Felt strong today", "dateTimeUpdatedUtc": "2026-03-01T10:00:00Z"},
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_note("1001")
+
+        assert result["note"] == "Felt strong today"
+        assert result["workout_id"] == "1001"
+        assert result["updated_at"] == "2026-03-01T10:00:00Z"
+        mock_instance.get.assert_called_once_with("/fitness/v6/workouts/1001/privateWorkoutNote")
+
+    @pytest.mark.asyncio
+    async def test_get_note_empty(self):
+        response = APIResponse(success=True, data={})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_note("1001")
+
+        assert result["note"] == ""
+        assert result["updated_at"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_note_auth_failure(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=None)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_note("1001")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_get_note_api_error(self):
+        response = APIResponse(success=False, error_code=ErrorCode.API_ERROR, message="Server error")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_note("1001")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "API_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_get_note_invalid_id(self):
+        result = await tp_get_workout_note("abc")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_set_note_success(self):
+        response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.put = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_set_workout_note("1001", "Hard session, legs heavy")
+
+        assert result["success"] is True
+        assert result["note"] == "Hard session, legs heavy"
+        assert result["workout_id"] == "1001"
+        mock_instance.put.assert_called_once_with(
+            "/fitness/v6/workouts/1001/privateWorkoutNote",
+            json={"note": "Hard session, legs heavy"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_set_note_clear(self):
+        response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.put = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_set_workout_note("1001", "")
+
+        assert result["success"] is True
+        assert result["note"] == ""
+        payload = mock_instance.put.call_args[1]["json"]
+        assert payload["note"] == ""
+
+    @pytest.mark.asyncio
+    async def test_set_note_auth_failure(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=None)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_set_workout_note("1001", "some note")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_set_note_api_error(self):
+        response = APIResponse(success=False, error_code=ErrorCode.API_ERROR, message="Server error")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.put = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_set_workout_note("1001", "some note")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "API_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_set_note_invalid_id(self):
+        result = await tp_set_workout_note("abc", "note")
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"

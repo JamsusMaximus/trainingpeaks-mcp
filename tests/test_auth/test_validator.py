@@ -29,7 +29,7 @@ class TestValidateAuth:
                 "email": "test@example.com",
                 "userId": 456,
                 "personId": 789,
-                "athletes": [{"athleteId": 123}],
+                "athletes": [{"athleteId": 789}],
             }
         }
 
@@ -42,8 +42,43 @@ class TestValidateAuth:
 
             assert result.is_valid is True
             assert result.status == AuthStatus.VALID
-            assert result.athlete_id == 123
+            assert result.athlete_id == 789
             assert result.email == "test@example.com"
+
+    @pytest.mark.asyncio
+    async def test_valid_auth_coach_account(self):
+        """athlete_id is the coach's own personId, not the first coached athlete (#75)."""
+        token_response = MagicMock()
+        token_response.status_code = 200
+        token_response.json.return_value = {
+            "success": True,
+            "token": {"access_token": "test_token", "expires_in": 3600},
+        }
+
+        # On a coach account, "athletes" is the coached roster, not the coach.
+        user_response = MagicMock()
+        user_response.status_code = 200
+        user_response.json.return_value = {
+            "user": {
+                "email": "coach@example.com",
+                "userId": 456,
+                "personId": 1000001,
+                "athletes": [
+                    {"athleteId": 2000001},
+                    {"athleteId": 2000002},
+                ],
+            }
+        }
+
+        with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get.side_effect = [token_response, user_response]
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await validate_auth("valid_cookie")
+
+            assert result.is_valid is True
+            assert result.athlete_id == 1000001
 
     @pytest.mark.asyncio
     async def test_expired_auth(self):
