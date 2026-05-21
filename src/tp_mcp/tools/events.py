@@ -608,6 +608,61 @@ async def tp_get_note(note_id: str) -> dict[str, Any]:
         }
 
 
+async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
+    """List calendar notes for a date range.
+
+    Args:
+        start_date: Range start (YYYY-MM-DD).
+        end_date: Range end (YYYY-MM-DD).
+
+    Returns:
+        Dict with list of notes or error.
+    """
+    try:
+        validated = DateRangeInput(start_date=start_date, end_date=end_date)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": msg}
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+
+        endpoint = (
+            f"/fitness/v2/athletes/{athlete_id}/calendarNote"
+            f"/{validated.start_date}/{validated.end_date}"
+        )
+        response = await client.get(endpoint)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        raw_notes = response.data if isinstance(response.data, list) else []
+        notes = []
+        for d in raw_notes:
+            note_date_str = d.get("noteDate", "")
+            if note_date_str and "T" in note_date_str:
+                note_date_str = note_date_str.split("T")[0]
+            notes.append({
+                "id": d.get("id"),
+                "title": d.get("title"),
+                "description": d.get("description"),
+                "date": note_date_str,
+                "is_hidden": d.get("isHidden", False),
+                "comment_count": d.get("commentCount", 0),
+                "created_date": d.get("createdDate"),
+                "modified_date": d.get("modifiedDate"),
+            })
+
+        return {"notes": notes, "count": len(notes)}
+
+
 async def tp_update_note(
     note_id: str,
     title: str | None = None,

@@ -23,6 +23,7 @@ from tp_mcp.tools.events import (
     tp_get_next_event,
     tp_get_note,
     tp_get_note_comments,
+    tp_list_notes,
     tp_update_event,
     tp_update_note,
 )
@@ -108,6 +109,7 @@ __all__ = [
     "tp_get_next_event",
     "tp_get_note",
     "tp_get_note_comments",
+    "tp_list_notes",
     "tp_get_nutrition",
     "tp_get_peaks",
     "tp_get_pool_length_settings",

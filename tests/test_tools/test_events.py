@@ -17,6 +17,7 @@ from tp_mcp.tools.events import (
     tp_get_next_event,
     tp_get_note,
     tp_get_note_comments,
+    tp_list_notes,
     tp_update_note,
 )
 
@@ -390,3 +391,118 @@ class TestAddNoteComment:
         result = await tp_add_note_comment(note_id="abc", comment="test")
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+
+class TestListNotes:
+    NOTE_DATA = [
+        {
+            "id": 83073469,
+            "title": "Zwei Tests",
+            "description": "Du brauchst nur einen der beiden Tests absolvieren.",
+            "noteDate": "2026-05-07T00:00:00",
+            "createdDate": "2026-03-03T07:21:22",
+            "modifiedDate": "2026-03-03T07:21:22",
+            "athleteId": 1463609,
+            "isHidden": False,
+            "commentCount": 0,
+            "ownerId": 1463609,
+            "appliedPlanId": 1024010,
+            "parentPlanNoteId": 231128,
+            "attachments": [],
+        },
+        {
+            "id": 87921017,
+            "title": "Spitzenwoche",
+            "description": None,
+            "noteDate": "2026-05-14T00:00:00",
+            "createdDate": "2026-05-01T08:00:00",
+            "modifiedDate": "2026-05-01T08:00:00",
+            "athleteId": 1463609,
+            "isHidden": True,
+            "commentCount": 2,
+            "ownerId": 1463609,
+            "appliedPlanId": 0,
+            "parentPlanNoteId": 0,
+            "attachments": [],
+        },
+    ]
+
+    @pytest.mark.asyncio
+    async def test_list_notes_success(self):
+        response = APIResponse(success=True, data=self.NOTE_DATA)
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
+
+        assert result["count"] == 2
+        assert len(result["notes"]) == 2
+        first = result["notes"][0]
+        assert first["id"] == 83073469
+        assert first["title"] == "Zwei Tests"
+        assert first["date"] == "2026-05-07"
+        assert first["is_hidden"] is False
+        assert first["comment_count"] == 0
+        second = result["notes"][1]
+        assert second["id"] == 87921017
+        assert second["is_hidden"] is True
+        assert second["comment_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_list_notes_empty(self):
+        response = APIResponse(success=True, data=[])
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_list_notes(start_date="2026-01-01", end_date="2026-01-07")
+
+        assert result["count"] == 0
+        assert result["notes"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_notes_invalid_date(self):
+        result = await tp_list_notes(start_date="not-a-date", end_date="2026-05-31")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_list_notes_end_before_start(self):
+        result = await tp_list_notes(start_date="2026-05-31", end_date="2026-05-01")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_list_notes_api_error(self):
+        response = APIResponse(success=False, error_code=ErrorCode.NOT_FOUND, message="Not found")
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_list_notes_uses_v2_endpoint(self):
+        response = APIResponse(success=True, data=[])
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
+
+        called_endpoint = mock_instance.get.call_args[0][0]
+        assert "/fitness/v2/" in called_endpoint
+        assert "2026-05-01" in called_endpoint
+        assert "2026-05-31" in called_endpoint

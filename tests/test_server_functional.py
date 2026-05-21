@@ -83,6 +83,7 @@ class TestListTools:
             "tp_update_note",
             "tp_get_note_comments",
             "tp_add_note_comment",
+            "tp_list_notes",
             "tp_get_availability",
             "tp_create_availability",
             "tp_delete_availability",
