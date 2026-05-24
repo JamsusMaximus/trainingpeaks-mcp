@@ -467,6 +467,7 @@ class TestListNotes:
 
         assert result["count"] == 0
         assert result["notes"] == []
+        assert result["date_range"] == {"start": "2026-01-01", "end": "2026-01-07"}
 
     @pytest.mark.asyncio
     async def test_list_notes_invalid_date(self):
@@ -523,3 +524,17 @@ class TestListNotes:
             result = await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
 
         assert result["notes"][0]["id"] == 999
+
+    @pytest.mark.asyncio
+    async def test_list_notes_missing_note_date(self):
+        data = [{"id": 1, "title": "No date"}]
+        response = APIResponse(success=True, data=data)
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
+
+        assert result["notes"][0]["date"] is None

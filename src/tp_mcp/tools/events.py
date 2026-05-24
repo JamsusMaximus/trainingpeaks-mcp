@@ -649,14 +649,14 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
         for d in raw_notes:
             if not isinstance(d, dict):
                 continue
-            note_date_str = d.get("noteDate", "")
-            if note_date_str and "T" in note_date_str:
-                note_date_str = note_date_str.split("T", 1)[0]
+            raw_date = d.get("noteDate")
+            if isinstance(raw_date, str) and "T" in raw_date:
+                raw_date = raw_date.split("T", 1)[0]
             notes.append({
                 "id": d.get("id") or d.get("calendarNoteId"),
                 "title": d.get("title"),
                 "description": d.get("description"),
-                "date": note_date_str,
+                "date": raw_date or None,
                 "is_hidden": d.get("isHidden", False),
                 "comment_count": d.get("commentCount", 0),
                 "created_date": d.get("createdDate"),
@@ -665,7 +665,11 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
                 "attachments": d.get("attachments") or [],
             })
 
-        return {"notes": notes, "count": len(notes), "date_range": {"start": start_date, "end": end_date}}
+        return {
+            "notes": notes,
+            "count": len(notes),
+            "date_range": {"start": validated.start_date.isoformat(), "end": validated.end_date.isoformat()},
+        }
 
 
 async def tp_update_note(
