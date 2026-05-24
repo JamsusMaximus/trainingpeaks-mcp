@@ -440,12 +440,15 @@ class TestListNotes:
 
         assert result["count"] == 2
         assert len(result["notes"]) == 2
+        assert result["date_range"] == {"start": "2026-05-01", "end": "2026-05-31"}
         first = result["notes"][0]
         assert first["id"] == 83073469
         assert first["title"] == "Zwei Tests"
         assert first["date"] == "2026-05-07"
         assert first["is_hidden"] is False
         assert first["comment_count"] == 0
+        assert first["owner_id"] == 1463609
+        assert first["attachments"] == []
         second = result["notes"][1]
         assert second["id"] == 87921017
         assert second["is_hidden"] is True
@@ -506,3 +509,17 @@ class TestListNotes:
         assert "/fitness/v2/" in called_endpoint
         assert "2026-05-01" in called_endpoint
         assert "2026-05-31" in called_endpoint
+
+    @pytest.mark.asyncio
+    async def test_list_notes_calendar_note_id_fallback(self):
+        data = [{"calendarNoteId": 999, "title": "Fallback", "noteDate": "2026-05-10T00:00:00"}]
+        response = APIResponse(success=True, data=data)
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=1463609)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_list_notes(start_date="2026-05-01", end_date="2026-05-31")
+
+        assert result["notes"][0]["id"] == 999

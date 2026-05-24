@@ -630,6 +630,7 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
             return {"isError": True, "error_code": "AUTH_INVALID",
                     "message": "Could not get athlete ID. Re-authenticate."}
 
+        # v1 only supports POST/DELETE by ID; range listing requires v2.
         endpoint = (
             f"/fitness/v2/athletes/{athlete_id}/calendarNote"
             f"/{validated.start_date}/{validated.end_date}"
@@ -646,11 +647,13 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
         raw_notes = response.data if isinstance(response.data, list) else []
         notes = []
         for d in raw_notes:
+            if not isinstance(d, dict):
+                continue
             note_date_str = d.get("noteDate", "")
             if note_date_str and "T" in note_date_str:
-                note_date_str = note_date_str.split("T")[0]
+                note_date_str = note_date_str.split("T", 1)[0]
             notes.append({
-                "id": d.get("id"),
+                "id": d.get("id") or d.get("calendarNoteId"),
                 "title": d.get("title"),
                 "description": d.get("description"),
                 "date": note_date_str,
@@ -658,9 +661,11 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
                 "comment_count": d.get("commentCount", 0),
                 "created_date": d.get("createdDate"),
                 "modified_date": d.get("modifiedDate"),
+                "owner_id": d.get("ownerId"),
+                "attachments": d.get("attachments") or [],
             })
 
-        return {"notes": notes, "count": len(notes)}
+        return {"notes": notes, "count": len(notes), "date_range": {"start": start_date, "end": end_date}}
 
 
 async def tp_update_note(
