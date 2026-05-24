@@ -630,11 +630,10 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
             return {"isError": True, "error_code": "AUTH_INVALID",
                     "message": "Could not get athlete ID. Re-authenticate."}
 
+        start_str = validated.start_date.isoformat()
+        end_str = validated.end_date.isoformat()
         # v1 only supports POST/DELETE by ID; range listing requires v2.
-        endpoint = (
-            f"/fitness/v2/athletes/{athlete_id}/calendarNote"
-            f"/{validated.start_date}/{validated.end_date}"
-        )
+        endpoint = f"/fitness/v2/athletes/{athlete_id}/calendarNote/{start_str}/{end_str}"
         response = await client.get(endpoint)
 
         if response.is_error:
@@ -668,7 +667,7 @@ async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
         return {
             "notes": notes,
             "count": len(notes),
-            "date_range": {"start": validated.start_date.isoformat(), "end": validated.end_date.isoformat()},
+            "date_range": {"start": start_str, "end": end_str},
         }
 
 
