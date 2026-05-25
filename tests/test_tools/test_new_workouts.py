@@ -839,6 +839,25 @@ class TestWorkoutComments:
         mock_instance.get.assert_called_once_with("/fitness/v6/athletes/123/workouts/1001")
 
     @pytest.mark.asyncio
+    async def test_add_comment_get_fails_gracefully(self):
+        post_response = APIResponse(success=True, data=None)
+        get_response = APIResponse(success=False, error_code=ErrorCode.API_ERROR, message="timeout")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=post_response)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_add_workout_comment("1001", "Nice ride!")
+
+        assert result["success"] is True
+        assert result["comments"] == []
+        assert result["count"] == 0
+        assert result["comments_fetch_failed"] is True
+
+    @pytest.mark.asyncio
     async def test_add_empty_comment_rejected(self):
         result = await tp_add_workout_comment("1001", "")
         assert result["isError"] is True

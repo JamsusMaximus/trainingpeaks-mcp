@@ -1014,7 +1014,8 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
         comment: The comment text.
 
     Returns:
-        Dict with confirmation or error.
+        Dict with confirmation and current workoutComments from a follow-up v6 GET.
+        If the follow-up GET fails, comments is [] and comments_fetch_failed is True.
     """
     try:
         validated = WorkoutIdInput(workout_id=workout_id)
@@ -1056,7 +1057,7 @@ async def tp_add_workout_comment(workout_id: str, comment: str) -> dict[str, Any
         get_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}"
         get_response = await client.get(get_endpoint)
         if get_response.is_error:
-            return {"success": True, "message": "Comment added.", "comments": [], "count": 0}
+            return {"success": True, "message": "Comment added.", "comments": [], "count": 0, "comments_fetch_failed": True}
 
         comments = (get_response.data or {}).get("workoutComments") or []
         return {
