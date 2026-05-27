@@ -37,6 +37,7 @@ from tp_mcp.tools import (
     tp_delete_workout_file,
     tp_download_workout_file,
     tp_get_athlete_settings,
+    tp_get_athlete_settings_summary,
     tp_get_atp,
     tp_get_availability,
     tp_get_equipment,
@@ -529,6 +530,14 @@ TOOLS = [
     Tool(
         name="tp_get_athlete_settings",
         description="Get athlete settings: FTP, thresholds, zones, profile.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="tp_get_athlete_settings_summary",
+        description=(
+            "Get only a privacy-safe athlete settings summary: training thresholds "
+            "and zone ranges, without raw profile or account fields."
+        ),
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
     Tool(
@@ -1163,6 +1172,9 @@ async def _h_get_atp(args): return await tp_get_atp(start_date=args["start_date"
 # --- Athlete Settings ---
 @_handler("tp_get_athlete_settings")
 async def _h_get_settings(args): return await tp_get_athlete_settings()
+
+@_handler("tp_get_athlete_settings_summary")
+async def _h_get_settings_summary(args): return await tp_get_athlete_settings_summary()
 
 @_handler("tp_update_ftp")
 async def _h_update_ftp(args): return await tp_update_ftp(ftp=args["ftp"])

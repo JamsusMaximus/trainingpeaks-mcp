@@ -7,7 +7,9 @@ import pytest
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.settings import (
     _parse_pace_to_ms,
+    _summarize_settings,
     tp_get_athlete_settings,
+    tp_get_athlete_settings_summary,
     tp_update_ftp,
     tp_update_hr_zones,
     tp_update_nutrition,
@@ -27,6 +29,71 @@ class TestGetAthleteSettings:
 
             result = await tp_get_athlete_settings()
         assert "settings" in result
+
+
+class TestGetAthleteSettingsSummary:
+    def test_summary_includes_thresholds_and_zones(self):
+        settings = {
+            "athleteId": 123,
+            "email": "athlete@example.com",
+            "name": "Example Athlete",
+            "powerZones": [
+                {
+                    "threshold": 250,
+                    "workoutTypeId": 2,
+                    "zones": [
+                        {"label": "Easy", "minimum": 0, "maximum": 140},
+                        {"label": "Endurance", "minimum": 141, "maximum": 190},
+                    ],
+                }
+            ],
+            "heartRateZones": [
+                {
+                    "threshold": 165,
+                    "workoutTypeId": 2,
+                    "zones": [{"label": "Z1", "minimum": 90, "maximum": 130}],
+                }
+            ],
+            "speedZones": [
+                {"threshold": 3.704, "workoutTypeId": 3},
+                {"threshold": 0.952, "workoutTypeId": 1},
+            ],
+        }
+
+        summary = _summarize_settings(settings)
+
+        assert summary == {
+            "lthr_bpm_bike": 165,
+            "hr_zones_bike": [{"label": "Z1", "min": 90.0, "max": 130.0}],
+            "lt_pace_run": {"threshold_m_per_s": 3.704, "pace_min_per_km": "4:30/km"},
+            "lt_pace_swim": {"threshold_m_per_s": 0.952, "pace_min_per_100m": "1:45/100m"},
+            "ftp_watts_bike": 250,
+            "power_zones_bike": [
+                {"label": "Easy", "min": 0.0, "max": 140.0},
+                {"label": "Endurance", "min": 141.0, "max": 190.0},
+            ],
+        }
+        assert "athleteId" not in summary
+        assert "email" not in summary
+        assert "name" not in summary
+
+    @pytest.mark.asyncio
+    async def test_summary_tool_returns_only_summary(self):
+        settings = {
+            "athleteId": 123,
+            "email": "athlete@example.com",
+            "powerZones": [{"threshold": 250, "workoutTypeId": 2}],
+        }
+        response = APIResponse(success=True, data=settings)
+        with patch("tp_mcp.tools.settings.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_athlete_settings_summary()
+
+        assert result == {"summary": {"ftp_watts_bike": 250}}
 
 
 class TestUpdateFTP:

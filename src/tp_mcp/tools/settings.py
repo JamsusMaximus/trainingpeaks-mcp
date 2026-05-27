@@ -85,12 +85,112 @@ def _parse_pace_to_ms(pace_str: str, is_swim: bool = False) -> float:
     return 1000.0 / total_seconds
 
 
-async def tp_get_athlete_settings() -> dict[str, Any]:
-    """Get athlete settings including FTP, thresholds, zones, and profile.
+def _format_pace_min_km(speed_ms: float) -> str:
+    """Format metres per second as min/km."""
+    if speed_ms <= 0:
+        return ""
+    sec_per_km = 1000.0 / speed_ms
+    minutes, seconds = divmod(int(round(sec_per_km)), 60)
+    return f"{minutes}:{seconds:02d}/km"
 
-    Returns:
-        Dict with all athlete settings.
+
+def _format_pace_min_100m(speed_ms: float) -> str:
+    """Format metres per second as min/100m."""
+    if speed_ms <= 0:
+        return ""
+    sec_per_100m = 100.0 / speed_ms
+    minutes, seconds = divmod(int(round(sec_per_100m)), 60)
+    return f"{minutes}:{seconds:02d}/100m"
+
+
+def _summarize_zone_ranges(group: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract privacy-safe zone ranges from a TrainingPeaks zone group."""
+    zones = group.get("zones")
+    if not isinstance(zones, list):
+        return []
+
+    summarized: list[dict[str, Any]] = []
+    for idx, zone in enumerate(zones, start=1):
+        if not isinstance(zone, dict):
+            continue
+        minimum = zone.get("minimum", zone.get("min"))
+        maximum = zone.get("maximum", zone.get("max"))
+        entry: dict[str, Any] = {"label": str(zone.get("label") or idx)}
+        if isinstance(minimum, (int, float)):
+            entry["min"] = round(float(minimum), 3)
+        if isinstance(maximum, (int, float)):
+            entry["max"] = round(float(maximum), 3)
+        if "min" in entry or "max" in entry:
+            summarized.append(entry)
+    return summarized
+
+
+def _summarize_settings(data: dict[str, Any]) -> dict[str, Any]:
+    """Extract a privacy-safe summary from athlete settings.
+
+    The summary intentionally includes only training thresholds and zone ranges.
+    It omits raw settings/profile/account fields that may contain identity data.
     """
+    sport_by_id = {0: "general", 1: "swim", 2: "bike", 3: "run"}
+    summary: dict[str, Any] = {}
+
+    hr_zones = data.get("heartRateZones")
+    if isinstance(hr_zones, list):
+        for group in hr_zones:
+            if not isinstance(group, dict):
+                continue
+            threshold = group.get("threshold")
+            if not isinstance(threshold, (int, float)) or threshold <= 0:
+                continue
+            workout_type_id = group.get("workoutTypeId")
+            sport = sport_by_id.get(workout_type_id, "other") if isinstance(workout_type_id, int) else "other"
+            key = "lthr_bpm" if sport in ("general", "other") else f"lthr_bpm_{sport}"
+            summary.setdefault(key, int(threshold))
+            zones = _summarize_zone_ranges(group)
+            if zones:
+                zone_key = "hr_zones" if sport in ("general", "other") else f"hr_zones_{sport}"
+                summary.setdefault(zone_key, zones)
+
+    speed_zones = data.get("speedZones")
+    if isinstance(speed_zones, list):
+        for group in speed_zones:
+            if not isinstance(group, dict):
+                continue
+            threshold = group.get("threshold")
+            if not isinstance(threshold, (int, float)) or threshold <= 0:
+                continue
+            workout_type_id = group.get("workoutTypeId")
+            sport = sport_by_id.get(workout_type_id, "other") if isinstance(workout_type_id, int) else "other"
+            entry: dict[str, Any] = {"threshold_m_per_s": round(float(threshold), 3)}
+            if sport == "swim":
+                entry["pace_min_per_100m"] = _format_pace_min_100m(float(threshold))
+            else:
+                entry["pace_min_per_km"] = _format_pace_min_km(float(threshold))
+            key = f"lt_pace_{sport}" if sport != "other" else "lt_pace_other"
+            summary.setdefault(key, entry)
+
+    power_zones = data.get("powerZones")
+    if isinstance(power_zones, list):
+        for group in power_zones:
+            if not isinstance(group, dict):
+                continue
+            threshold = group.get("threshold")
+            if not isinstance(threshold, (int, float)) or threshold <= 0:
+                continue
+            workout_type_id = group.get("workoutTypeId")
+            sport = sport_by_id.get(workout_type_id, "other") if isinstance(workout_type_id, int) else "other"
+            key = "ftp_watts" if sport in ("general", "other") else f"ftp_watts_{sport}"
+            summary.setdefault(key, int(threshold))
+            zones = _summarize_zone_ranges(group)
+            if zones:
+                zone_key = "power_zones" if sport in ("general", "other") else f"power_zones_{sport}"
+                summary.setdefault(zone_key, zones)
+
+    return summary
+
+
+async def _fetch_athlete_settings() -> dict[str, Any]:
+    """Fetch raw athlete settings or return an MCP-style error dict."""
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
@@ -117,7 +217,27 @@ async def tp_get_athlete_settings() -> dict[str, Any]:
                 "message": "No settings data returned.",
             }
 
-        return {"settings": response.data}
+        return response.data
+
+
+async def tp_get_athlete_settings() -> dict[str, Any]:
+    """Get athlete settings including FTP, thresholds, zones, and profile.
+
+    Returns:
+        Dict with all athlete settings.
+    """
+    settings = await _fetch_athlete_settings()
+    if settings.get("isError"):
+        return settings
+    return {"settings": settings}
+
+
+async def tp_get_athlete_settings_summary() -> dict[str, Any]:
+    """Get only a privacy-safe athlete settings summary."""
+    settings = await _fetch_athlete_settings()
+    if settings.get("isError"):
+        return settings
+    return {"summary": _summarize_settings(settings)}
 
 
 async def tp_update_ftp(ftp: int) -> dict[str, Any]:

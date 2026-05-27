@@ -44,6 +44,7 @@ from tp_mcp.tools.profile import tp_get_profile, tp_list_athletes
 from tp_mcp.tools.refresh_auth import tp_refresh_auth
 from tp_mcp.tools.settings import (
     tp_get_athlete_settings,
+    tp_get_athlete_settings_summary,
     tp_get_pool_length_settings,
     tp_update_ftp,
     tp_update_hr_zones,
@@ -96,6 +97,7 @@ __all__ = [
     "tp_delete_workout_file",
     "tp_download_workout_file",
     "tp_get_athlete_settings",
+    "tp_get_athlete_settings_summary",
     "tp_get_atp",
     "tp_get_availability",
     "tp_get_equipment",
