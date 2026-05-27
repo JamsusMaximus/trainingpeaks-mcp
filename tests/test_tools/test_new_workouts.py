@@ -175,11 +175,33 @@ class TestCreateWorkoutWithStructure:
         assert result["error_code"] == "VALIDATION_ERROR"
 
     @pytest.mark.asyncio
+    async def test_create_allows_zero_rpe(self):
+        """RPE 0 should be accepted as the low end of the /10 scale."""
+        create_response = APIResponse(
+            success=True, data={"workoutId": 7006, "title": "Recovery", "workoutDay": "2026-03-01T00:00:00"},
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2026-03-01", sport="Run", title="Recovery",
+                duration_minutes=30, rpe=0,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["rpe"] == 0
+
+    @pytest.mark.asyncio
     async def test_create_rpe_out_of_bounds(self):
-        """RPE < 1 should be rejected."""
+        """RPE < 0 should be rejected; 0 is a valid low-end /10 value."""
         result = await tp_create_workout(
             date_str="2026-03-01", sport="Run", title="Bad",
-            duration_minutes=30, rpe=0,
+            duration_minutes=30, rpe=-1,
         )
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
@@ -308,6 +330,26 @@ class TestUpdateWorkout:
         put_payload = mock_instance.put.call_args[1]["json"]
         assert put_payload["workoutTypeFamilyId"] == 2
         assert put_payload["workoutTypeValueId"] == 2
+
+    @pytest.mark.asyncio
+    async def test_update_allows_zero_rpe(self):
+        """RPE 0 should be accepted when updating workouts."""
+        existing = {"workoutId": 1001, "title": "Recovery"}
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(workout_id="1001", rpe=0)
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert put_payload["rpe"] == 0
 
     @pytest.mark.asyncio
     async def test_update_date_only_sets_midnight(self):

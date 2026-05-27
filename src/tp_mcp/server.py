@@ -62,6 +62,7 @@ from tp_mcp.tools import (
     tp_get_workout_types,
     tp_get_workouts,
     tp_list_athletes,
+    tp_list_notes,
     tp_log_metrics,
     tp_pair_workout,
     tp_refresh_auth,
@@ -81,6 +82,7 @@ from tp_mcp.tools import (
     tp_upload_workout_file,
     tp_validate_structure,
 )
+from tp_mcp.tools.events import EVENT_TYPES
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 # Configure logging to stderr (stdout is used for MCP protocol)
@@ -715,13 +717,7 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string"},
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "event_type": {
-                    "type": "string",
-                    "description": (
-                        "e.g. Triathlon, MultisportTriathlon, RoadRunning,"
-                        " RoadCycling, MountainBiking, OpenWaterSwimming, Other"
-                    ),
-                },
+                "event_type": {"type": "string", "enum": EVENT_TYPES},
                 "priority": {"type": "string", "enum": ["A", "B", "C"]},
                 "distance_km": {"type": "number"},
                 "ctl_target": {"type": "number"},
@@ -739,7 +735,7 @@ TOOLS = [
                 "event_id": {"type": "string"},
                 "name": {"type": "string"},
                 "date": {"type": "string"},
-                "event_type": {"type": "string"},
+                "event_type": {"type": "string", "enum": EVENT_TYPES},
                 "priority": {"type": "string", "enum": ["A", "B", "C"]},
                 "distance_km": {"type": "number"},
                 "ctl_target": {"type": "number"},
@@ -822,6 +818,18 @@ TOOLS = [
                 "comment": {"type": "string", "description": "Comment text"},
             },
             "required": ["note_id", "comment"],
+        },
+    ),
+    Tool(
+        name="tp_list_notes",
+        description="List calendar notes for a date range.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)"},
+                "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)"},
+            },
+            "required": ["start_date", "end_date"],
         },
     ),
     Tool(
@@ -1284,6 +1292,10 @@ async def _h_get_note_comments(args): return await tp_get_note_comments(note_id=
 @_handler("tp_add_note_comment")
 async def _h_add_note_comment(args):
     return await tp_add_note_comment(note_id=args["note_id"], comment=args["comment"])
+
+@_handler("tp_list_notes")
+async def _h_list_notes(args):
+    return await tp_list_notes(start_date=args["start_date"], end_date=args["end_date"])
 
 @_handler("tp_get_availability")
 async def _h_get_avail(args):
