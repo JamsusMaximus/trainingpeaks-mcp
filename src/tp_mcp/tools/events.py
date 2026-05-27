@@ -610,6 +610,69 @@ async def tp_get_note(note_id: str) -> dict[str, Any]:
         }
 
 
+async def tp_list_notes(start_date: str, end_date: str) -> dict[str, Any]:
+    """List calendar notes for a date range.
+
+    Args:
+        start_date: Range start (YYYY-MM-DD).
+        end_date: Range end (YYYY-MM-DD).
+
+    Returns:
+        Dict with list of notes or error.
+    """
+    try:
+        validated = DateRangeInput(start_date=start_date, end_date=end_date)
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": msg}
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+
+        start_str = validated.start_date.isoformat()
+        end_str = validated.end_date.isoformat()
+        # v1 only supports POST/DELETE by ID; range listing requires v2.
+        endpoint = f"/fitness/v2/athletes/{athlete_id}/calendarNote/{start_str}/{end_str}"
+        response = await client.get(endpoint)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        raw_notes = response.data if isinstance(response.data, list) else []
+        notes = []
+        for d in raw_notes:
+            if not isinstance(d, dict):
+                continue
+            raw_date = d.get("noteDate")
+            if isinstance(raw_date, str) and "T" in raw_date:
+                raw_date = raw_date.split("T", 1)[0]
+            notes.append({
+                "id": d.get("id") or d.get("calendarNoteId"),
+                "title": d.get("title"),
+                "description": d.get("description"),
+                "date": raw_date or None,
+                "is_hidden": d.get("isHidden", False),
+                "comment_count": d.get("commentCount", 0),
+                "created_date": d.get("createdDate"),
+                "modified_date": d.get("modifiedDate"),
+                "owner_id": d.get("ownerId"),
+                "attachments": d.get("attachments") or [],
+            })
+
+        return {
+            "notes": notes,
+            "count": len(notes),
+            "date_range": {"start": start_str, "end": end_str},
+        }
+
+
 async def tp_update_note(
     note_id: str,
     title: str | None = None,

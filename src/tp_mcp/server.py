@@ -62,6 +62,7 @@ from tp_mcp.tools import (
     tp_get_workout_types,
     tp_get_workouts,
     tp_list_athletes,
+    tp_list_notes,
     tp_log_metrics,
     tp_pair_workout,
     tp_refresh_auth,
@@ -820,6 +821,18 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_list_notes",
+        description="List calendar notes for a date range.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)"},
+                "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)"},
+            },
+            "required": ["start_date", "end_date"],
+        },
+    ),
+    Tool(
         name="tp_get_availability",
         description="Get availability entries for a date range.",
         inputSchema={
@@ -1279,6 +1292,10 @@ async def _h_get_note_comments(args): return await tp_get_note_comments(note_id=
 @_handler("tp_add_note_comment")
 async def _h_add_note_comment(args):
     return await tp_add_note_comment(note_id=args["note_id"], comment=args["comment"])
+
+@_handler("tp_list_notes")
+async def _h_list_notes(args):
+    return await tp_list_notes(start_date=args["start_date"], end_date=args["end_date"])
 
 @_handler("tp_get_availability")
 async def _h_get_avail(args):
