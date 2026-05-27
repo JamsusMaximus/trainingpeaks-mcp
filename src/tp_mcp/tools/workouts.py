@@ -333,6 +333,11 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "sport": workout.sport,
                 "workout_type": workout.workout_type,
                 "description": workout.description,
+                # v6 fields not exposed by the parser model.
+                "rpe": raw_data.get("rpe"),
+                "feeling": raw_data.get("feeling"),
+                "new_comment": raw_data.get("newComment"),
+                "has_private_workout_note": raw_data.get("hasPrivateWorkoutNoteForCaller"),
                 "metrics": {
                     "duration_planned": workout.duration_planned,
                     "duration_actual": workout.duration_actual,

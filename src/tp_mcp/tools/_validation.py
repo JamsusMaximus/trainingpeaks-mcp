@@ -66,7 +66,7 @@ class CreateWorkoutInput(BaseModel):
     subtype_id: int | None = Field(default=None, gt=0)
     tags: str | None = Field(default=None, max_length=500)
     feeling: int | None = Field(default=None, ge=0, le=10)
-    rpe: int | None = Field(default=None, ge=1, le=10)
+    rpe: int | None = Field(default=None, ge=0, le=10)
 
     @field_validator("date", mode="before")
     @classmethod
@@ -118,7 +118,7 @@ class UpdateWorkoutInput(BaseModel):
     athlete_comment: str | None = None
     coach_comment: str | None = None
     feeling: int | None = Field(default=None, ge=0, le=10)
-    rpe: int | None = Field(default=None, ge=1, le=10)
+    rpe: int | None = Field(default=None, ge=0, le=10)
     structure: Any = None
     structured_workout: Any = None
 
