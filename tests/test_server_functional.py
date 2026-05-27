@@ -64,6 +64,7 @@ class TestListTools:
             "tp_update_speed_zones",
             "tp_update_nutrition",
             "tp_get_pool_length_settings",
+            "tp_search_strength_exercises",
             "tp_log_metrics",
             "tp_get_metrics",
             "tp_get_nutrition",
@@ -137,6 +138,19 @@ class TestListTools:
 
         assert "YYYY-MM-DDTHH:MM:SS" in create_tool.inputSchema["properties"]["date"]["description"]
         assert "YYYY-MM-DDTHH:MM:SS" in update_tool.inputSchema["properties"]["date"]["description"]
+
+    @pytest.mark.asyncio
+    async def test_strength_reference_search_schema_is_read_only(self):
+        tools = await list_tools()
+        search_tool = next(t for t in tools if t.name == "tp_search_strength_exercises")
+
+        description = search_tool.description.lower()
+        assert "read-only" in description
+        assert "does not read, create, update, or delete strength workouts" in description
+        assert search_tool.inputSchema["required"] == ["query"]
+        assert {"query", "limit"}.issubset(search_tool.inputSchema["properties"])
+        for write_field in ("workout_id", "date", "structure", "sets", "reps"):
+            assert write_field not in search_tool.inputSchema["properties"]
 
 
 # ---------------------------------------------------------------------------

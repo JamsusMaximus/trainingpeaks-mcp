@@ -68,6 +68,7 @@ from tp_mcp.tools import (
     tp_refresh_auth,
     tp_reorder_workouts,
     tp_schedule_library_workout,
+    tp_search_strength_exercises,
     tp_set_workout_note,
     tp_unpair_workout,
     tp_update_equipment,
@@ -579,6 +580,23 @@ TOOLS = [
         name="tp_get_pool_length_settings",
         description="Get pool length settings.",
         inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="tp_search_strength_exercises",
+        description=(
+            "Read-only search of TrainingPeaks strength exercise library for reference videos, "
+            "instructions, and muscle groups. If no TP exercise matches, returns a YouTube "
+            "search URL fallback without calling YouTube. Does not read, create, update, or "
+            "delete strength workouts."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Exercise name, e.g. 'back squat'"},
+                "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 25},
+            },
+            "required": ["query"],
+        },
     ),
     # --- Health Metrics ---
     Tool(
@@ -1186,6 +1204,10 @@ async def _h_update_nutrition(args): return await tp_update_nutrition(planned_ca
 
 @_handler("tp_get_pool_length_settings")
 async def _h_pool(args): return await tp_get_pool_length_settings()
+
+@_handler("tp_search_strength_exercises")
+async def _h_search_strength_exercises(args):
+    return await tp_search_strength_exercises(query=args["query"], limit=args.get("limit", 10))
 
 # --- Health Metrics ---
 @_handler("tp_log_metrics")

@@ -50,6 +50,7 @@ from tp_mcp.tools.settings import (
     tp_update_nutrition,
     tp_update_speed_zones,
 )
+from tp_mcp.tools.strength_references import tp_search_strength_exercises
 from tp_mcp.tools.structure import tp_validate_structure
 from tp_mcp.tools.weekly_summary import tp_get_weekly_summary
 from tp_mcp.tools.workout_files import (
@@ -127,6 +128,7 @@ __all__ = [
     "tp_refresh_auth",
     "tp_reorder_workouts",
     "tp_schedule_library_workout",
+    "tp_search_strength_exercises",
     "tp_set_workout_note",
     "tp_unpair_workout",
     "tp_update_equipment",
