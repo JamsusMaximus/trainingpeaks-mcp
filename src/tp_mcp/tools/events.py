@@ -56,15 +56,17 @@ def _default_create_event_payload(
     return payload
 
 
-# Non-exhaustive list of known event types (TP API may accept others)
+# Known event types from the TrainingPeaks event UI (web-form enum values).
+# Not exhaustive and not enforced — the API may accept unlisted values.
 EVENT_TYPES = [
-    "RoadRunning", "RunningTrack", "TrailRunning", "TrackRunning", "CrossCountry", "Running",
-    "RoadCycling", "MountainBiking", "Cyclocross", "TrackCycling", "Cycling",
-    "OpenWaterSwimming", "PoolSwimming", "Triathlon", "MultisportTriathlon",
-    "Xterra", "Duathlon", "Aquabike", "Aquathon", "Multisport",
-    "Regatta", "Rowing",
-    "AlpineSkiing", "NordicSkiing", "SkiMountaineering", "Snowshoe", "Snow",
-    "Adventure", "Obstacle", "SpeedSkate", "Other",
+    "RunningRoad", "RunningTrail", "RunningTrack", "RunningCrossCountry", "RunningOther",
+    "CyclingRoad", "CyclingMountain", "CyclingCyclocross", "CyclingTrack", "CyclingOther",
+    "SwimOpenWater", "SwimPool",
+    "MultisportTriathlon", "MultisportXterra", "MultisportDuathlon",
+    "MultisportAquabike", "MultisportAquathon", "MultisportOther",
+    "RowingRegatta", "RowingOther",
+    "SnowAlpine", "SnowNordic", "SnowSkiMountaineering", "SnowSnowshoe", "SnowOther",
+    "OtherAdventure", "OtherObstacle", "OtherSpeedSkate", "OtherOther",
 ]
 
 
@@ -218,7 +220,7 @@ async def tp_create_event(
     Args:
         name: Event name.
         date: Event date (YYYY-MM-DD).
-        event_type: Event type (e.g. 'RoadRunning', 'RunningTrack', 'Triathlon'); defaults to 'Other'.
+        event_type: Event type (e.g. 'RunningRoad', 'CyclingRoad', 'MultisportTriathlon'); defaults to 'OtherOther'.
         priority: Priority level ('A', 'B', or 'C'); defaults to 'C' if omitted.
         distance_km: Event distance in km (sent as distance + distanceUnits=Kilometers).
         ctl_target: Target CTL for the event.
@@ -255,7 +257,7 @@ async def tp_create_event(
             }
 
         # POST /event (singular) — not /events; matches app.trainingpeaks.com HAR (v6).
-        event_type = params.event_type or "Other"
+        event_type = params.event_type or "OtherOther"
         atp_priority = params.priority or "C"
         payload = _default_create_event_payload(
             athlete_id=int(athlete_id),
