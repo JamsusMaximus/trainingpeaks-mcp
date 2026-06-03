@@ -40,7 +40,7 @@ class TestGetLibraryItems:
     @pytest.mark.asyncio
     async def test_list_items(self):
         data = [
-            {"exerciseLibraryItemId": 10, "itemName": "Sweet Spot", "workoutTypeFamilyId": 2, "totalTimePlanned": 1.5, "tssPlanned": 80},
+            {"exerciseLibraryItemId": 10, "itemName": "Sweet Spot", "workoutTypeId": 2, "totalTimePlanned": 1.5, "tssPlanned": 80},
         ]
         response = APIResponse(success=True, data=data)
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
@@ -53,6 +53,7 @@ class TestGetLibraryItems:
 
         assert result["count"] == 1
         assert result["items"][0]["name"] == "Sweet Spot"
+        assert result["items"][0]["sport"] == 2
 
 
 class TestCreateLibrary:

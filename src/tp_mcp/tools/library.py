@@ -93,7 +93,7 @@ async def tp_get_library_items(library_id: str) -> dict[str, Any]:
             {
                 "id": item.get("exerciseLibraryItemId", item.get("id")),
                 "name": item.get("itemName", item.get("name", "")),
-                "sport": item.get("workoutTypeFamilyId"),
+                "sport": item.get("workoutTypeId"),
                 "duration": item.get("totalTimePlanned"),
                 "tss": item.get("tssPlanned"),
             }
