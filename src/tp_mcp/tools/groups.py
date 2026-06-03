@@ -19,10 +19,16 @@ than the read endpoint (a TP quirk, like the library endpoints needing
   PUT    /coaches/v1/coaches/{coachId}/tags/{id}   body {"Value": "<name>"}   (rename)
   DELETE /coaches/v1/coaches/{coachId}/tags/{id}                              (delete)
 
+Membership (add/remove athletes) is a separate sub-resource — one athlete per
+call (verified live):
+
+  POST   /coaches/v1/coaches/{coachId}/tags/{tagId}/athletes      body {"Value": <athleteId>}
+  DELETE /coaches/v1/coaches/{coachId}/tags/{tagId}/athletes/{athleteId}
+
 Note: reads are **v2**, writes are **v1**, and the body key is ``Value`` (not
-``name``); ``athleteIds`` is NOT settable through the tag PUT. Adding/removing
-athletes to a group is a separate endpoint (assigned from the athlete side) that
-still needs a captured request — not exposed here yet.
+``name``); ``athleteIds`` is NOT settable through the tag PUT — use the
+membership endpoints above. The default group's membership is managed by TP and
+is not edited here.
 """
 
 import logging
@@ -35,6 +41,10 @@ logger = logging.getLogger("tp-mcp")
 _TAGS_ENDPOINT = "/coaches/v2/coaches/{coach_id}/tags"        # read
 _TAGS_WRITE = "/coaches/v1/coaches/{coach_id}/tags"          # create
 _TAG_WRITE = "/coaches/v1/coaches/{coach_id}/tags/{tag_id}"  # rename / delete
+# Membership: add = POST .../athletes {"Value": athleteId}; remove = DELETE
+# .../athletes/{athleteId}. One athlete per call (verified live).
+_TAG_ATHLETES = "/coaches/v1/coaches/{coach_id}/tags/{tag_id}/athletes"
+_TAG_ATHLETE = "/coaches/v1/coaches/{coach_id}/tags/{tag_id}/athletes/{athlete_id}"
 
 
 async def _coach_id(client: TPClient) -> int | None:
@@ -280,3 +290,101 @@ async def tp_delete_group(group_id: str) -> dict[str, Any]:
                     "error_code": response.error_code.value if response.error_code else "API_ERROR",
                     "message": response.message}
         return {"deleted": True, "id": gid, "name": tag.get("name", "")}
+
+
+def _parse_ids(athlete_ids: Any) -> tuple[list[int], str | None]:
+    """Coerce an athlete_ids input to a list[int]; return (ids, error_message)."""
+    if not isinstance(athlete_ids, (list, tuple)) or not athlete_ids:
+        return [], "athlete_ids must be a non-empty list of athlete IDs."
+    out: list[int] = []
+    for a in athlete_ids:
+        try:
+            out.append(int(a))
+        except (TypeError, ValueError):
+            return [], f"athlete_ids must be numeric; got {a!r}."
+    return out, None
+
+
+async def tp_add_athletes_to_group(group_id: str, athlete_ids: list) -> dict[str, Any]:
+    """Add one or more athletes to a group.
+
+    Args:
+        group_id: The group (tag) ID.
+        athlete_ids: Athlete IDs to add.
+
+    Returns:
+        Dict with ``added`` and ``errors`` lists.
+    """
+    try:
+        gid = int(group_id)
+    except (TypeError, ValueError):
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": f"group_id must be a numeric ID, got {group_id!r}."}
+    ids, err = _parse_ids(athlete_ids)
+    if err:
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": err}
+
+    async with TPClient() as client:
+        coach_id = await _coach_id(client)
+        if not coach_id:
+            return _auth_envelope()
+        tag = await _get_tag(client, coach_id, gid)
+        if tag is None:
+            return {"isError": True, "error_code": "NOT_FOUND",
+                    "message": f"No athlete group with id {gid}. Use tp_list_groups."}
+        if tag.get("isDefault"):
+            return {"isError": True, "error_code": "FORBIDDEN",
+                    "message": "Membership of the default group is managed by TP, "
+                               "not editable here."}
+        endpoint = _TAG_ATHLETES.format(coach_id=coach_id, tag_id=gid)
+        added, errors = [], []
+        for aid in ids:
+            # One athlete per call: POST body {"Value": <athleteId>} (verified).
+            r = await client.post(endpoint, json={"Value": aid})
+            if r.is_error:
+                errors.append({"athlete_id": aid, "message": r.message})
+            else:
+                added.append(aid)
+        return {"group_id": gid, "added": added, "errors": errors}
+
+
+async def tp_remove_athletes_from_group(group_id: str, athlete_ids: list) -> dict[str, Any]:
+    """Remove one or more athletes from a group.
+
+    Args:
+        group_id: The group (tag) ID.
+        athlete_ids: Athlete IDs to remove.
+
+    Returns:
+        Dict with ``removed`` and ``errors`` lists.
+    """
+    try:
+        gid = int(group_id)
+    except (TypeError, ValueError):
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": f"group_id must be a numeric ID, got {group_id!r}."}
+    ids, err = _parse_ids(athlete_ids)
+    if err:
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": err}
+
+    async with TPClient() as client:
+        coach_id = await _coach_id(client)
+        if not coach_id:
+            return _auth_envelope()
+        tag = await _get_tag(client, coach_id, gid)
+        if tag is None:
+            return {"isError": True, "error_code": "NOT_FOUND",
+                    "message": f"No athlete group with id {gid}. Use tp_list_groups."}
+        if tag.get("isDefault"):
+            return {"isError": True, "error_code": "FORBIDDEN",
+                    "message": "Membership of the default group is managed by TP, "
+                               "not editable here."}
+        removed, errors = [], []
+        for aid in ids:
+            r = await client.delete(
+                _TAG_ATHLETE.format(coach_id=coach_id, tag_id=gid, athlete_id=aid))
+            if r.is_error:
+                errors.append({"athlete_id": aid, "message": r.message})
+            else:
+                removed.append(aid)
+        return {"group_id": gid, "removed": removed, "errors": errors}

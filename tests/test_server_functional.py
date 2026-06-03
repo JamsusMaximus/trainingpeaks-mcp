@@ -101,6 +101,8 @@ class TestListTools:
             "tp_create_group",
             "tp_rename_group",
             "tp_delete_group",
+            "tp_add_athletes_to_group",
+            "tp_remove_athletes_from_group",
             "tp_upload_workout_file",
             "tp_download_workout_file",
             "tp_delete_workout_file",
