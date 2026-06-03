@@ -19,8 +19,10 @@ class TestGetLibraries:
     @pytest.mark.asyncio
     async def test_list_libraries(self):
         data = [
-            {"exerciseLibraryId": 1, "libraryName": "My Workouts", "isDefaultContent": False, "ownerName": "Athlete"},
-            {"exerciseLibraryId": 2, "libraryName": "Default", "isDefaultContent": True, "ownerName": "Joe Friel"},
+            {"exerciseLibraryId": 1, "libraryName": "My Workouts", "isDefaultContent": False,
+             "ownerName": "Athlete", "ownerId": 7, "itemCount": 5},
+            {"exerciseLibraryId": 2, "libraryName": "Default", "isDefaultContent": True,
+             "ownerName": "Joe Friel", "ownerId": 7},
         ]
         response = APIResponse(success=True, data=data)
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
@@ -34,6 +36,8 @@ class TestGetLibraries:
         assert result["count"] == 2
         assert result["libraries"][0]["name"] == "My Workouts"
         assert result["libraries"][0]["owner_name"] == "Athlete"
+        assert result["libraries"][0]["owner_id"] == 7
+        assert result["libraries"][0]["item_count"] == 5
         assert result["libraries"][1]["is_default"] is True
 
 
@@ -70,6 +74,7 @@ class TestCreateLibrary:
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance._get_user_data = AsyncMock(return_value={"personId": 999})
             mock_instance.post = AsyncMock(return_value=response)
             mock_client.return_value.__aenter__.return_value = mock_instance
 
@@ -78,7 +83,8 @@ class TestCreateLibrary:
         assert result["success"] is True
         assert result["library_id"] == 3
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["name"] == "Race Prep"
+        assert payload["libraryName"] == "Race Prep"
+        assert payload["ownerId"] == 999
 
 
 class TestDeleteLibrary:
