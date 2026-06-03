@@ -61,10 +61,13 @@ from tp_mcp.tools import (
     tp_get_workout_prs,
     tp_get_workout_types,
     tp_get_workouts,
+    tp_create_group,
+    tp_delete_group,
     tp_list_athletes,
     tp_list_athletes_in_group,
     tp_list_groups,
     tp_list_notes,
+    tp_rename_group,
     tp_log_metrics,
     tp_pair_workout,
     tp_refresh_auth,
@@ -1037,6 +1040,41 @@ TOOLS = [
             "required": ["group_id"],
         },
     ),
+    Tool(
+        name="tp_create_group",
+        description="Create a new athlete group.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The group name."},
+            },
+            "required": ["name"],
+        },
+    ),
+    Tool(
+        name="tp_rename_group",
+        description="Rename an athlete group. The default group cannot be renamed.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+                "name": {"type": "string", "description": "The new group name."},
+            },
+            "required": ["group_id", "name"],
+        },
+    ),
+    Tool(
+        name="tp_delete_group",
+        description="Delete an athlete group (the grouping only — athletes are not "
+                    "deleted). The default group cannot be deleted.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+            },
+            "required": ["group_id"],
+        },
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1047,6 +1085,7 @@ _ATHLETE_EXEMPT_TOOLS = {
     "tp_list_athletes", "tp_get_workout_types",
     # Coach-scoped (groups belong to the coach, not a targeted athlete).
     "tp_list_groups", "tp_list_athletes_in_group",
+    "tp_create_group", "tp_rename_group", "tp_delete_group",
 }
 
 _ATHLETE_PARAM = {
@@ -1096,6 +1135,15 @@ async def _h_list_groups(args): return await tp_list_groups()
 
 @_handler("tp_list_athletes_in_group")
 async def _h_list_athletes_in_group(args): return await tp_list_athletes_in_group(group_id=args["group_id"])
+
+@_handler("tp_create_group")
+async def _h_create_group(args): return await tp_create_group(name=args["name"])
+
+@_handler("tp_rename_group")
+async def _h_rename_group(args): return await tp_rename_group(group_id=args["group_id"], name=args["name"])
+
+@_handler("tp_delete_group")
+async def _h_delete_group(args): return await tp_delete_group(group_id=args["group_id"])
 
 @_handler("tp_refresh_auth")
 async def _h_refresh_auth(args): return await tp_refresh_auth(browser=args.get("browser", "auto"))
