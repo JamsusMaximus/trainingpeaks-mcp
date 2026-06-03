@@ -969,6 +969,14 @@ TOOLS = [
                 "tss": {"type": "number"},
                 "description": {"type": "string"},
                 "structure": {"type": "object"},
+                "workout_type_id": {
+                    "type": "integer",
+                    "description": (
+                        "Sport/workout type: 1=swim, 2=bike, 3=run, etc. "
+                        "Sets the sport on templates saved without one."
+                    ),
+                },
+                "workout_sub_type_id": {"type": "integer"},
             },
             "required": ["library_id", "item_id"],
         },
@@ -1364,6 +1372,8 @@ async def _h_update_lib_item(args):
         name=args.get("name"), duration_hours=args.get("duration_hours"),
         tss=args.get("tss"), description=args.get("description"),
         structure=args.get("structure"),
+        workout_type_id=args.get("workout_type_id"),
+        workout_sub_type_id=args.get("workout_sub_type_id"),
     )
 
 @_handler("tp_schedule_library_workout")
