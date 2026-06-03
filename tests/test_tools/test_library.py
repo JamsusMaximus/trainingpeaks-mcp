@@ -19,8 +19,8 @@ class TestGetLibraries:
     @pytest.mark.asyncio
     async def test_list_libraries(self):
         data = [
-            {"exerciseLibraryId": 1, "name": "My Workouts", "isDefault": False, "itemCount": 5},
-            {"exerciseLibraryId": 2, "name": "Default", "isDefault": True, "itemCount": 20},
+            {"exerciseLibraryId": 1, "libraryName": "My Workouts", "isDefaultContent": False, "ownerId": 7},
+            {"exerciseLibraryId": 2, "libraryName": "Default", "isDefaultContent": True, "ownerId": 7},
         ]
         response = APIResponse(success=True, data=data)
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
@@ -62,6 +62,7 @@ class TestCreateLibrary:
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance._get_user_data = AsyncMock(return_value={"personId": 999})
             mock_instance.post = AsyncMock(return_value=response)
             mock_client.return_value.__aenter__.return_value = mock_instance
 
@@ -70,7 +71,8 @@ class TestCreateLibrary:
         assert result["success"] is True
         assert result["library_id"] == 3
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["name"] == "Race Prep"
+        assert payload["libraryName"] == "Race Prep"
+        assert payload["ownerId"] == 999
 
 
 class TestDeleteLibrary:
