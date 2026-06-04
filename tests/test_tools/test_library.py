@@ -125,6 +125,76 @@ class TestCreateLibraryItem:
         assert "workoutTypeFamilyId" not in payload
         assert "workoutTypeValueId" not in payload
 
+    @pytest.mark.asyncio
+    async def test_create_backfills_polyline_and_range(self):
+        """A native structure without preview fields gets polyline +
+        primaryIntensityTargetOrRange so TP renders the thumbnail."""
+        def _block(begin, end, dur, lo, hi, cls):
+            return {
+                "type": "step", "length": {"value": 1, "unit": "repetition"},
+                "begin": begin, "end": end,
+                "steps": [{
+                    "name": cls, "length": {"value": dur, "unit": "second"},
+                    "targets": [{"minValue": lo, "maxValue": hi}],
+                    "intensityClass": cls,
+                }],
+            }
+        structure = {
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryLengthMetric": "duration",
+            "structure": [
+                _block(0, 300, 300, 50, 60, "warmUp"),
+                _block(300, 3300, 3000, 65, 72, "active"),
+                _block(3300, 3600, 300, 50, 55, "coolDown"),
+            ],
+        }
+        response = APIResponse(success=True, data={"exerciseLibraryItemId": 21})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_library_item(
+                library_id="1", name="Endurance",
+                sport_family_id=2, sport_type_id=2, structure=structure,
+            )
+
+        assert result["success"] is True
+        st = mock_instance.post.call_args[1]["json"]["structure"]
+        assert st["primaryIntensityTargetOrRange"] == "range"
+        # 3 single-step blocks → 3 bars × 4 points
+        assert len(st["polyline"]) == 12
+        # main interval peak = 72/100
+        assert [0.0833, 0.72] in st["polyline"]
+
+
+class TestStructurePreviewHelper:
+    def test_polyline_expands_repetition_and_normalises(self):
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 2000, "unit": "meter"},
+                        "targets": [{"minValue": 70, "maxValue": 80}]}]},
+            {"type": "repetition", "length": {"value": 6, "unit": "repetition"},
+             "steps": [
+                 {"length": {"value": 800, "unit": "meter"},
+                  "targets": [{"minValue": 102, "maxValue": 104}]},
+                 {"length": {"value": 400, "unit": "meter"},
+                  "targets": [{"minValue": 70, "maxValue": 75}]},
+             ]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        # warmup bar + 6×(work+rest) bars = 13 bars × 4 points
+        assert len(poly) == 13 * 4
+        # work intensity 104/100 present
+        assert any(pt[1] == 1.04 for pt in poly)
+
+    def test_ensure_preview_noop_on_non_native(self):
+        from tp_mcp.tools.library import _ensure_structure_preview
+        assert _ensure_structure_preview(None) is None
+        assert _ensure_structure_preview({"steps": []}) == {"steps": []}
+
 
 class TestScheduleLibraryWorkout:
     TEMPLATE = {

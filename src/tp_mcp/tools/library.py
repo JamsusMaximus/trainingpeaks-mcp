@@ -12,6 +12,57 @@ from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
 logger = logging.getLogger("tp-mcp")
 
 
+def _compute_native_polyline(blocks: list[dict[str, Any]]) -> list[list[float]]:
+    """Rectangular-bar polyline from a native structure block list — matches
+    build_wire_structure: y = step maxValue / 100, t normalised to total
+    length (works for duration and distance, units cancel). Repetition blocks
+    expand into per-rep bars."""
+    def span(b: dict[str, Any]) -> float:
+        reps = b["length"]["value"] if b.get("type") == "repetition" else 1
+        return reps * sum(s.get("length", {}).get("value", 0) for s in b.get("steps", []))
+
+    total = sum(span(b) for b in blocks)
+    if total <= 0:
+        return []
+    poly: list[list[float]] = []
+    pos = 0.0
+    for b in blocks:
+        reps = int(b["length"]["value"]) if b.get("type") == "repetition" else 1
+        for _ in range(reps):
+            for s in b.get("steps", []):
+                ln = s.get("length", {}).get("value", 0)
+                targets = s.get("targets") or [{}]
+                y = (targets[0].get("maxValue") or 0) / 100.0
+                t0 = pos / total
+                pos += ln
+                t1 = pos / total
+                poly.append([round(t0, 4), 0])
+                poly.append([round(t0, 4), round(y, 4)])
+                poly.append([round(t1, 4), round(y, 4)])
+                poly.append([round(t1, 4), 0])
+    return poly
+
+
+def _ensure_structure_preview(structure: Any) -> Any:
+    """Library create/update store the structure as-is and do NOT build the
+    preview fields, so templates saved this way render without a structure
+    thumbnail in TP. Backfill the two missing pieces: `primaryIntensityTargetOrRange`
+    (targets treated as a range) and `polyline` (the preview graph). Only
+    touches a native structure (dict with a "structure" block list); anything
+    else is returned untouched."""
+    if not isinstance(structure, dict):
+        return structure
+    blocks = structure.get("structure")
+    if not isinstance(blocks, list) or not blocks:
+        return structure
+    structure.setdefault("primaryIntensityTargetOrRange", "range")
+    if not structure.get("polyline"):
+        poly = _compute_native_polyline(blocks)
+        if poly:
+            structure["polyline"] = poly
+    return structure
+
+
 async def tp_get_libraries() -> dict[str, Any]:
     """List all workout library folders.
 
@@ -322,8 +373,9 @@ async def tp_create_library_item(
         if description:
             payload["description"] = description
         if structure is not None:
-            # Library items use nested object, NOT double-serialised string
-            payload["structure"] = structure
+            # Library items use nested object, NOT double-serialised string.
+            # Backfill polyline/range so TP renders the structure preview.
+            payload["structure"] = _ensure_structure_preview(structure)
 
         endpoint = f"/exerciselibrary/v1/libraries/{lib_validated.workout_id}/items"
         response = await client.post(endpoint, json=payload)
@@ -427,7 +479,7 @@ async def tp_update_library_item(
         if description is not None:
             existing["description"] = description
         if structure is not None:
-            existing["structure"] = structure
+            existing["structure"] = _ensure_structure_preview(structure)
 
         put_endpoint = (
             f"/exerciselibrary/v1/libraries/{lib_validated.workout_id}"
