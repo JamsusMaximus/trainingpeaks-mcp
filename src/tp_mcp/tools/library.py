@@ -443,6 +443,93 @@ async def tp_update_library_item(
         }
 
 
+# Workout type values that mean "no real sport" — safe to overwrite with the
+# library template's sport when repairing a scheduled workout. 100 = "Other".
+_UNTYPED_WORKOUT_TYPES = {None, 0, 100}
+
+
+async def _library_item_type_id(
+    client: Any, library_id: int, item_id: int,
+) -> int | None:
+    """Best-effort read of a library item's workoutTypeId. Returns None on any
+    failure — the caller must not let this block scheduling."""
+    try:
+        resp = await client.get(
+            f"/exerciselibrary/v2/libraries/{library_id}/items")
+        if resp.is_error or not isinstance(resp.data, list):
+            return None
+        for item in resp.data:
+            iid = item.get("exerciseLibraryItemId", item.get("id"))
+            if iid == item_id:
+                wt = item.get("workoutTypeId")
+                return int(wt) if wt is not None else None
+    except Exception:
+        logger.warning("could not read library item type", exc_info=True)
+    return None
+
+
+def _family_for_type(type_id: int) -> int:
+    """Map a workoutTypeValueId to its workoutTypeFamilyId via SPORT_TYPE_MAP.
+    For swim/bike/run the family equals the value, which is also the fallback."""
+    from tp_mcp.tools.workouts import SPORT_TYPE_MAP
+
+    for family_id, value_id in SPORT_TYPE_MAP.values():
+        if value_id == type_id:
+            return family_id
+    return type_id
+
+
+async def _ensure_scheduled_workout_type(
+    client: Any, athlete_id: int, date: str, item_id: int,
+    template_type_id: int | None,
+) -> bool:
+    """TP's addworkoutfromlibraryitem leaves the scheduled workout typed as
+    "Other" (100); set it to the template's sport. Returns True if a workout
+    was updated. Conservative: only touches a workout uniquely identifiable as
+    the one just scheduled (matching exerciseLibraryItemId, else the single
+    untyped workout on that date) so it never mutates an unrelated session."""
+    if not template_type_id or template_type_id in _UNTYPED_WORKOUT_TYPES:
+        return False
+    try:
+        resp = await client.get(
+            f"/fitness/v6/athletes/{athlete_id}/workouts/{date}/{date}")
+        if resp.is_error or not isinstance(resp.data, list):
+            return False
+
+        by_item = [w for w in resp.data
+                   if w.get("exerciseLibraryItemId") == item_id]
+        untyped = [w for w in resp.data
+                   if w.get("workoutTypeValueId") in _UNTYPED_WORKOUT_TYPES]
+        if by_item:
+            target = by_item[0]
+        elif len(untyped) == 1:
+            target = untyped[0]
+        else:
+            logger.warning(
+                "scheduled-workout type repair skipped: %d untyped candidates "
+                "on %s, cannot disambiguate", len(untyped), date)
+            return False
+
+        if target.get("workoutTypeValueId") not in _UNTYPED_WORKOUT_TYPES:
+            return False
+        workout_id = target.get("workoutId")
+        if workout_id is None:
+            return False
+
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{workout_id}"
+        get_resp = await client.get(endpoint)
+        if get_resp.is_error or not isinstance(get_resp.data, dict):
+            return False
+        workout = get_resp.data
+        workout["workoutTypeFamilyId"] = _family_for_type(template_type_id)
+        workout["workoutTypeValueId"] = template_type_id
+        put_resp = await client.put(endpoint, json=workout)
+        return not put_resp.is_error
+    except Exception:
+        logger.warning("could not set scheduled workout type", exc_info=True)
+        return False
+
+
 async def tp_schedule_library_workout(
     library_id: str,
     item_id: str,
@@ -489,6 +576,12 @@ async def tp_schedule_library_workout(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
+        # Read the template's sport type up front — TP's
+        # addworkoutfromlibraryitem command does NOT carry it onto the
+        # created workout (see _ensure_scheduled_workout_type). Best-effort.
+        template_type_id = await _library_item_type_id(
+            client, lib_validated.workout_id, item_validated.workout_id)
+
         endpoint = f"/fitness/v6/athletes/{athlete_id}/commands/addworkoutfromlibraryitem"
         payload = {
             "exerciseLibraryId": lib_validated.workout_id,
@@ -504,8 +597,16 @@ async def tp_schedule_library_workout(
                 "message": response.message,
             }
 
+        # Carry the template's sport onto the scheduled workout. Best-effort:
+        # never fails the scheduling, only fixes the type when we can identify
+        # the created workout unambiguously.
+        type_set = await _ensure_scheduled_workout_type(
+            client, athlete_id, date,
+            item_validated.workout_id, template_type_id)
+
         return {
             "success": True,
             "message": f"Library workout scheduled for {date}.",
             "date": date,
+            "workout_type_set": type_set,
         }
