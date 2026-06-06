@@ -740,6 +740,14 @@ TOOLS = [
                 "distance_km": {"type": "number"},
                 "ctl_target": {"type": "number"},
                 "description": {"type": "string"},
+                "workout_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": (
+                        "Workout IDs to attach to the event as its legs, in order "
+                        "(e.g. swim, T1, bike, T2, run). Replaces the existing list."
+                    ),
+                },
             },
             "required": ["event_id"],
         },
@@ -1258,7 +1266,7 @@ async def _h_update_event(args):
         event_id=args["event_id"], name=args.get("name"), date=args.get("date"),
         event_type=args.get("event_type"), priority=args.get("priority"),
         distance_km=args.get("distance_km"), ctl_target=args.get("ctl_target"),
-        description=args.get("description"),
+        description=args.get("description"), workout_ids=args.get("workout_ids"),
     )
 
 @_handler("tp_delete_event")
