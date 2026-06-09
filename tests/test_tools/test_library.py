@@ -19,8 +19,8 @@ class TestGetLibraries:
     @pytest.mark.asyncio
     async def test_list_libraries(self):
         data = [
-            {"exerciseLibraryId": 1, "name": "My Workouts", "isDefault": False, "itemCount": 5},
-            {"exerciseLibraryId": 2, "name": "Default", "isDefault": True, "itemCount": 20},
+            {"exerciseLibraryId": 1, "libraryName": "My Workouts", "isDefault": False, "itemCount": 5},
+            {"exerciseLibraryId": 2, "libraryName": "Default", "isDefault": True, "itemCount": 20},
         ]
         response = APIResponse(success=True, data=data)
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
@@ -125,7 +125,18 @@ class TestScheduleLibraryWorkout:
             result = await tp_schedule_library_workout("1", "10", "2026-04-01")
 
         assert result["success"] is True
-        payload = mock_instance.post.call_args[1]["json"]
-        assert payload["exerciseLibraryId"] == 1
-        assert payload["exerciseLibraryItemId"] == 10
-        assert payload["date"] == "2026-04-01T00:00:00"
+
+        call_args = mock_instance.post.call_args
+        endpoint = call_args[0][0]
+        payload = call_args[1]["json"]
+        base_url = call_args[1]["base_url"]
+
+        assert endpoint == "/rx/activity/v1/libraryContent/workoutLibrary/applyToCalendar"
+        assert base_url == "https://api.peakswaresb.com"
+        assert payload == {
+            "calendarId": 123,
+            "workoutLibraryItemId": 10,
+            "prescribedDate": "2026-04-01",
+            "prescribedStartTime": None,
+            "orderOnDay": 1,
+        }
