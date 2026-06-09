@@ -293,6 +293,7 @@ class TPClient:
         endpoint: str,
         json: dict[str, Any] | list[Any] | None = None,
         params: dict[str, Any] | None = None,
+        base_url: str | None = None,
         _retry_on_401: bool = True,
     ) -> APIResponse:
         """Make an authenticated API request.
@@ -302,6 +303,7 @@ class TPClient:
             endpoint: API endpoint (e.g., "/users/v3/user").
             json: JSON body for POST/PUT requests.
             params: Query parameters.
+            base_url: Optional base URL override for endpoints not on the default host.
             _retry_on_401: Internal flag to prevent infinite retry loops.
 
         Returns:
@@ -317,7 +319,7 @@ class TPClient:
 
         await self._throttle()
 
-        url = f"{self.base_url}{endpoint}"
+        url = f"{base_url or self.base_url}{endpoint}"
         headers = self._get_headers()
 
         try:
@@ -333,7 +335,9 @@ class TPClient:
             if response.status_code == 401 and _retry_on_401:
                 # Token might have expired mid-request, clear and retry once
                 self._token_cache.clear()
-                return await self._request(method, endpoint, json=json, params=params, _retry_on_401=False)
+                return await self._request(
+                    method, endpoint, json=json, params=params, base_url=base_url, _retry_on_401=False
+                )
 
             return self._handle_response(response)
 
@@ -424,17 +428,23 @@ class TPClient:
         """
         return await self._request("GET", endpoint, params=params)
 
-    async def post(self, endpoint: str, json: dict[str, Any] | list[Any] | None = None) -> APIResponse:
+    async def post(
+        self,
+        endpoint: str,
+        json: dict[str, Any] | list[Any] | None = None,
+        base_url: str | None = None,
+    ) -> APIResponse:
         """Make a POST request.
 
         Args:
             endpoint: API endpoint.
             json: JSON body.
+            base_url: Optional base URL override for endpoints not on the default host.
 
         Returns:
             APIResponse.
         """
-        return await self._request("POST", endpoint, json=json)
+        return await self._request("POST", endpoint, json=json, base_url=base_url)
 
     async def put(self, endpoint: str, json: dict[str, Any] | list[Any] | None = None) -> APIResponse:
         """Make a PUT request.

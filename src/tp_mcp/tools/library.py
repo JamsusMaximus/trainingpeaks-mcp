@@ -10,6 +10,9 @@ from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
 
 logger = logging.getLogger("tp-mcp")
 
+# Calendar scheduling lives on a separate host from the default tpapi base.
+RX_API_BASE = "https://api.peakswaresb.com"
+
 
 async def tp_get_libraries() -> dict[str, Any]:
     """List all workout library folders.
@@ -40,7 +43,7 @@ async def tp_get_libraries() -> dict[str, Any]:
         libraries = [
             {
                 "id": lib.get("exerciseLibraryId", lib.get("id")),
-                "name": lib.get("name", ""),
+                "name": lib.get("libraryName", lib.get("name", "")),
                 "is_default": lib.get("isDefault", False),
                 "item_count": lib.get("itemCount", 0),
             }
@@ -489,13 +492,19 @@ async def tp_schedule_library_workout(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        endpoint = f"/fitness/v6/athletes/{athlete_id}/commands/addworkoutfromlibraryitem"
-        payload = {
-            "exerciseLibraryId": lib_validated.workout_id,
-            "exerciseLibraryItemId": item_validated.workout_id,
-            "date": f"{date}T00:00:00",
+        # library_id is accepted for caller convenience but not part of the
+        # new applyToCalendar payload — the item ID alone identifies the source.
+        _ = lib_validated
+
+        endpoint = "/rx/activity/v1/libraryContent/workoutLibrary/applyToCalendar"
+        payload: dict[str, Any] = {
+            "calendarId": athlete_id,
+            "workoutLibraryItemId": int(item_validated.workout_id),
+            "prescribedDate": date,
+            "prescribedStartTime": None,
+            "orderOnDay": 1,
         }
-        response = await client.post(endpoint, json=payload)
+        response = await client.post(endpoint, json=payload, base_url=RX_API_BASE)
 
         if response.is_error:
             return {
