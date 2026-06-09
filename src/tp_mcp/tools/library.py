@@ -1,5 +1,6 @@
 """Workout library tools: templates, scheduling."""
 
+import json
 import logging
 from typing import Any
 
@@ -40,9 +41,9 @@ async def tp_get_libraries() -> dict[str, Any]:
         libraries = [
             {
                 "id": lib.get("exerciseLibraryId", lib.get("id")),
-                "name": lib.get("name", ""),
-                "is_default": lib.get("isDefault", False),
-                "item_count": lib.get("itemCount", 0),
+                "name": lib.get("libraryName", lib.get("name", "")),
+                "is_default": lib.get("isDefaultContent", False),
+                "owner_name": lib.get("ownerName"),
             }
             for lib in data
         ]
@@ -93,7 +94,7 @@ async def tp_get_library_items(library_id: str) -> dict[str, Any]:
             {
                 "id": item.get("exerciseLibraryItemId", item.get("id")),
                 "name": item.get("itemName", item.get("name", "")),
-                "sport": item.get("workoutTypeFamilyId"),
+                "sport": item.get("workoutTypeId"),
                 "duration": item.get("totalTimePlanned"),
                 "tss": item.get("tssPlanned"),
             }
@@ -268,8 +269,8 @@ async def tp_create_library_item(
     Args:
         library_id: Library ID.
         name: Template name.
-        sport_family_id: Sport family ID.
-        sport_type_id: Sport type ID.
+        sport_family_id: Sport ID (e.g. 2 = Bike; see tp_get_workout_types).
+        sport_type_id: Sport subtype ID (e.g. 3 = Road Bike).
         duration_hours: Optional duration in hours.
         tss: Optional planned TSS.
         description: Optional description.
@@ -304,11 +305,15 @@ async def tp_create_library_item(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
+        # Library items use workoutTypeId/workoutSubTypeId (not the
+        # workoutTypeFamilyId/workoutTypeValueId pair of the fitness API).
+        # Sending the wrong field names silently creates items with sport 0
+        # ("unknown"), which render without power targets in the TP UI.
         payload: dict[str, Any] = {
             "exerciseLibraryId": lib_validated.workout_id,
             "itemName": name.strip(),
-            "workoutTypeFamilyId": sport_family_id,
-            "workoutTypeValueId": sport_type_id,
+            "workoutTypeId": sport_family_id,
+            "workoutSubTypeId": sport_type_id,
         }
         if duration_hours is not None:
             payload["totalTimePlanned"] = duration_hours
@@ -450,13 +455,19 @@ async def tp_schedule_library_workout(
 ) -> dict[str, Any]:
     """Schedule a library template to a calendar date.
 
+    Copies the template into a planned workout (title, structure, planned
+    metrics, description). The native ``addworkoutfromlibraryitem`` command
+    endpoint returns HTTP 500 for every payload shape, so this mirrors what
+    the TP web app effectively does when a template is dragged onto the
+    calendar.
+
     Args:
         library_id: Library ID.
         item_id: Library item ID.
         date: Target date (YYYY-MM-DD).
 
     Returns:
-        Dict with confirmation or error.
+        Dict with confirmation (including new workout_id) or error.
     """
     try:
         lib_validated = WorkoutIdInput(workout_id=library_id)
@@ -489,12 +500,61 @@ async def tp_schedule_library_workout(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
-        endpoint = f"/fitness/v6/athletes/{athlete_id}/commands/addworkoutfromlibraryitem"
-        payload = {
-            "exerciseLibraryId": lib_validated.workout_id,
-            "exerciseLibraryItemId": item_validated.workout_id,
-            "date": f"{date}T00:00:00",
+        # Fetch the template to copy
+        items_endpoint = f"/exerciselibrary/v2/libraries/{lib_validated.workout_id}/items"
+        items_response = await client.get(items_endpoint)
+
+        if items_response.is_error:
+            return {
+                "isError": True,
+                "error_code": items_response.error_code.value
+                if items_response.error_code
+                else "API_ERROR",
+                "message": items_response.message,
+            }
+
+        items = items_response.data if isinstance(items_response.data, list) else []
+        item = next(
+            (
+                i
+                for i in items
+                if i.get("exerciseLibraryItemId", i.get("id")) == item_validated.workout_id
+            ),
+            None,
+        )
+        if item is None:
+            return {
+                "isError": True,
+                "error_code": "NOT_FOUND",
+                "message": (
+                    f"Item {item_validated.workout_id} not found in "
+                    f"library {lib_validated.workout_id}."
+                ),
+            }
+
+        sport_id = item.get("workoutTypeId")
+        payload: dict[str, Any] = {
+            "athleteId": athlete_id,
+            "workoutDay": f"{date}T00:00:00",
+            "workoutTypeFamilyId": sport_id,
+            "workoutTypeValueId": sport_id,
+            "title": item.get("itemName"),
+            "totalTimePlanned": item.get("totalTimePlanned"),
+            "tssPlanned": item.get("tssPlanned"),
+            "ifPlanned": item.get("ifPlanned"),
+            "distancePlanned": item.get("distancePlanned"),
+            "elevationGainPlanned": item.get("elevationGainPlanned"),
+            "caloriesPlanned": item.get("caloriesPlanned"),
+            "description": item.get("description"),
+            "coachComments": item.get("coachComments"),
         }
+        if item.get("workoutSubTypeId") is not None:
+            payload["workoutSubTypeId"] = item["workoutSubTypeId"]
+        if item.get("structure"):
+            # Calendar workouts carry structure as a JSON string
+            payload["structure"] = json.dumps(item["structure"])
+
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts"
         response = await client.post(endpoint, json=payload)
 
         if response.is_error:
@@ -504,8 +564,14 @@ async def tp_schedule_library_workout(
                 "message": response.message,
             }
 
+        workout_id = None
+        if isinstance(response.data, dict):
+            workout_id = response.data.get("workoutId")
+
         return {
             "success": True,
             "message": f"Library workout scheduled for {date}.",
             "date": date,
+            "workout_id": workout_id,
+            "title": item.get("itemName"),
         }

@@ -930,8 +930,14 @@ TOOLS = [
             "properties": {
                 "library_id": {"type": "string"},
                 "name": {"type": "string"},
-                "sport_family_id": {"type": "integer"},
-                "sport_type_id": {"type": "integer"},
+                "sport_family_id": {
+                    "type": "integer",
+                    "description": "Sport ID (e.g. 2=Bike; see tp_get_workout_types)",
+                },
+                "sport_type_id": {
+                    "type": "integer",
+                    "description": "Sport subtype ID (e.g. 3=Road Bike)",
+                },
                 "duration_hours": {"type": "number"},
                 "tss": {"type": "number"},
                 "description": {"type": "string"},
