@@ -103,6 +103,10 @@ class TestListTools:
             "tp_unpair_workout",
             "tp_set_workout_note",
             "tp_get_workout_note",
+            "tp_search_exercises",
+            "tp_create_strength_workout",
+            "tp_get_strength_summary",
+            "tp_delete_strength_workout",
         }
         assert v2_tools.issubset(names)
         assert len(names) == len(core_tools) + len(v2_tools)
