@@ -28,6 +28,9 @@ class TestTpGetWorkouts:
         assert "isError" not in result or not result.get("isError")
         assert result["count"] == 2
         assert len(result["workouts"]) == 2
+        # sport is resolved from workoutTypeValueId (Bike=2, Run=3)
+        assert result["workouts"][0]["sport"] == "Bike"
+        assert result["workouts"][1]["sport"] == "Run"
 
     @pytest.mark.asyncio
     async def test_get_workouts_exposes_planned_and_actual_tss(self, mock_api_responses):

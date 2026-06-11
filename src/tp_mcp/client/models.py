@@ -21,6 +21,48 @@ def _strip_datetime_to_date(v: Any) -> Any:
 DateOnly = Annotated[date_type, BeforeValidator(_strip_datetime_to_date)]
 
 
+# Maps a TrainingPeaks base-sport id (``workoutTypeValueId``) to a sport name.
+#
+# The v6 workouts endpoints (list and single detail) do NOT return the legacy
+# ``workoutTypeFamilyId`` field; they carry the base sport in
+# ``workoutTypeValueId`` (the specific subtype, if any, lives in the separate
+# ``workoutSubTypeId`` field). The ids below match the families returned by
+# ``GET /fitness/v6/workouttypes`` and the values in ``SPORT_TYPE_MAP`` used by
+# the create/update tools, so the resolved name round-trips back into
+# ``tp_create_workout`` / ``tp_update_workout`` unchanged.
+WORKOUT_TYPE_VALUE_TO_SPORT: dict[int, str] = {
+    1: "Swim",
+    2: "Bike",
+    3: "Run",
+    4: "Brick",
+    5: "Crosstrain",
+    6: "Race",
+    7: "DayOff",
+    8: "MtnBike",
+    9: "Strength",
+    10: "Custom",
+    11: "XCSki",
+    12: "Rowing",
+    13: "Walk",
+    29: "Strength",  # newer Strength family (Mobility/Yoga/etc. subtypes)
+    100: "Other",
+}
+
+
+def _sport_from_type_value(value: Any) -> str | None:
+    """Resolve a TrainingPeaks base-sport name from a ``workoutTypeValueId``."""
+    if isinstance(value, bool):  # bool is an int subclass; never a valid id
+        return None
+    if isinstance(value, int):
+        return WORKOUT_TYPE_VALUE_TO_SPORT.get(value)
+    if isinstance(value, str):
+        try:
+            return WORKOUT_TYPE_VALUE_TO_SPORT.get(int(value))
+        except ValueError:
+            return None
+    return None
+
+
 class UserProfile(BaseModel):
     """User profile information."""
 
@@ -49,7 +91,6 @@ class WorkoutSummary(BaseModel):
     workout_date: DateOnly = Field(alias="workoutDay")
     title: str | None = None
     workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
-    sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
     duration_planned: int | float | None = Field(default=None, alias="totalTimePlanned")
     duration_actual: int | float | None = Field(default=None, alias="totalTime")
     tss_planned: float | None = Field(default=None, alias="tssPlanned")
@@ -63,6 +104,15 @@ class WorkoutSummary(BaseModel):
     def date(self) -> date_type:
         """Alias for workout_date for backwards compatibility."""
         return self.workout_date
+
+    @property
+    def sport(self) -> str | None:
+        """Base sport name, derived from ``workoutTypeValueId``.
+
+        The v6 list response omits ``workoutTypeFamilyId``, so the sport is
+        resolved from the type value id present on every workout.
+        """
+        return _sport_from_type_value(self.workout_type)
 
     @property
     def is_completed(self) -> bool:
@@ -106,7 +156,6 @@ class WorkoutDetail(BaseModel):
     id: int = Field(alias="workoutId")
     workout_date: DateOnly = Field(alias="workoutDay")
     title: str | None = None
-    sport: str | None = Field(default=None, alias="workoutTypeFamilyId")
     workout_type: str | int | None = Field(default=None, alias="workoutTypeValueId")
     description: str | None = None
     duration_planned: int | float | None = Field(default=None, alias="totalTimePlanned")
@@ -130,6 +179,15 @@ class WorkoutDetail(BaseModel):
     def date(self) -> date_type:
         """Alias for workout_date for backwards compatibility."""
         return self.workout_date
+
+    @property
+    def sport(self) -> str | None:
+        """Base sport name, derived from ``workoutTypeValueId``.
+
+        The v6 detail response omits ``workoutTypeFamilyId``, so the sport is
+        resolved from the type value id present on every workout.
+        """
+        return _sport_from_type_value(self.workout_type)
 
 
 class AnalysisTotal(BaseModel):
