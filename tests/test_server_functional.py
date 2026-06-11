@@ -138,6 +138,18 @@ class TestListTools:
         assert "YYYY-MM-DDTHH:MM:SS" in create_tool.inputSchema["properties"]["date"]["description"]
         assert "YYYY-MM-DDTHH:MM:SS" in update_tool.inputSchema["properties"]["date"]["description"]
 
+    @pytest.mark.asyncio
+    async def test_workout_feedback_schema_describes_ranges(self):
+        """Create/update workout schemas should document subjective feedback ranges."""
+        tools = await list_tools()
+        create_tool = next(t for t in tools if t.name == "tp_create_workout")
+        update_tool = next(t for t in tools if t.name == "tp_update_workout")
+
+        for tool in (create_tool, update_tool):
+            props = tool.inputSchema["properties"]
+            assert props["feeling"]["description"] == "TrainingPeaks feeling value (0-10)."
+            assert props["rpe"]["description"] == "Rating of perceived exertion (RPE), 0-10."
+
 
 # ---------------------------------------------------------------------------
 # call_tool: unknown tool

@@ -129,6 +129,8 @@ RAW_STRUCTURE_DESCRIPTION = (
     "structure, polyline, primaryLengthMetric, primaryIntensityMetric, and "
     "primaryIntensityTargetOrRange."
 )
+WORKOUT_FEELING_DESCRIPTION = "TrainingPeaks feeling value (0-10)."
+WORKOUT_RPE_DESCRIPTION = "Rating of perceived exertion (RPE), 0-10."
 
 
 # ---------------------------------------------------------------------------
@@ -225,8 +227,8 @@ TOOLS = [
                     "description": "Workout subtype ID from tp_get_workout_types",
                 },
                 "tags": {"type": "string", "description": "Optional comma-separated tags"},
-                "feeling": {"type": "integer", "description": "Feeling score 0-10"},
-                "rpe": {"type": "integer", "description": "RPE score 1-10"},
+                "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
+                "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
             },
             "required": ["date", "sport", "title"],
         },
@@ -253,8 +255,8 @@ TOOLS = [
                 "tags": {"type": "string"},
                 "athlete_comment": {"type": "string"},
                 "coach_comment": {"type": "string"},
-                "feeling": {"type": "integer", "description": "0-10"},
-                "rpe": {"type": "integer", "description": "1-10"},
+                "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
+                "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
