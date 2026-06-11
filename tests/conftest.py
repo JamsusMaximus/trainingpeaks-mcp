@@ -101,7 +101,7 @@ def mock_api_responses():
                 "workoutId": 1001,
                 "workoutDay": "2025-01-08",
                 "title": "Test Workout",
-                "workoutTypeFamilyId": "bike",
+                "workoutTypeValueId": 2,  # Bike
                 "totalTimePlanned": 3600,
                 "totalTime": 3500,
                 "tssPlanned": 80,
@@ -112,7 +112,7 @@ def mock_api_responses():
                 "workoutId": 1002,
                 "workoutDay": "2025-01-09",
                 "title": "Planned Workout",
-                "workoutTypeFamilyId": "run",
+                "workoutTypeValueId": 3,  # Run
                 "totalTimePlanned": 1800,
                 "tssPlanned": 40,
                 "completed": False,
@@ -122,7 +122,7 @@ def mock_api_responses():
             "workoutId": 1001,
             "workoutDay": "2025-01-08",
             "title": "Test Workout",
-            "workoutTypeFamilyId": "bike",
+            "workoutTypeValueId": 2,  # Bike
             "description": "Test description",
             "totalTimePlanned": 3600,
             "totalTime": 3500,
