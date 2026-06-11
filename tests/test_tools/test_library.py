@@ -250,7 +250,17 @@ class TestCreateStrengthWorkout:
         assert isinstance(warmup["id"], str) and len(warmup["id"]) == 36
 
         prescription = warmup["prescriptions"][0]
-        assert prescription["exercise"] == {"id": "100", "title": "Air Squat"}
+        ex = prescription["exercise"]
+        assert ex["id"] == "100"
+        assert ex["title"] == "Air Squat"
+        assert ex["ownerId"] == 2000301
+        assert ex["videoUrl"] == ""
+        assert ex["instructions"] == ""
+        assert ex["primaryMuscleGroups"] == []
+        assert ex["secondaryMuscleGroups"] == []
+        assert ex["canEdit"] is False
+        # Exercise parameters must mirror the prescription-level parameters array
+        assert ex["parameters"] == prescription["parameters"]
         assert prescription["coachNotes"] is None
         assert prescription["complianceState"] == "NoCompletion"
         assert prescription["setSummaryTemplate"] == "{Reps} Reps"
@@ -272,7 +282,7 @@ class TestCreateStrengthWorkout:
             pv = s["parameterValues"][0]
             assert pv["parameter"] == "Reps"
             assert pv["inputFormat"] == "Integer"
-            assert pv["prescribedValue"] == 10
+            assert pv["prescribedValue"] == "10"
             assert pv["executedValue"] is None
 
         # Back Squat: 3 sets of 5 reps
@@ -281,7 +291,7 @@ class TestCreateStrengthWorkout:
         assert squat["coachNotes"] is None
         assert len(squat["prescriptions"][0]["sets"]) == 3
         assert all(
-            s["parameterValues"][0]["prescribedValue"] == 5
+            s["parameterValues"][0]["prescribedValue"] == "5"
             for s in squat["prescriptions"][0]["sets"]
         )
 
@@ -351,3 +361,132 @@ class TestCreateStrengthWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_duration_parameter_serialization(self):
+        """Duration parameters use inputFormat='Time', string prescribedValue, and bare template."""
+        response = APIResponse(success=True, data={"id": 1})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            blocks = [
+                {
+                    "blockType": "SingleExercise",
+                    "title": "Plank",
+                    "exercises": [
+                        {
+                            "exercise_id": "400",
+                            "exercise_title": "Plank",
+                            "sets": [
+                                {"parameter": "Duration", "value": 30},
+                                {"parameter": "Duration", "value": 45},
+                            ],
+                        },
+                    ],
+                },
+            ]
+            await tp_create_strength_workout(
+                date="2026-04-01", title="Core", blocks=blocks,
+            )
+
+        payload = mock_instance.post.call_args[1]["json"]
+        prescription = payload["blocks"][0]["prescriptions"][0]
+
+        assert prescription["setSummaryTemplate"] == "{Duration}"
+        assert prescription["parameters"][0]["parameter"] == "Duration"
+        assert prescription["parameters"][0]["category"] == "Duration"
+        assert prescription["parameters"][0]["unit"] == {
+            "title": "Seconds",
+            "abbreviation": "sec",
+            "unit": "Seconds",
+        }
+
+        pv0 = prescription["sets"][0]["parameterValues"][0]
+        pv1 = prescription["sets"][1]["parameterValues"][0]
+        assert pv0["inputFormat"] == "Time"
+        assert pv0["prescribedValue"] == "30"
+        assert pv1["inputFormat"] == "Time"
+        assert pv1["prescribedValue"] == "45"
+
+    @pytest.mark.asyncio
+    async def test_weightlb_parameter_serialization(self):
+        """WeightLb parameters use inputFormat='Decimal', string-or-None prescribedValue."""
+        response = APIResponse(success=True, data={"id": 1})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            blocks = [
+                {
+                    "blockType": "SingleExercise",
+                    "title": "Bench",
+                    "exercises": [
+                        {
+                            "exercise_id": "500",
+                            "exercise_title": "Bench Press",
+                            "sets": [
+                                {"parameter": "WeightLb", "value": 135},
+                                {"parameter": "WeightLb", "value": None},
+                            ],
+                        },
+                    ],
+                },
+            ]
+            await tp_create_strength_workout(
+                date="2026-04-01", title="Bench Day", blocks=blocks,
+            )
+
+        payload = mock_instance.post.call_args[1]["json"]
+        prescription = payload["blocks"][0]["prescriptions"][0]
+
+        assert prescription["setSummaryTemplate"] == "{WeightLb} lbs"
+        assert prescription["parameters"][0]["unit"] == {
+            "title": "Pounds",
+            "abbreviation": "lb",
+            "unit": "Pounds",
+        }
+        pv0 = prescription["sets"][0]["parameterValues"][0]
+        pv1 = prescription["sets"][1]["parameterValues"][0]
+        assert pv0["inputFormat"] == "Decimal"
+        assert pv0["prescribedValue"] == "135"
+        assert pv1["inputFormat"] == "Decimal"
+        assert pv1["prescribedValue"] is None
+
+    @pytest.mark.asyncio
+    async def test_exercise_video_url_and_instructions_passthrough(self):
+        """Optional video_url and instructions on the exercise are passed through."""
+        response = APIResponse(success=True, data={"id": 1})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            blocks = [
+                {
+                    "blockType": "SingleExercise",
+                    "title": "Custom",
+                    "exercises": [
+                        {
+                            "exercise_id": "600",
+                            "exercise_title": "Custom Lift",
+                            "video_url": "https://example.com/v.mp4",
+                            "instructions": "Lift with form.",
+                            "sets": [{"parameter": "Reps", "value": 8}],
+                        },
+                    ],
+                },
+            ]
+            await tp_create_strength_workout(
+                date="2026-04-01", title="Custom Day", blocks=blocks,
+            )
+
+        payload = mock_instance.post.call_args[1]["json"]
+        ex = payload["blocks"][0]["prescriptions"][0]["exercise"]
+        assert ex["videoUrl"] == "https://example.com/v.mp4"
+        assert ex["instructions"] == "Lift with form."

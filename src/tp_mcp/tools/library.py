@@ -523,11 +523,30 @@ async def tp_schedule_library_workout(
 
 # Parameter metadata for the structured strength builder. Unknown parameter
 # names fall back to a Reps-like Integer shape.
+# templateLabel is the suffix used in setSummaryTemplate after "{Param}";
+# an empty string means no suffix (e.g. "{Duration}" rather than "{Duration} Duration").
+
+# TrainingPeaks' default owner ID for library exercises — required by the UI.
+_STRENGTH_DEFAULT_OWNER_ID = 2000301
+
 _STRENGTH_PARAM_DEFS: dict[str, dict[str, Any]] = {
     "Reps": {
         "category": "Reps",
         "unit": {"title": "Reps", "abbreviation": "", "unit": "Reps"},
         "inputFormat": "Integer",
+        "templateLabel": "Reps",
+    },
+    "Duration": {
+        "category": "Duration",
+        "unit": {"title": "Seconds", "abbreviation": "sec", "unit": "Seconds"},
+        "inputFormat": "Time",
+        "templateLabel": "",
+    },
+    "WeightLb": {
+        "category": "WeightLb",
+        "unit": {"title": "Pounds", "abbreviation": "lb", "unit": "Pounds"},
+        "inputFormat": "Decimal",
+        "templateLabel": "lbs",
     },
 }
 
@@ -539,13 +558,25 @@ def _strength_param_def(name: str) -> dict[str, Any]:
             "category": name,
             "unit": {"title": name, "abbreviation": "", "unit": name},
             "inputFormat": "Integer",
+            "templateLabel": name,
         },
     )
+
+
+def _serialize_prescribed_value(value: Any) -> Any:
+    # TP API requires prescribedValue as a string for all parameter types
+    # (e.g. "30" for Duration seconds, "15" for Reps, "135" for WeightLb).
+    # None is preserved (valid for nullable parameters like WeightLb).
+    if value is None:
+        return None
+    return str(value)
 
 
 def _build_strength_prescription(exercise: dict[str, Any]) -> dict[str, Any]:
     exercise_id = str(exercise.get("exercise_id", ""))
     exercise_title = exercise.get("exercise_title", "")
+    video_url = exercise.get("video_url", "") or ""
+    instructions = exercise.get("instructions", "") or ""
     sets_input = exercise.get("sets", []) or []
 
     # Unique parameter names in first-seen order define the exercise columns.
@@ -582,18 +613,37 @@ def _build_strength_prescription(exercise: dict[str, Any]) -> dict[str, Any]:
                         "id": str(uuid.uuid4()),
                         "parameter": p,
                         "inputFormat": defs["inputFormat"],
-                        "prescribedValue": s.get("value"),
+                        "prescribedValue": _serialize_prescribed_value(s.get("value")),
                         "executedValue": None,
                     }
                 ],
             }
         )
 
-    template = " ".join(f"{{{p}}} {p}" for p in param_order)
+    template_parts: list[str] = []
+    for p in param_order:
+        label = _strength_param_def(p).get("templateLabel", p)
+        template_parts.append(f"{{{p}}} {label}".rstrip())
+    template = " ".join(template_parts)
+
+    # TP UI requires the full exercise object — id/title alone causes a crash
+    # when opening the workout. ownerId 2000301 is TP's default for library
+    # exercises; parameters mirrors the prescription-level parameters array.
+    exercise_obj = {
+        "id": exercise_id,
+        "title": exercise_title,
+        "ownerId": _STRENGTH_DEFAULT_OWNER_ID,
+        "videoUrl": video_url,
+        "instructions": instructions,
+        "primaryMuscleGroups": [],
+        "secondaryMuscleGroups": [],
+        "canEdit": False,
+        "parameters": parameters,
+    }
 
     return {
         "id": str(uuid.uuid4()),
-        "exercise": {"id": exercise_id, "title": exercise_title},
+        "exercise": exercise_obj,
         "parameters": parameters,
         "sets": sets,
         "coachNotes": None,
@@ -633,7 +683,9 @@ async def tp_create_strength_workout(
             - title: str
             - coachNotes: str | None (optional)
             - exercises: list of {exercise_id, exercise_title,
-              sets: list of {parameter, value}}
+              sets: list of {parameter, value},
+              video_url: str | None (optional),
+              instructions: str | None (optional)}
 
     Returns:
         Dict with confirmation or error.
