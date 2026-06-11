@@ -54,7 +54,7 @@ class TestWorkoutSummary:
             "workoutId": 1001,
             "workoutDay": "2025-01-08",
             "title": "Test Workout",
-            "workoutTypeFamilyId": "bike",
+            "workoutTypeValueId": 2,  # Bike
             "totalTimePlanned": 3600,
             "totalTime": 3500,
             "tssPlanned": 80,
@@ -69,6 +69,7 @@ class TestWorkoutSummary:
         assert workout.title == "Test Workout"
         assert workout.is_completed is True
         assert workout.workout_status == "completed"
+        assert workout.sport == "Bike"  # resolved from workoutTypeValueId
 
     def test_parse_planned_workout(self):
         """Test parsing planned workout summary."""
@@ -84,6 +85,7 @@ class TestWorkoutSummary:
         assert workout.id == 1002
         assert workout.is_completed is False
         assert workout.workout_status == "planned"
+        assert workout.sport is None  # no type id present
 
 
 class TestWorkoutDetail:
@@ -147,6 +149,64 @@ class TestWorkoutDetail:
         assert workout.elevation_gain == 80.0
         assert workout.calories == 570
         assert workout.distance_actual == 30000.0
+        assert workout.sport == "Bike"  # resolved from workoutTypeValueId
+
+
+class TestSportResolution:
+    """sport is derived from workoutTypeValueId (v6 omits workoutTypeFamilyId)."""
+
+    def test_summary_resolves_each_base_sport(self):
+        """Every base-sport id maps to its SPORT_TYPE_MAP name."""
+        cases = {
+            1: "Swim",
+            2: "Bike",
+            3: "Run",
+            4: "Brick",
+            5: "Crosstrain",
+            6: "Race",
+            7: "DayOff",
+            8: "MtnBike",
+            9: "Strength",
+            10: "Custom",
+            11: "XCSki",
+            12: "Rowing",
+            13: "Walk",
+            29: "Strength",
+            100: "Other",
+        }
+        for type_id, expected in cases.items():
+            workout = WorkoutSummary.model_validate({
+                "workoutId": 1,
+                "workoutDay": "2025-01-08",
+                "workoutTypeValueId": type_id,
+            })
+            assert workout.sport == expected, f"id {type_id}"
+
+    def test_detail_resolves_sport(self):
+        """WorkoutDetail resolves sport the same way as WorkoutSummary."""
+        detail = WorkoutDetail.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2025-01-08",
+            "workoutTypeValueId": 3,
+        })
+        assert detail.sport == "Run"
+
+    def test_unknown_type_id_is_none(self):
+        """An unrecognised type id resolves to None rather than raising."""
+        workout = WorkoutSummary.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2025-01-08",
+            "workoutTypeValueId": 9999,
+        })
+        assert workout.sport is None
+
+    def test_missing_type_id_is_none(self):
+        """A workout with no type id resolves to None."""
+        workout = WorkoutSummary.model_validate({
+            "workoutId": 1,
+            "workoutDay": "2025-01-08",
+        })
+        assert workout.sport is None
 
 
 class TestParseWorkoutList:

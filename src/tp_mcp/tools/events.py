@@ -301,6 +301,7 @@ async def tp_update_event(
     distance_km: float | None = None,
     ctl_target: float | None = None,
     description: str | None = None,
+    workout_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """Update an event (GET then PUT merge).
 
@@ -313,6 +314,10 @@ async def tp_update_event(
         distance_km: Optional distance in km.
         ctl_target: Optional CTL target.
         description: Optional description.
+        workout_ids: Optional list of workout IDs to attach to the event as its
+            legs. TrainingPeaks links workouts via the event's ``workouts`` array
+            (the ``legs`` structure is derived server-side); pass the ordered
+            swim/T1/bike/T2/run workout IDs. Replaces the existing list.
 
     Returns:
         Dict with confirmation or error.
@@ -384,6 +389,11 @@ async def tp_update_event(
             existing["ctlTarget"] = ctl_target
         if description is not None:
             existing["description"] = description
+        if workout_ids is not None:
+            # TP attaches workouts to an event via the `workouts` id array (HAR-
+            # verified: PUT /event with workouts=[…], legs stays [] and is derived
+            # server-side). Replace the list with the provided ordered leg ids.
+            existing["workouts"] = [int(w) for w in workout_ids]
 
         endpoint = f"/fitness/v6/athletes/{athlete_id}/event"
         response = await client.put(endpoint, json=existing)
