@@ -31,6 +31,7 @@ from tp_mcp.tools.fitness import tp_get_fitness
 from tp_mcp.tools.library import (
     tp_create_library,
     tp_create_library_item,
+    tp_create_strength_workout,
     tp_delete_library,
     tp_get_libraries,
     tp_get_library_item,
@@ -86,6 +87,7 @@ __all__ = [
     "tp_create_library",
     "tp_create_library_item",
     "tp_create_note",
+    "tp_create_strength_workout",
     "tp_create_workout",
     "tp_delete_availability",
     "tp_delete_equipment",

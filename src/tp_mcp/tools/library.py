@@ -1,6 +1,7 @@
 """Workout library tools: templates, scheduling."""
 
 import logging
+import uuid
 from typing import Any
 
 from pydantic import ValidationError
@@ -517,4 +518,192 @@ async def tp_schedule_library_workout(
             "success": True,
             "message": f"Library workout scheduled for {date}.",
             "date": date,
+        }
+
+
+# Parameter metadata for the structured strength builder. Unknown parameter
+# names fall back to a Reps-like Integer shape.
+_STRENGTH_PARAM_DEFS: dict[str, dict[str, Any]] = {
+    "Reps": {
+        "category": "Reps",
+        "unit": {"title": "Reps", "abbreviation": "", "unit": "Reps"},
+        "inputFormat": "Integer",
+    },
+}
+
+
+def _strength_param_def(name: str) -> dict[str, Any]:
+    return _STRENGTH_PARAM_DEFS.get(
+        name,
+        {
+            "category": name,
+            "unit": {"title": name, "abbreviation": "", "unit": name},
+            "inputFormat": "Integer",
+        },
+    )
+
+
+def _build_strength_prescription(exercise: dict[str, Any]) -> dict[str, Any]:
+    exercise_id = str(exercise.get("exercise_id", ""))
+    exercise_title = exercise.get("exercise_title", "")
+    sets_input = exercise.get("sets", []) or []
+
+    # Unique parameter names in first-seen order define the exercise columns.
+    param_order: list[str] = []
+    for s in sets_input:
+        p = s.get("parameter")
+        if p and p not in param_order:
+            param_order.append(p)
+
+    parameters = []
+    for p in param_order:
+        defs = _strength_param_def(p)
+        parameters.append(
+            {
+                "id": str(uuid.uuid4()),
+                "parameter": p,
+                "title": p,
+                "category": defs["category"],
+                "unit": defs["unit"],
+            }
+        )
+
+    sets = []
+    for s in sets_input:
+        p = s.get("parameter", "")
+        defs = _strength_param_def(p)
+        sets.append(
+            {
+                "id": str(uuid.uuid4()),
+                "isComplete": False,
+                "setOrigin": "Prescribed",
+                "parameterValues": [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "parameter": p,
+                        "inputFormat": defs["inputFormat"],
+                        "prescribedValue": s.get("value"),
+                        "executedValue": None,
+                    }
+                ],
+            }
+        )
+
+    template = " ".join(f"{{{p}}} {p}" for p in param_order)
+
+    return {
+        "id": str(uuid.uuid4()),
+        "exercise": {"id": exercise_id, "title": exercise_title},
+        "parameters": parameters,
+        "sets": sets,
+        "coachNotes": None,
+        "compliancePercent": 0,
+        "complianceState": "NoCompletion",
+        "setSummaryTemplate": template,
+    }
+
+
+def _build_strength_block(block: dict[str, Any]) -> dict[str, Any]:
+    exercises = block.get("exercises", []) or []
+    return {
+        "id": str(uuid.uuid4()),
+        "blockType": block.get("blockType", "SingleExercise"),
+        "title": block.get("title", ""),
+        "coachNotes": block.get("coachNotes"),
+        "parameters": [],
+        "isComplete": False,
+        "compliancePercent": 0,
+        "complianceState": "NoCompletion",
+        "prescriptions": [_build_strength_prescription(ex) for ex in exercises],
+    }
+
+
+async def tp_create_strength_workout(
+    date: str,
+    title: str,
+    blocks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Create a structured strength workout via TrainingPeaks' strength builder.
+
+    Args:
+        date: Target date (YYYY-MM-DD).
+        title: Workout title.
+        blocks: List of block dicts. Each block has:
+            - blockType: SingleExercise | WarmUp | CoolDown | Superset
+            - title: str
+            - coachNotes: str | None (optional)
+            - exercises: list of {exercise_id, exercise_title,
+              sets: list of {parameter, value}}
+
+    Returns:
+        Dict with confirmation or error.
+    """
+    from datetime import date as date_type
+
+    try:
+        date_type.fromisoformat(date)
+    except ValueError:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid date: {date}",
+        }
+
+    if not title or not title.strip():
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Workout title must not be empty.",
+        }
+
+    if not isinstance(blocks, list) or not blocks:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": "blocks must be a non-empty list.",
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        api_blocks = [_build_strength_block(b) for b in blocks]
+
+        payload: dict[str, Any] = {
+            "workoutType": "StructuredStrength",
+            "calendarId": athlete_id,
+            "title": title.strip(),
+            "prescribedDate": date,
+            "orderOnDay": 1,
+            "isHidden": False,
+            "isLocked": False,
+            "complianceState": "Unplanned",
+            "blocks": api_blocks,
+        }
+
+        endpoint = "/rx/activity/v1/workouts/save"
+        response = await client.post(endpoint, json=payload, base_url=RX_API_BASE)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        workout_id = None
+        if isinstance(response.data, dict):
+            workout_id = response.data.get("id") or response.data.get("workoutId")
+
+        return {
+            "success": True,
+            "title": title.strip(),
+            "date": date,
+            "block_count": len(api_blocks),
+            "workout_id": workout_id,
         }

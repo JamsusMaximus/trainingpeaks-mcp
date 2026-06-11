@@ -95,6 +95,7 @@ class TestListTools:
             "tp_create_library_item",
             "tp_update_library_item",
             "tp_schedule_library_workout",
+            "tp_create_strength_workout",
             "tp_list_athletes",
             "tp_upload_workout_file",
             "tp_download_workout_file",

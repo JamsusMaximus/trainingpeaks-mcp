@@ -27,6 +27,7 @@ from tp_mcp.tools import (
     tp_create_library,
     tp_create_library_item,
     tp_create_note,
+    tp_create_strength_workout,
     tp_create_workout,
     tp_delete_availability,
     tp_delete_equipment,
@@ -971,6 +972,72 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_create_strength_workout",
+        description=(
+            "Create a structured strength workout on a calendar date. "
+            "Each block has blockType (SingleExercise/WarmUp/CoolDown/Superset), "
+            "title, optional coachNotes, and a list of exercises. Each exercise "
+            "has exercise_id, exercise_title, and sets (list of {parameter, value})."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD"},
+                "title": {"type": "string"},
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "blockType": {
+                                "type": "string",
+                                "description": (
+                                    "SingleExercise | WarmUp | CoolDown | Superset"
+                                ),
+                            },
+                            "title": {"type": "string"},
+                            "coachNotes": {"type": ["string", "null"]},
+                            "exercises": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "exercise_id": {"type": "string"},
+                                        "exercise_title": {"type": "string"},
+                                        "sets": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "parameter": {"type": "string"},
+                                                    "value": {
+                                                        "type": [
+                                                            "number",
+                                                            "integer",
+                                                            "null",
+                                                        ]
+                                                    },
+                                                },
+                                                "required": ["parameter"],
+                                            },
+                                        },
+                                    },
+                                    "required": [
+                                        "exercise_id",
+                                        "exercise_title",
+                                        "sets",
+                                    ],
+                                },
+                            },
+                        },
+                        "required": ["blockType", "title", "exercises"],
+                    },
+                },
+            },
+            "required": ["date", "title", "blocks"],
+        },
+    ),
+    Tool(
         name="tp_list_athletes",
         description="List athletes available to this account (coach accounts).",
         inputSchema={
@@ -1354,6 +1421,12 @@ async def _h_update_lib_item(args):
 async def _h_schedule_lib(args):
     return await tp_schedule_library_workout(
         library_id=args["library_id"], item_id=args["item_id"], date=args["date"],
+    )
+
+@_handler("tp_create_strength_workout")
+async def _h_create_strength(args):
+    return await tp_create_strength_workout(
+        date=args["date"], title=args["title"], blocks=args["blocks"],
     )
 
 
