@@ -88,7 +88,7 @@ Ask your AI assistant things like:
 | `tp_get_next_event` | Get nearest future event |
 | `tp_get_events` | List events in a date range |
 | `tp_create_event` | Add a race/event with priority (A/B/C) and CTL target |
-| `tp_update_event` | Update event details |
+| `tp_update_event` | Update event details, attach workouts as legs (multisport) |
 | `tp_delete_event` | Delete an event |
 | `tp_create_note` | Create a calendar note |
 | `tp_get_note` | Get a calendar note by ID |
