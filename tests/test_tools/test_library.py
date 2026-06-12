@@ -165,8 +165,11 @@ class TestCreateLibraryItem:
         assert st["primaryIntensityTargetOrRange"] == "range"
         # 3 single-step blocks → 3 bars × 4 points
         assert len(st["polyline"]) == 12
-        # main interval peak = 72/100
-        assert [0.0833, 0.72] in st["polyline"]
+        # normalised so the structure's peak target (active 72) = 1.0;
+        # warm-up 60 → 60/72 = 0.8333. Nothing exceeds 1.0.
+        assert [0.0833, 1.0] in st["polyline"]
+        assert [0.0, 0.8333] in st["polyline"]
+        assert all(p[1] <= 1.0 for p in st["polyline"])
 
 
 class TestStructurePreviewHelper:
@@ -187,13 +190,55 @@ class TestStructurePreviewHelper:
         poly = _compute_native_polyline(blocks)
         # warmup bar + 6×(work+rest) bars = 13 bars × 4 points
         assert len(poly) == 13 * 4
-        # work intensity 104/100 present
-        assert any(pt[1] == 1.04 for pt in poly)
+        # normalised: the peak target (work 104) = 1.0 and nothing exceeds it
+        assert any(pt[1] == 1.0 for pt in poly)
+        assert all(pt[1] <= 1.0 for pt in poly)
+
+    def test_polyline_absolute_targets_stay_in_unit_range(self):
+        """Absolute watts must normalise to [0,1], not the old /100 (300 W → 3.0)."""
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 600, "unit": "second"},
+                        "targets": [{"minValue": 150, "maxValue": 150}]}]},
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 300, "maxValue": 300}]}]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        assert max(p[1] for p in poly) == 1.0    # 300 W peak → 1.0, not 3.0
+        assert any(p[1] == 0.5 for p in poly)     # 150 W → 150/300
+
+    def test_polyline_uses_minvalue_when_no_max(self):
+        """A floor-only target (`{"minValue": 55}`) is a real bar, not height 0."""
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 55}]}]},
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 100, "maxValue": 100}]}]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        assert any(p[1] == 0.55 for p in poly)
 
     def test_ensure_preview_noop_on_non_native(self):
         from tp_mcp.tools.library import _ensure_structure_preview
         assert _ensure_structure_preview(None) is None
         assert _ensure_structure_preview({"steps": []}) == {"steps": []}
+
+    def test_ensure_preview_does_not_mutate_caller(self):
+        """The helper returns a copy — the caller's structure dict is untouched."""
+        from tp_mcp.tools.library import _ensure_structure_preview
+        src = {"primaryIntensityMetric": "percentOfFtp",
+               "structure": [{"type": "step", "length": {"value": 1, "unit": "repetition"},
+                              "steps": [{"length": {"value": 300, "unit": "second"},
+                                         "targets": [{"minValue": 90, "maxValue": 90}]}]}]}
+        out = _ensure_structure_preview(src)
+        assert "polyline" in out
+        assert "polyline" not in src            # caller NOT mutated
+        assert out is not src
 
 
 class TestScheduleLibraryWorkout:
