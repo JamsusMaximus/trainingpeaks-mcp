@@ -116,9 +116,12 @@ class TestListTools:
         assert "distance_km" in props
         assert "tss_planned" in props
         assert "structured_workout" in props
+        assert "is_hidden" in props
         assert "distance_km" not in cw.inputSchema["required"]
         assert "tss_planned" not in cw.inputSchema["required"]
         assert "structured_workout" not in cw.inputSchema["required"]
+        assert "is_hidden" not in cw.inputSchema["required"]
+        assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
@@ -127,6 +130,7 @@ class TestListTools:
         props = uw.inputSchema["properties"]
         assert "structure" in props
         assert "structured_workout" in props
+        assert "is_hidden" in props
 
     @pytest.mark.asyncio
     async def test_workout_tools_schema_advertises_datetime_dates(self):

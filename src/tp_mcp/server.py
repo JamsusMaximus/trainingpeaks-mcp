@@ -229,6 +229,11 @@ TOOLS = [
                 "tags": {"type": "string", "description": "Optional comma-separated tags"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "isHidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout",
+                    "default": False,
+                },
             },
             "required": ["date", "sport", "title"],
         },
@@ -257,6 +262,10 @@ TOOLS = [
                 "coach_comment": {"type": "string"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "is_hidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout"
+                },
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
@@ -1070,6 +1079,7 @@ async def _h_create_workout(args):
         structured_workout=args.get("structured_workout"),
         subtype_id=args.get("subtype_id"), tags=args.get("tags"),
         feeling=args.get("feeling"), rpe=args.get("rpe"),
+        is_hidden=args.get("is_hidden", False),
     )
 
 @_handler("tp_update_workout")
@@ -1084,6 +1094,7 @@ async def _h_update_workout(args):
         coach_comment=args.get("coach_comment"), feeling=args.get("feeling"),
         rpe=args.get("rpe"), structure=args.get("structure"),
         structured_workout=args.get("structured_workout"),
+        is_hidden=args.get("is_hidden"),
     )
 
 @_handler("tp_delete_workout")
