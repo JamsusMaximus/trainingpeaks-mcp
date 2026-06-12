@@ -410,7 +410,7 @@ async def tp_create_workout(
         structured_workout: Optional native TP structured workout payload.
         subtype_id: Optional workout subtype ID (e.g. Road Bike=3).
         tags: Optional comma-separated tags string.
-        feeling: Optional feeling score (0-10).
+        feeling: Optional TrainingPeaks feeling value (0-10).
         rpe: Optional RPE score (1-10).
         is_hidden: Optional to hide the workout to the athlete.
 

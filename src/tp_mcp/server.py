@@ -260,17 +260,12 @@ TOOLS = [
                 "tags": {"type": "string"},
                 "athlete_comment": {"type": "string"},
                 "coach_comment": {"type": "string"},
-<<<<<<< HEAD
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
-=======
-                "feeling": {"type": "integer", "description": "0-10"},
-                "rpe": {"type": "integer", "description": "1-10"},
                 "is_hidden": {
                     "type": "boolean",
                     "description": "Whether to hide the workout"
                 },
->>>>>>> 7b44dca (feat: Add isHidden option to create/update a workout and hide it for athlete (coach mode))
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
