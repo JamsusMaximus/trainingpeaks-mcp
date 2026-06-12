@@ -125,6 +125,121 @@ class TestCreateLibraryItem:
         assert "workoutTypeFamilyId" not in payload
         assert "workoutTypeValueId" not in payload
 
+    @pytest.mark.asyncio
+    async def test_create_backfills_polyline_and_range(self):
+        """A native structure without preview fields gets polyline +
+        primaryIntensityTargetOrRange so TP renders the thumbnail."""
+        def _block(begin, end, dur, lo, hi, cls):
+            return {
+                "type": "step", "length": {"value": 1, "unit": "repetition"},
+                "begin": begin, "end": end,
+                "steps": [{
+                    "name": cls, "length": {"value": dur, "unit": "second"},
+                    "targets": [{"minValue": lo, "maxValue": hi}],
+                    "intensityClass": cls,
+                }],
+            }
+        structure = {
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryLengthMetric": "duration",
+            "structure": [
+                _block(0, 300, 300, 50, 60, "warmUp"),
+                _block(300, 3300, 3000, 65, 72, "active"),
+                _block(3300, 3600, 300, 50, 55, "coolDown"),
+            ],
+        }
+        response = APIResponse(success=True, data={"exerciseLibraryItemId": 21})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_library_item(
+                library_id="1", name="Endurance",
+                sport_family_id=2, sport_type_id=2, structure=structure,
+            )
+
+        assert result["success"] is True
+        st = mock_instance.post.call_args[1]["json"]["structure"]
+        assert st["primaryIntensityTargetOrRange"] == "range"
+        # 3 single-step blocks → 3 bars × 4 points
+        assert len(st["polyline"]) == 12
+        # normalised so the structure's peak target (active 72) = 1.0;
+        # warm-up 60 → 60/72 = 0.8333. Nothing exceeds 1.0.
+        assert [0.0833, 1.0] in st["polyline"]
+        assert [0.0, 0.8333] in st["polyline"]
+        assert all(p[1] <= 1.0 for p in st["polyline"])
+
+
+class TestStructurePreviewHelper:
+    def test_polyline_expands_repetition_and_normalises(self):
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 2000, "unit": "meter"},
+                        "targets": [{"minValue": 70, "maxValue": 80}]}]},
+            {"type": "repetition", "length": {"value": 6, "unit": "repetition"},
+             "steps": [
+                 {"length": {"value": 800, "unit": "meter"},
+                  "targets": [{"minValue": 102, "maxValue": 104}]},
+                 {"length": {"value": 400, "unit": "meter"},
+                  "targets": [{"minValue": 70, "maxValue": 75}]},
+             ]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        # warmup bar + 6×(work+rest) bars = 13 bars × 4 points
+        assert len(poly) == 13 * 4
+        # normalised: the peak target (work 104) = 1.0 and nothing exceeds it
+        assert any(pt[1] == 1.0 for pt in poly)
+        assert all(pt[1] <= 1.0 for pt in poly)
+
+    def test_polyline_absolute_targets_stay_in_unit_range(self):
+        """Absolute watts must normalise to [0,1], not the old /100 (300 W → 3.0)."""
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 600, "unit": "second"},
+                        "targets": [{"minValue": 150, "maxValue": 150}]}]},
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 300, "maxValue": 300}]}]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        assert max(p[1] for p in poly) == 1.0    # 300 W peak → 1.0, not 3.0
+        assert any(p[1] == 0.5 for p in poly)     # 150 W → 150/300
+
+    def test_polyline_uses_minvalue_when_no_max(self):
+        """A floor-only target (`{"minValue": 55}`) is a real bar, not height 0."""
+        from tp_mcp.tools.library import _compute_native_polyline
+        blocks = [
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 55}]}]},
+            {"type": "step", "length": {"value": 1, "unit": "repetition"},
+             "steps": [{"length": {"value": 300, "unit": "second"},
+                        "targets": [{"minValue": 100, "maxValue": 100}]}]},
+        ]
+        poly = _compute_native_polyline(blocks)
+        assert any(p[1] == 0.55 for p in poly)
+
+    def test_ensure_preview_noop_on_non_native(self):
+        from tp_mcp.tools.library import _ensure_structure_preview
+        assert _ensure_structure_preview(None) is None
+        assert _ensure_structure_preview({"steps": []}) == {"steps": []}
+
+    def test_ensure_preview_does_not_mutate_caller(self):
+        """The helper returns a copy — the caller's structure dict is untouched."""
+        from tp_mcp.tools.library import _ensure_structure_preview
+        src = {"primaryIntensityMetric": "percentOfFtp",
+               "structure": [{"type": "step", "length": {"value": 1, "unit": "repetition"},
+                              "steps": [{"length": {"value": 300, "unit": "second"},
+                                         "targets": [{"minValue": 90, "maxValue": 90}]}]}]}
+        out = _ensure_structure_preview(src)
+        assert "polyline" in out
+        assert "polyline" not in src            # caller NOT mutated
+        assert out is not src
+
 
 class TestScheduleLibraryWorkout:
     TEMPLATE = {
