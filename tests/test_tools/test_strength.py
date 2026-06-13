@@ -74,6 +74,25 @@ class TestSearchExercises:
         r = await tp_search_exercises("a", limit=1000)
         assert r["count"] <= 100
 
+    @pytest.mark.asyncio
+    async def test_exact_match_past_limit_still_surfaces(self):
+        """Regression: ranking must happen BEFORE truncation. With the exact
+        match last in catalogue order and limit=1, it must still win — not be
+        cut by an earlier substring match."""
+        def _ex(eid, title):
+            return {"id": eid, "title": title, "videoUrl": None,
+                    "primaryMuscleGroups": [], "secondaryMuscleGroups": [],
+                    "parameters": []}
+        catalogue = {
+            "1": _ex("1", "Back Squat"),
+            "2": _ex("2", "Front Squat"),
+            "3": _ex("3", "Squat"),  # exact, but last
+        }
+        with patch("tp_mcp.tools.strength._catalogue", return_value=catalogue):
+            r = await tp_search_exercises("squat", limit=1)
+        assert r["count"] == 1
+        assert r["exercises"][0]["title"] == "Squat"
+
 
 # ── Validation (returns before any network call) ─────────────────────────────
 

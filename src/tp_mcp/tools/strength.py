@@ -62,11 +62,24 @@ def _err(code: str, message: str) -> dict[str, Any]:
 
 
 # ── Exercise catalogue (baked, offline) ─────────────────────────────────────
+#
+# PROVENANCE of `tp_mcp/data/exercises.json` (944 exercises):
+#   The Peaksware strength API exposes NO list/search endpoint for the exercise
+#   library, but each exercise IS readable individually by its numeric id (same
+#   `api.peakswaresb.com` host + Bearer token as the workout endpoints). This
+#   file is a one-time static snapshot built by fetching the exercises by id and
+#   projecting each to the fields the tools use (id, title, videoUrl,
+#   primary/secondary MuscleGroups, parameters). TP's library changes rarely;
+#   the snapshot is refreshable by re-fetching by id if it ever drifts. It is
+#   data, not code — reviewers can skip its contents.
 
 
 @lru_cache(maxsize=1)
 def _catalogue() -> dict[str, dict[str, Any]]:
-    """The built-in exercise library, keyed by string id."""
+    """The built-in exercise library, keyed by string id.
+
+    Static snapshot baked from the per-id Peaksware endpoint — see the
+    PROVENANCE note above for how it was generated / how to refresh it."""
     try:
         from importlib.resources import files
 
@@ -122,11 +135,11 @@ async def tp_search_exercises(
                 "parameters": [p["parameter"] for p in ex.get("parameters", [])],
             }
         )
-        if len(out) >= limit:
-            break
-    # Exact / prefix matches first for a name query.
+    # Rank exact / prefix matches first for a name query — BEFORE truncating, so
+    # an exact match that sits past `limit` in catalogue order isn't dropped.
     if q:
         out.sort(key=lambda e: (e["title"].lower() != q, not e["title"].lower().startswith(q)))
+    out = out[:limit]
     return {"count": len(out), "exercises": out}
 
 
