@@ -46,7 +46,8 @@ async def tp_get_libraries() -> dict[str, Any]:
                 "name": lib.get("libraryName", lib.get("name", "")),
                 "is_default": lib.get("isDefaultContent", lib.get("isDefault", False)),
                 "owner_name": lib.get("ownerName"),
-                # NOTE: the v2 libraries endpoint does not return an item count.
+                # The v2 libraries endpoint usually omits an item count; read it
+                # if present, otherwise fall back to 0.
                 "item_count": lib.get("itemCount", 0),
                 "owner_id": lib.get("ownerId"),
             }
