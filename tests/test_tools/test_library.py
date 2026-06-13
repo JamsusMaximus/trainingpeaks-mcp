@@ -12,6 +12,7 @@ from tp_mcp.tools.library import (
     tp_get_libraries,
     tp_get_library_items,
     tp_schedule_library_workout,
+    tp_update_library_item,
 )
 
 
@@ -124,6 +125,56 @@ class TestCreateLibraryItem:
         assert payload["workoutSubTypeId"] == 3
         assert "workoutTypeFamilyId" not in payload
         assert "workoutTypeValueId" not in payload
+
+
+class TestUpdateLibraryItem:
+    @pytest.mark.asyncio
+    async def test_sets_workout_type_on_sportless_template(self):
+        """A template saved with workoutTypeId=0 gets its sport set, and the
+        merged value reaches the PUT payload."""
+        existing = {"exerciseLibraryItemId": 20, "itemName": "Tempo", "workoutTypeId": 0}
+        get_resp = APIResponse(success=True, data=[existing])
+        put_resp = APIResponse(success=True, data=None)
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_resp)
+            mock_instance.put = AsyncMock(return_value=put_resp)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_library_item(
+                library_id="1", item_id="20",
+                workout_type_id=2, workout_sub_type_id=6,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.put.call_args[1]["json"]
+        assert payload["workoutTypeId"] == 2
+        assert payload["workoutSubTypeId"] == 6
+
+    @pytest.mark.asyncio
+    async def test_workout_type_untouched_when_not_passed(self):
+        """Omitting the sport params leaves the existing workoutTypeId alone and
+        adds no workoutSubTypeId key."""
+        existing = {"exerciseLibraryItemId": 21, "itemName": "Endurance", "workoutTypeId": 2}
+        get_resp = APIResponse(success=True, data=[existing])
+        put_resp = APIResponse(success=True, data=None)
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_resp)
+            mock_instance.put = AsyncMock(return_value=put_resp)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_library_item(
+                library_id="1", item_id="21", name="Endurance v2",
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.put.call_args[1]["json"]
+        assert payload["workoutTypeId"] == 2          # unchanged
+        assert "workoutSubTypeId" not in payload
+        assert payload["itemName"] == "Endurance v2"  # the field we did change
 
 
 class TestScheduleLibraryWorkout:
