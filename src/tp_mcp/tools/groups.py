@@ -1,4 +1,4 @@
-"""Athlete group tools — read-only (issue #69).
+"""Athlete group tools — read + write (issue #69).
 
 TrainingPeaks exposes a coach's "Athlete Groups" as TAGS in the API:
 
@@ -305,6 +305,23 @@ def _parse_ids(athlete_ids: Any) -> tuple[list[int], str | None]:
     return out, None
 
 
+def _membership_result(
+    gid: int, key: str, ok: list, errors: list
+) -> dict[str, Any]:
+    """Shape a membership mutation result. Sets ``isError`` only when EVERY
+    athlete failed (none succeeded but some were attempted) — a partial success
+    is reported plainly so the caller can act on what went through."""
+    result: dict[str, Any] = {"group_id": gid, key: ok, "errors": errors}
+    if errors and not ok:
+        result["isError"] = True
+        result["error_code"] = "API_ERROR"
+        result["message"] = (
+            f"None of the {len(errors)} athlete(s) could be {key}; "
+            "see errors for per-athlete detail."
+        )
+    return result
+
+
 async def tp_add_athletes_to_group(group_id: str, athlete_ids: list) -> dict[str, Any]:
     """Add one or more athletes to a group.
 
@@ -313,7 +330,9 @@ async def tp_add_athletes_to_group(group_id: str, athlete_ids: list) -> dict[str
         athlete_ids: Athlete IDs to add.
 
     Returns:
-        Dict with ``added`` and ``errors`` lists.
+        Dict with ``added`` and ``errors`` lists. When EVERY athlete failed
+        (``added`` empty and ``errors`` non-empty) the result also carries
+        ``isError`` so the caller can tell a total failure from a partial one.
     """
     try:
         gid = int(group_id)
@@ -345,7 +364,7 @@ async def tp_add_athletes_to_group(group_id: str, athlete_ids: list) -> dict[str
                 errors.append({"athlete_id": aid, "message": r.message})
             else:
                 added.append(aid)
-        return {"group_id": gid, "added": added, "errors": errors}
+        return _membership_result(gid, "added", added, errors)
 
 
 async def tp_remove_athletes_from_group(group_id: str, athlete_ids: list) -> dict[str, Any]:
@@ -356,7 +375,9 @@ async def tp_remove_athletes_from_group(group_id: str, athlete_ids: list) -> dic
         athlete_ids: Athlete IDs to remove.
 
     Returns:
-        Dict with ``removed`` and ``errors`` lists.
+        Dict with ``removed`` and ``errors`` lists. When EVERY athlete failed
+        (``removed`` empty and ``errors`` non-empty) the result also carries
+        ``isError`` so the caller can tell a total failure from a partial one.
     """
     try:
         gid = int(group_id)
@@ -387,4 +408,4 @@ async def tp_remove_athletes_from_group(group_id: str, athlete_ids: list) -> dic
                 errors.append({"athlete_id": aid, "message": r.message})
             else:
                 removed.append(aid)
-        return {"group_id": gid, "removed": removed, "errors": errors}
+        return _membership_result(gid, "removed", removed, errors)

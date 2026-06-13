@@ -285,3 +285,31 @@ async def test_add_athletes_partial_errors():
         out = await tp_add_athletes_to_group("11", [202, 203])
     assert out["added"] == [202]
     assert [e["athlete_id"] for e in out["errors"]] == [203]
+    # partial success is NOT a total failure — no isError envelope
+    assert "isError" not in out
+
+
+@pytest.mark.asyncio
+async def test_add_athletes_total_failure_sets_iserror():
+    # every athlete fails → isError so the caller can't mistake it for success
+    inst = _client(_get_user_data=USER, get=APIResponse(success=True, data=TAGS))
+    inst.post = AsyncMock(side_effect=[
+        APIResponse(success=False, message="nope"),
+        APIResponse(success=False, message="nope"),
+    ])
+    with patch("tp_mcp.tools.groups.TPClient") as mc:
+        mc.return_value.__aenter__.return_value = inst
+        out = await tp_add_athletes_to_group("11", [202, 203])
+    assert out["added"] == []
+    assert [e["athlete_id"] for e in out["errors"]] == [202, 203]
+    assert out["isError"] is True and out["error_code"] == "API_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_remove_athletes_total_failure_sets_iserror():
+    inst = _client(_get_user_data=USER, get=APIResponse(success=True, data=TAGS),
+                   delete=APIResponse(success=False, message="nope"))
+    with patch("tp_mcp.tools.groups.TPClient") as mc:
+        mc.return_value.__aenter__.return_value = inst
+        out = await tp_remove_athletes_from_group("11", [202])
+    assert out["removed"] == [] and out["isError"] is True
