@@ -365,3 +365,25 @@ class TestCalculatePath:
         body = mi.post.call_args[1]["json"]
         assert body["zoneType"] == 3 and body["distance"] == 5   # Distance/Time preserved
         assert "speed" in body
+
+    @pytest.mark.asyncio
+    async def test_test_based_method_is_refused_not_silently_wrong(self):
+        # Distance/Time: the calculator DERIVES a threshold from the input (as a
+        # test result), far from what was asked. The connector must REFUSE rather
+        # than silently store a threshold the coach didn't intend, and write nothing.
+        settings = {"speedZones": [_szones(0.83, 1, 3, 5)]}
+        with patch("tp_mcp.tools.settings.TPClient") as mc:
+            mi = AsyncMock()
+            mi.ensure_athlete_id = AsyncMock(return_value=123)
+            mi._get_user_data = AsyncMock(return_value={"userId": 1})
+            mi.get = AsyncMock(return_value=APIResponse(success=True, data=settings))
+            mi.put = AsyncMock(return_value=_OK)
+            calc = [{"label": f"Z{i}", "minimumAsDouble": i * 0.1, "maximumAsDouble": (i + 1) * 0.1}
+                    for i in range(7)]
+            # input 1:45/100m ≈ 0.952 m/s, but calculator derives 0.60 (test-based)
+            mi.post = AsyncMock(return_value=APIResponse(
+                success=True, data={"zones": calc, "thresholdSpeed": 0.60}))
+            mc.return_value.__aenter__.return_value = mi
+            result = await tp_update_speed_zones(swim_threshold_pace="1:45/100m")
+        assert result["error_code"] == "TEST_BASED_METHOD"
+        mi.put.assert_not_called()                       # nothing written
