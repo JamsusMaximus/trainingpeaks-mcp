@@ -209,18 +209,19 @@ async def _get_user_id(client: "TPClient") -> int | None:
 async def _calculated_zones(
     client: "TPClient", metric: str, group: dict[str, Any],
     new_threshold: float | None, extra_fields: dict[str, Any] | None,
-) -> list[dict[str, Any]] | None:
+) -> tuple[list[dict[str, Any]] | None, float | None]:
     """METHOD-CORRECT bands from TP's own zone calculator (the same call the web
-    UI "Calculate" makes), so Max-HR / Karvonen / Distance-Time are computed by
-    TP's real formula, not a proportional approximation. Returns mapped
-    [{label, minimum, maximum}] or None (manual method / no calculator / bad
-    response) so the caller falls back to a proportional rescale."""
+    UI "Calculate" makes). Returns (mapped [{label,minimum,maximum}],
+    derived_threshold) — the calculator ECHOES the threshold for threshold-anchored
+    methods but DERIVES a different one for test-based methods (Distance-Time), so
+    the caller stores the derived value and can detect the test-based case.
+    Returns (None, None) on manual method / no calculator / bad response."""
     method = group.get("calculationMethod")
     if not isinstance(method, int):
-        return None
+        return None, None
     uid = await _get_user_id(client)
     if uid is None:
-        return None
+        return None, None
     extra = extra_fields or {}
     thr = group.get("threshold") if new_threshold is None else new_threshold
     body: dict[str, Any] = {"zoneType": method}
@@ -235,26 +236,29 @@ async def _calculated_zones(
         if group.get("distance") is not None:
             body["distance"] = group.get("distance")
     else:
-        return None
+        return None, None
     resp = await client.post(
         f"/trainingzones/v1/users/{uid}/{metric}/calculate/{method}", json=body)
     if resp.is_error or not isinstance(resp.data, dict):
-        return None
+        return None, None
     raw = resp.data.get("zones")
     if not isinstance(raw, list) or not raw:
-        return None
+        return None, None
     use_double = metric == "speed"
     out: list[dict[str, Any]] = []
     for z in raw:
         if not isinstance(z, dict):
-            return None
+            return None, None
         mn = z.get("minimumAsDouble") if use_double else z.get("minimum")
         mx = z.get("maximumAsDouble") if use_double else z.get("maximum")
         # reject non-numeric / NaN (NaN != NaN) -> caller falls back
         if not isinstance(mn, (int, float)) or not isinstance(mx, (int, float)) or mn != mn or mx != mx:
-            return None
+            return None, None
         out.append({"label": z.get("label"), "minimum": mn, "maximum": mx})
-    return out
+    derived = resp.data.get("thresholdSpeed")
+    if not isinstance(derived, (int, float)):
+        derived = resp.data.get("lactateThreshold")
+    return out, (derived if isinstance(derived, (int, float)) else None)
 
 
 async def _put_zone_array(
@@ -290,12 +294,21 @@ async def _update_single_zone_set(
                 "message": f"No {settings_key} found in athlete settings."}
     idx, note = _select_group_index(groups, wtid)
     metric = _CALC_METRIC.get(put_path, "")
-    calc_zones = await _calculated_zones(client, metric, groups[idx], new_threshold, extra_fields)
+    calc_zones, derived = await _calculated_zones(client, metric, groups[idx], new_threshold, extra_fields)
     method_correct = calc_zones is not None
     if method_correct:
+        # Test-based methods (e.g. Distance/Time) DERIVE the threshold from the
+        # input as a test result — they can't have a threshold set directly.
+        if (new_threshold is not None and derived is not None
+                and abs(derived - new_threshold) > 0.02 * max(abs(new_threshold), 1.0)):
+            return {"isError": True, "error_code": "TEST_BASED_METHOD",
+                    "message": "This zone set derives its threshold from a test "
+                               "(e.g. Distance/Time); a threshold can't be set directly. "
+                               "Change the calculation method or enter a test in TrainingPeaks."}
         new_group = copy.deepcopy(groups[idx])
         if new_threshold is not None:
-            new_group["threshold"] = round(new_threshold) if integer else new_threshold
+            store = derived if derived is not None else new_threshold
+            new_group["threshold"] = round(store) if integer else store
         if extra_fields:
             for k, v in extra_fields.items():
                 if v is not None:
@@ -503,11 +516,16 @@ async def tp_update_speed_zones(
             except ValueError as e:
                 return {"isError": True, "error_code": "VALIDATION_ERROR", "message": str(e)}
             idx, note = _select_group_index(working, wtid)
-            calc_zones = await _calculated_zones(client, "speed", working[idx], speed_ms, None)
+            calc_zones, derived = await _calculated_zones(client, "speed", working[idx], speed_ms, None)
             method_correct = calc_zones is not None
             if method_correct:
+                if derived is not None and abs(derived - speed_ms) > 0.02 * max(abs(speed_ms), 1.0):
+                    return {"isError": True, "error_code": "TEST_BASED_METHOD",
+                            "message": f"{sport}: zone set derives its threshold from a test "
+                                       "(e.g. Distance/Time); set it via a test in TrainingPeaks "
+                                       "or change the method."}
                 new_group = copy.deepcopy(working[idx])
-                new_group["threshold"] = speed_ms
+                new_group["threshold"] = derived if derived is not None else speed_ms
                 new_group["zones"] = calc_zones
             else:
                 new_group, err = _rescaled_group(working[idx], speed_ms, integer=False)
