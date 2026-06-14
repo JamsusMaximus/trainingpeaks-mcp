@@ -1,5 +1,6 @@
 """Athlete settings tools: zones, FTP, thresholds, nutrition."""
 
+import copy
 import logging
 import re
 from typing import Any
@@ -8,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from tp_mcp.client import TPClient
 from tp_mcp.tools._validation import format_validation_error
+from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
 logger = logging.getLogger("tp-mcp")
 
@@ -21,11 +23,25 @@ POWER_ZONE_LABELS = [
 ]
 POWER_ZONE_MAXIMUM = 2000
 
+# Sport name (case-insensitive) -> zone workoutTypeId. Reuses the connector's
+# authoritative SPORT_TYPE_MAP, so a new TP sport needs no change here. 'default'
+# / 'general' target the Default (0) zone set (not a sport).
+_ZONE_WTID: dict[str, int] = {"default": 0, "general": 0}
+_ZONE_WTID.update({name.lower(): value_id for name, (_fam, value_id) in SPORT_TYPE_MAP.items()})
+
 
 class FTPInput(BaseModel):
     """Validates FTP input."""
 
     ftp: int = Field(gt=0, le=2000)
+    workout_type: str = Field(default="bike")
+
+    @field_validator("workout_type")
+    @classmethod
+    def check_ftp_type(cls, v: str) -> str:
+        if v.lower() not in _ZONE_WTID:
+            raise ValueError(f"workout_type must be one of {sorted(_ZONE_WTID)}")
+        return v
 
 
 class HRZonesInput(BaseModel):
@@ -39,8 +55,8 @@ class HRZonesInput(BaseModel):
     @field_validator("workout_type")
     @classmethod
     def check_type(cls, v: str) -> str:
-        if v not in ("general", "bike"):
-            raise ValueError("workout_type must be 'general' or 'bike'")
+        if v.lower() not in _ZONE_WTID:
+            raise ValueError(f"workout_type must be one of {sorted(_ZONE_WTID)}")
         return v
 
 
@@ -120,145 +136,194 @@ async def tp_get_athlete_settings() -> dict[str, Any]:
         return {"settings": response.data}
 
 
-async def tp_update_ftp(ftp: int) -> dict[str, Any]:
-    """Update FTP and recalculate the athlete's default power zones.
+# ── Zone-update helpers (method-agnostic, no hardcoded discovery results) ──────
+# workoutTypeId is TP's STABLE type identifier (0 default / 1 swim / 2 bike /
+# 3 run), used ONLY to locate the right zone group. The group's calculationMethod,
+# Distance-Time `distance`, zoneCalculatorId, band structure — and any field TP
+# adds in future — are read from the live payload and preserved verbatim; the
+# connector never assumes a calculation method or bakes in probed values.
+
+
+def _select_group_index(groups: list[Any], wtid: int) -> tuple[int, str | None]:
+    """Index of the zone group whose workoutTypeId == wtid; fall back to the
+    default (0) group, then the first. The note records any fallback."""
+    for i, g in enumerate(groups):
+        if isinstance(g, dict) and g.get("workoutTypeId") == wtid:
+            return i, None
+    for i, g in enumerate(groups):
+        if isinstance(g, dict) and g.get("workoutTypeId") == 0:
+            return i, f"no zone set for workoutTypeId={wtid}; updated the default (0) set"
+    return 0, f"no zone set for workoutTypeId={wtid} or default; updated the first set"
+
+
+def _rescaled_group(
+    group: dict[str, Any],
+    new_threshold: float | None,
+    *,
+    integer: bool,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Deep-copy `group`, set `threshold` (None = keep) and scale every zone band
+    by the new/old ratio. ALL other fields ride through untouched, so the
+    athlete's method / Distance-Time `distance` / calculator id are never
+    altered. TP does NOT recompute bands on save (verified live), so the
+    connector does — proportionally to the threshold (correct for
+    threshold-anchored methods); it never assumes a method formula.
+    Returns (new_group, error)."""
+    old = group.get("threshold")
+    if not isinstance(old, (int, float)) or old <= 0:
+        return None, "existing threshold is missing or zero"
+    zones = group.get("zones") or []
+    interior_maxima = [z.get("maximum") for z in zones[:-1] if isinstance(z, dict)]
+    if any(not isinstance(m, (int, float)) for m in interior_maxima):
+        return None, "existing zone bands are malformed"
+    target = float(old) if new_threshold is None else float(new_threshold)
+    ratio = target / float(old)
+    new_group = copy.deepcopy(group)
+    new_group["threshold"] = round(target) if integer else target
+    zlist = new_group.get("zones") or []
+    last = len(zlist) - 1
+    for i, z in enumerate(zlist):
+        if not isinstance(z, dict):
+            continue
+        for bound in ("minimum", "maximum"):
+            # Keep the final zone's artificial ceiling (e.g. 2000 W) unscaled.
+            if i == last and bound == "maximum":
+                continue
+            v = z.get(bound)
+            if isinstance(v, (int, float)):
+                z[bound] = round(v * ratio) if integer else v * ratio
+    return new_group, None
+
+
+async def _put_zone_array(
+    client: "TPClient", athlete_id: int, put_path: str, payload: list[Any],
+) -> dict[str, Any] | None:
+    """PUT the full zone-group array. Returns an error dict or None on success."""
+    pr = await client.put(f"/fitness/v2/athletes/{athlete_id}/{put_path}", json=payload)
+    if pr.is_error:
+        return {"isError": True,
+                "error_code": pr.error_code.value if pr.error_code else "API_ERROR",
+                "message": pr.message}
+    return None
+
+
+async def _update_single_zone_set(
+    client: "TPClient", athlete_id: int, settings_key: str, put_path: str,
+    wtid: int, new_threshold: float | None, *, integer: bool,
+    extra_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """GET settings → locate the wtid group → rescale → PUT the full array (the
+    only shape TP accepts). `extra_fields` sets extra anchors verbatim (HR
+    maximumHeartRate/restingHeartRate)."""
+    sr = await client.get(f"/fitness/v1/athletes/{athlete_id}/settings")
+    if sr.is_error:
+        return {"isError": True,
+                "error_code": sr.error_code.value if sr.error_code else "API_ERROR",
+                "message": sr.message}
+    if not isinstance(sr.data, dict):
+        return {"isError": True, "error_code": "API_ERROR", "message": "No settings data returned."}
+    groups = sr.data.get(settings_key)
+    if not isinstance(groups, list) or not groups:
+        return {"isError": True, "error_code": "API_ERROR",
+                "message": f"No {settings_key} found in athlete settings."}
+    idx, note = _select_group_index(groups, wtid)
+    new_group, err = _rescaled_group(groups[idx], new_threshold, integer=integer)
+    if err or new_group is None:
+        return {"isError": True, "error_code": "ZONE_RESCALE", "message": err or "rescale failed"}
+    if extra_fields:
+        for k, v in extra_fields.items():
+            if v is not None:
+                new_group[k] = v
+    payload = list(groups)
+    payload[idx] = new_group
+    put_err = await _put_zone_array(client, athlete_id, put_path, payload)
+    if put_err:
+        return put_err
+    result: dict[str, Any] = {
+        "success": True,
+        "workout_type_id": new_group.get("workoutTypeId"),
+        "calculation_method": new_group.get("calculationMethod"),
+        "threshold": new_group.get("threshold"),
+        "zones": new_group.get("zones"),
+    }
+    if note:
+        result["note"] = note
+    return result
+
+
+async def tp_update_ftp(ftp: int, workout_type: str = "bike") -> dict[str, Any]:
+    """Update FTP (power threshold) and rescale the matching power-zone set.
 
     Args:
         ftp: Functional Threshold Power in watts.
+        workout_type: which power set to update — 'bike' (default; FTP is a
+            cycling concept), 'run' (running power) or 'default'. Falls back to
+            the default set if the athlete has no sport-specific one.
 
-    Returns:
-        Dict with updated zones or error.
+    The set's calculation method and structure are preserved; bands are rescaled
+    proportionally. A fresh athlete with no usable bands gets a Coggan model.
     """
     try:
-        params = FTPInput(ftp=ftp)
+        params = FTPInput(ftp=ftp, workout_type=workout_type)
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": msg,
-        }
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": msg}
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
-            return {
-                "isError": True,
-                "error_code": "AUTH_INVALID",
-                "message": "Could not get athlete ID. Re-authenticate.",
-            }
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+        wtid = _ZONE_WTID.get(params.workout_type.lower(), _ZONE_WTID["bike"])
+        result = await _update_single_zone_set(
+            client, athlete_id, "powerZones", "powerzones", wtid,
+            float(params.ftp), integer=True)
+        if result.get("error_code") == "ZONE_RESCALE":
+            result = await _ftp_coggan_fallback(client, athlete_id, params.ftp, wtid)
+        if result.get("success"):
+            result["ftp"] = params.ftp
+        return result
 
-        settings_endpoint = f"/fitness/v1/athletes/{athlete_id}/settings"
-        settings_response = await client.get(settings_endpoint)
-        if settings_response.is_error:
-            return {
-                "isError": True,
-                "error_code": settings_response.error_code.value if settings_response.error_code else "API_ERROR",
-                "message": settings_response.message,
-            }
 
-        if not settings_response.data or not isinstance(settings_response.data, dict):
-            return {
-                "isError": True,
-                "error_code": "API_ERROR",
-                "message": "No settings data returned.",
-            }
-
-        power_zones = settings_response.data.get("powerZones")
-        if not isinstance(power_zones, list) or not power_zones:
-            return {
-                "isError": True,
-                "error_code": "API_ERROR",
-                "message": "No power zones found in athlete settings.",
-            }
-
-        target_index = next(
-            (idx for idx, zone_group in enumerate(power_zones)
-             if isinstance(zone_group, dict) and zone_group.get("workoutTypeId") == 0),
-            0,
-        )
-        target_zone_group = power_zones[target_index]
-        if not isinstance(target_zone_group, dict):
-            return {
-                "isError": True,
-                "error_code": "API_ERROR",
-                "message": "Unexpected power zone format returned by TrainingPeaks.",
-            }
-
-        existing_labels = []
-        existing_zones = target_zone_group.get("zones")
-        if isinstance(existing_zones, list):
-            existing_labels = [
-                zone.get("label")
-                for zone in existing_zones
-                if isinstance(zone, dict) and zone.get("label")
-            ]
-        labels = existing_labels if len(existing_labels) == len(POWER_ZONE_LABELS) else POWER_ZONE_LABELS
-
-        current_threshold = target_zone_group.get("threshold")
-        zone_maxima: list[int] = []
-        if isinstance(current_threshold, (int, float)) and current_threshold > 0 and isinstance(existing_zones, list):
-            existing_maxima: list[int] = []
-            for zone in existing_zones[:-1]:
-                if not isinstance(zone, dict):
-                    existing_maxima = []
-                    break
-                maximum = zone.get("maximum")
-                if not isinstance(maximum, (int, float)):
-                    existing_maxima = []
-                    break
-                existing_maxima.append(int(maximum))
-            if len(existing_maxima) == len(labels) - 1:
-                zone_maxima = [round(params.ftp * (maximum / current_threshold)) for maximum in existing_maxima]
-
-        if not zone_maxima:
-            zone_maxima = [
-                round(params.ftp * ratio)
-                for ratio in (0.56, 0.76, 0.91, 1.06, 1.21)
-            ]
-        zones = []
-        lower_bound = 0
-        for label, upper_bound in zip(labels[:-1], zone_maxima, strict=False):
-            zones.append({
-                "label": label,
-                "minimum": lower_bound,
-                "maximum": upper_bound,
-            })
-            lower_bound = upper_bound + 1
-        zones.append({
-            "label": labels[-1],
-            "minimum": lower_bound,
-            "maximum": POWER_ZONE_MAXIMUM,
-        })
-
-        updated_zone_group = {
-            "threshold": params.ftp,
-            "calculationMethod": target_zone_group.get("calculationMethod"),
-            "workoutTypeId": target_zone_group.get("workoutTypeId"),
-            "zones": zones,
-        }
-        if "zoneCalculatorId" in target_zone_group:
-            updated_zone_group["zoneCalculatorId"] = target_zone_group.get("zoneCalculatorId")
-
-        payload = list(power_zones)
-        payload[target_index] = updated_zone_group
-
-        endpoint = f"/fitness/v2/athletes/{athlete_id}/powerzones"
-        response = await client.put(endpoint, json=payload)
-
-        if response.is_error:
-            return {
-                "isError": True,
-                "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
-            }
-
-        return {
-            "success": True,
-            "ftp": params.ftp,
-            "workout_type_id": updated_zone_group["workoutTypeId"],
-            "zones": zones,
-        }
+async def _ftp_coggan_fallback(
+    client: "TPClient", athlete_id: int, ftp: int, wtid: int,
+) -> dict[str, Any]:
+    """Build a default Coggan power-zone set when there are no bands to rescale."""
+    sr = await client.get(f"/fitness/v1/athletes/{athlete_id}/settings")
+    if sr.is_error or not isinstance(sr.data, dict):
+        return {"isError": True, "error_code": "API_ERROR", "message": "No settings data returned."}
+    groups = sr.data.get("powerZones")
+    if not isinstance(groups, list) or not groups:
+        return {"isError": True, "error_code": "API_ERROR",
+                "message": "No power zones found in athlete settings."}
+    idx, note = _select_group_index(groups, wtid)
+    target = copy.deepcopy(groups[idx])
+    existing = target.get("zones") or []
+    labels = [z.get("label") for z in existing if isinstance(z, dict) and z.get("label")]
+    if len(labels) != len(POWER_ZONE_LABELS):
+        labels = list(POWER_ZONE_LABELS)
+    maxima = [round(ftp * r) for r in (0.56, 0.76, 0.91, 1.06, 1.21)]
+    zones: list[dict[str, Any]] = []
+    lo = 0
+    for label, hi in zip(labels[:-1], maxima, strict=False):
+        zones.append({"label": label, "minimum": lo, "maximum": hi})
+        lo = hi + 1
+    zones.append({"label": labels[-1], "minimum": lo, "maximum": POWER_ZONE_MAXIMUM})
+    target["threshold"] = ftp
+    target["zones"] = zones
+    payload = list(groups)
+    payload[idx] = target
+    put_err = await _put_zone_array(client, athlete_id, "powerzones", payload)
+    if put_err:
+        return put_err
+    res: dict[str, Any] = {
+        "success": True, "ftp": ftp, "workout_type_id": target.get("workoutTypeId"),
+        "calculation_method": target.get("calculationMethod"),
+        "threshold": ftp, "zones": zones,
+    }
+    if note:
+        res["note"] = note
+    return res
 
 
 async def tp_update_hr_zones(
@@ -267,154 +332,119 @@ async def tp_update_hr_zones(
     resting_hr: int | None = None,
     workout_type: str = "general",
 ) -> dict[str, Any]:
-    """Update heart rate zones.
+    """Update heart-rate zones for a specific sport, preserving the method.
 
     Args:
-        threshold_hr: Threshold heart rate (optional).
-        max_hr: Maximum heart rate (optional).
-        resting_hr: Resting heart rate (optional).
-        workout_type: 'general' or 'bike' (default 'general').
-
-    Returns:
-        Dict with updated zones or error.
+        threshold_hr: Threshold (LTHR). When given, bands rescale to it.
+        max_hr: Maximum HR (stored as an anchor; bands not auto-rescaled by it).
+        resting_hr: Resting HR (stored as an anchor).
+        workout_type: 'general' (default set), 'bike', 'run' or 'swim'.
     """
     try:
         params = HRZonesInput(
-            threshold_hr=threshold_hr,
-            max_hr=max_hr,
-            resting_hr=resting_hr,
-            workout_type=workout_type,
-        )
+            threshold_hr=threshold_hr, max_hr=max_hr,
+            resting_hr=resting_hr, workout_type=workout_type)
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": msg,
-        }
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": msg}
 
     if params.threshold_hr is None and params.max_hr is None and params.resting_hr is None:
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": "At least one of threshold_hr, max_hr, or resting_hr must be provided.",
-        }
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": "At least one of threshold_hr, max_hr, or resting_hr must be provided."}
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
-            return {
-                "isError": True,
-                "error_code": "AUTH_INVALID",
-                "message": "Could not get athlete ID. Re-authenticate.",
-            }
-
-        payload: dict[str, Any] = {}
-        if params.threshold_hr is not None:
-            payload["threshold"] = params.threshold_hr
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+        wtid = _ZONE_WTID.get(params.workout_type.lower(), 0)
+        extra: dict[str, Any] = {}
         if params.max_hr is not None:
-            payload["maximum"] = params.max_hr
+            extra["maximumHeartRate"] = params.max_hr
         if params.resting_hr is not None:
-            payload["resting"] = params.resting_hr
-
-        endpoint = f"/fitness/v2/athletes/{athlete_id}/heartratezones"
-        response = await client.put(endpoint, json=payload)
-
-        if response.is_error:
-            return {
-                "isError": True,
-                "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
-            }
-
-        return {
-            "success": True,
-            "message": "Heart rate zones updated.",
-            "updates": payload,
-        }
+            extra["restingHeartRate"] = params.resting_hr
+        new_thr = float(params.threshold_hr) if params.threshold_hr is not None else None
+        return await _update_single_zone_set(
+            client, athlete_id, "heartRateZones", "heartratezones", wtid,
+            new_thr, integer=True, extra_fields=extra)
 
 
 async def tp_update_speed_zones(
     run_threshold_pace: str | None = None,
     swim_threshold_pace: str | None = None,
 ) -> dict[str, Any]:
-    """Update speed/pace zones.
+    """Update run/swim pace zones, preserving each set's method and (for swim
+    Distance/Time sets) its `distance` — only the threshold pace and bands move.
 
     Args:
-        run_threshold_pace: Run threshold pace (e.g. '4:30/km').
-        swim_threshold_pace: Swim threshold pace (e.g. '1:45/100m').
-
-    Returns:
-        Dict with updated zones or error.
+        run_threshold_pace: e.g. '4:30/km'.
+        swim_threshold_pace: e.g. '1:45/100m'.
     """
     try:
         params = SpeedZonesInput(
             run_threshold_pace=run_threshold_pace,
-            swim_threshold_pace=swim_threshold_pace,
-        )
+            swim_threshold_pace=swim_threshold_pace)
     except (ValidationError, ValueError) as e:
         msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": msg,
-        }
+        return {"isError": True, "error_code": "VALIDATION_ERROR", "message": msg}
 
     if params.run_threshold_pace is None and params.swim_threshold_pace is None:
-        return {
-            "isError": True,
-            "error_code": "VALIDATION_ERROR",
-            "message": "At least one of run_threshold_pace or swim_threshold_pace must be provided.",
-        }
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": "At least one of run_threshold_pace or swim_threshold_pace must be provided."}
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
         if not athlete_id:
-            return {
-                "isError": True,
-                "error_code": "AUTH_INVALID",
-                "message": "Could not get athlete ID. Re-authenticate.",
-            }
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+        sr = await client.get(f"/fitness/v1/athletes/{athlete_id}/settings")
+        if sr.is_error:
+            return {"isError": True,
+                    "error_code": sr.error_code.value if sr.error_code else "API_ERROR",
+                    "message": sr.message}
+        if not isinstance(sr.data, dict):
+            return {"isError": True, "error_code": "API_ERROR", "message": "No settings data returned."}
+        groups = sr.data.get("speedZones")
+        if not isinstance(groups, list) or not groups:
+            return {"isError": True, "error_code": "API_ERROR",
+                    "message": "No speed zones found in athlete settings."}
 
-        payload: dict[str, Any] = {}
-
-        if params.run_threshold_pace is not None:
+        working = list(groups)
+        updated: list[dict[str, Any]] = []
+        notes: list[str] = []
+        plan = [("run", params.run_threshold_pace, False, 3),
+                ("swim", params.swim_threshold_pace, True, 1)]
+        for sport, pace, is_swim, wtid in plan:
+            if pace is None:
+                continue
             try:
-                speed_ms = _parse_pace_to_ms(params.run_threshold_pace)
-                payload["runThreshold"] = speed_ms
+                speed_ms = _parse_pace_to_ms(pace, is_swim=is_swim)
             except ValueError as e:
-                return {
-                    "isError": True,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": str(e),
-                }
+                return {"isError": True, "error_code": "VALIDATION_ERROR", "message": str(e)}
+            idx, note = _select_group_index(working, wtid)
+            new_group, err = _rescaled_group(working[idx], speed_ms, integer=False)
+            if err or new_group is None:
+                return {"isError": True, "error_code": "API_ERROR",
+                        "message": f"{sport}: {err or 'rescale failed'}"}
+            working[idx] = new_group
+            if note:
+                notes.append(f"{sport}: {note}")
+            updated.append({
+                "sport": sport,
+                "workout_type_id": new_group.get("workoutTypeId"),
+                "calculation_method": new_group.get("calculationMethod"),
+                "distance": new_group.get("distance"),
+                "threshold_ms": speed_ms,
+                "zones": new_group.get("zones"),
+            })
 
-        if params.swim_threshold_pace is not None:
-            try:
-                speed_ms = _parse_pace_to_ms(params.swim_threshold_pace, is_swim=True)
-                payload["swimThreshold"] = speed_ms
-            except ValueError as e:
-                return {
-                    "isError": True,
-                    "error_code": "VALIDATION_ERROR",
-                    "message": str(e),
-                }
-
-        endpoint = f"/fitness/v2/athletes/{athlete_id}/speedzones"
-        response = await client.put(endpoint, json=payload)
-
-        if response.is_error:
-            return {
-                "isError": True,
-                "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
-            }
-
-        return {
-            "success": True,
-            "message": "Speed zones updated.",
-            "updates": payload,
-        }
+        put_err = await _put_zone_array(client, athlete_id, "speedzones", working)
+        if put_err:
+            return put_err
+        result: dict[str, Any] = {"success": True, "updated": updated}
+        if notes:
+            result["note"] = "; ".join(notes)
+        return result
 
 
 async def tp_update_nutrition(planned_calories: int) -> dict[str, Any]:
