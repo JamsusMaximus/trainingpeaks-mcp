@@ -194,6 +194,69 @@ def _rescaled_group(
     return new_group, None
 
 
+_CALC_METRIC = {"powerzones": "power", "heartratezones": "heartrate",
+               "speedzones": "speed"}
+
+
+async def _get_user_id(client: "TPClient") -> int | None:
+    """Authenticated (coach) user id for the zone-calculator URL — distinct from
+    the targeted athlete; the calculator runs under the caller's user."""
+    ud = await client._get_user_data()
+    uid = (ud or {}).get("userId") or (ud or {}).get("personId")
+    return uid if isinstance(uid, int) else None
+
+
+async def _calculated_zones(
+    client: "TPClient", metric: str, group: dict[str, Any],
+    new_threshold: float | None, extra_fields: dict[str, Any] | None,
+) -> list[dict[str, Any]] | None:
+    """METHOD-CORRECT bands from TP's own zone calculator (the same call the web
+    UI "Calculate" makes), so Max-HR / Karvonen / Distance-Time are computed by
+    TP's real formula, not a proportional approximation. Returns mapped
+    [{label, minimum, maximum}] or None (manual method / no calculator / bad
+    response) so the caller falls back to a proportional rescale."""
+    method = group.get("calculationMethod")
+    if not isinstance(method, int):
+        return None
+    uid = await _get_user_id(client)
+    if uid is None:
+        return None
+    extra = extra_fields or {}
+    thr = group.get("threshold") if new_threshold is None else new_threshold
+    body: dict[str, Any] = {"zoneType": method}
+    if metric == "heartrate":
+        body["LTHR"] = thr
+        body["maxHR"] = extra.get("maximumHeartRate", group.get("maximumHeartRate"))
+        body["restingHR"] = extra.get("restingHeartRate", group.get("restingHeartRate"))
+    elif metric == "power":
+        body["LTPower"] = thr
+    elif metric == "speed":
+        body["speed"] = thr
+        if group.get("distance") is not None:
+            body["distance"] = group.get("distance")
+    else:
+        return None
+    resp = await client.post(
+        f"/trainingzones/v1/users/{uid}/{metric}/calculate/{method}", json=body)
+    if resp.is_error or not isinstance(resp.data, dict):
+        return None
+    raw = resp.data.get("zones")
+    if not isinstance(raw, list) or not raw:
+        return None
+    use_double = metric == "speed"
+    out: list[dict[str, Any]] = []
+    for z in raw:
+        if not isinstance(z, dict):
+            return None
+        mn = z.get("minimumAsDouble") if use_double else z.get("minimum")
+        mx = z.get("maximumAsDouble") if use_double else z.get("maximum")
+        # reject non-numeric / NaN (NaN != NaN) -> caller falls back
+        if not isinstance(mn, (int, float)) or not isinstance(mx, (int, float)) or mn != mn or mx != mx:
+            return None
+        out.append({"label": z.get("label"), "minimum": mn, "maximum": mx})
+    return out
+
+
 async def _put_zone_array(
     client: "TPClient", athlete_id: int, put_path: str, payload: list[Any],
 ) -> dict[str, Any] | None:
@@ -226,26 +289,41 @@ async def _update_single_zone_set(
         return {"isError": True, "error_code": "API_ERROR",
                 "message": f"No {settings_key} found in athlete settings."}
     idx, note = _select_group_index(groups, wtid)
-    new_group, err = _rescaled_group(groups[idx], new_threshold, integer=integer)
-    if err or new_group is None:
-        return {"isError": True, "error_code": "ZONE_RESCALE", "message": err or "rescale failed"}
-    if extra_fields:
-        for k, v in extra_fields.items():
-            if v is not None:
-                new_group[k] = v
+    metric = _CALC_METRIC.get(put_path, "")
+    calc_zones = await _calculated_zones(client, metric, groups[idx], new_threshold, extra_fields)
+    method_correct = calc_zones is not None
+    if method_correct:
+        new_group = copy.deepcopy(groups[idx])
+        if new_threshold is not None:
+            new_group["threshold"] = round(new_threshold) if integer else new_threshold
+        if extra_fields:
+            for k, v in extra_fields.items():
+                if v is not None:
+                    new_group[k] = v
+        new_group["zones"] = calc_zones
+    else:
+        new_group, err = _rescaled_group(groups[idx], new_threshold, integer=integer)
+        if err or new_group is None:
+            return {"isError": True, "error_code": "ZONE_RESCALE", "message": err or "rescale failed"}
+        if extra_fields:
+            for k, v in extra_fields.items():
+                if v is not None:
+                    new_group[k] = v
     payload = list(groups)
     payload[idx] = new_group
     put_err = await _put_zone_array(client, athlete_id, put_path, payload)
     if put_err:
         return put_err
     notes = [note] if note else []
-    if new_threshold is None:
-        notes.append("only anchors updated (max/resting); zone bands NOT recomputed — "
-                     "recompute in TP if this method derives bands from max/resting")
+    if not method_correct:
+        notes.append("zones rescaled proportionally (no server calculator for this method)")
+        if new_threshold is None:
+            notes.append("only anchors changed; bands unchanged — recompute in TP")
     result: dict[str, Any] = {
         "success": True,
         "workout_type_id": new_group.get("workoutTypeId"),
         "calculation_method": new_group.get("calculationMethod"),
+        "method_correct": method_correct,
         "threshold": new_group.get("threshold"),
         "zones": new_group.get("zones"),
     }
@@ -425,17 +503,27 @@ async def tp_update_speed_zones(
             except ValueError as e:
                 return {"isError": True, "error_code": "VALIDATION_ERROR", "message": str(e)}
             idx, note = _select_group_index(working, wtid)
-            new_group, err = _rescaled_group(working[idx], speed_ms, integer=False)
-            if err or new_group is None:
-                return {"isError": True, "error_code": "API_ERROR",
-                        "message": f"{sport}: {err or 'rescale failed'}"}
+            calc_zones = await _calculated_zones(client, "speed", working[idx], speed_ms, None)
+            method_correct = calc_zones is not None
+            if method_correct:
+                new_group = copy.deepcopy(working[idx])
+                new_group["threshold"] = speed_ms
+                new_group["zones"] = calc_zones
+            else:
+                new_group, err = _rescaled_group(working[idx], speed_ms, integer=False)
+                if err or new_group is None:
+                    return {"isError": True, "error_code": "API_ERROR",
+                            "message": f"{sport}: {err or 'rescale failed'}"}
             working[idx] = new_group
             if note:
                 notes.append(f"{sport}: {note}")
+            if not method_correct:
+                notes.append(f"{sport}: zones rescaled proportionally (no server calculator)")
             updated.append({
                 "sport": sport,
                 "workout_type_id": new_group.get("workoutTypeId"),
                 "calculation_method": new_group.get("calculationMethod"),
+                "method_correct": method_correct,
                 "distance": new_group.get("distance"),
                 "threshold_ms": speed_ms,
                 "zones": new_group.get("zones"),
