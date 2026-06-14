@@ -467,8 +467,15 @@ async def tp_update_speed_zones(
     run_threshold_pace: str | None = None,
     swim_threshold_pace: str | None = None,
 ) -> dict[str, Any]:
-    """Update run/swim pace zones, preserving each set's method and (for swim
-    Distance/Time sets) its `distance` — only the threshold pace and bands move.
+    """Update run/swim THRESHOLD pace, recomputing bands with TP's own zone
+    calculator (method preserved). Pace honours its unit (km / mi / 100m / 100yd).
+
+    LIMITATION: a set whose method DERIVES its threshold from a test result
+    (Speed/Pace "Distance / Time") cannot have a threshold set directly — the
+    input would be treated as a test, deriving a different value. Such sets
+    return ``TEST_BASED_METHOD`` (nothing written); configure them via a test in
+    the TrainingPeaks UI. Threshold-anchored methods (Threshold Pace) update
+    exactly.
 
     Args:
         run_threshold_pace: e.g. '4:30/km'.
