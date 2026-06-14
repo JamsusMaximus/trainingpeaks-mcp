@@ -219,6 +219,7 @@ class TestUpdateHRZones:
         assert payload[0]["maximumHeartRate"] == 195           # updated anchor
         after = [(z["minimum"], z["maximum"]) for z in payload[0]["zones"]]
         assert after == before                                 # bands unchanged
+        assert "only anchors updated" in result.get("note", "")  # method-aware warning
 
     @pytest.mark.asyncio
     async def test_no_params_rejected(self):
@@ -244,6 +245,13 @@ class TestUpdateSpeedZones:
 
     def test_parse_swim_pace(self):
         assert abs(_parse_pace_to_ms("1:45/100m", is_swim=True) - 0.952) < 0.01
+
+    def test_parse_pace_honours_unit(self):
+        import pytest as _pytest
+        assert abs(_parse_pace_to_ms("5:00/mi") - 1609.344 / 300) < 0.01      # miles
+        assert abs(_parse_pace_to_ms("1:50/100yd", is_swim=True) - 91.44 / 110) < 0.01
+        with _pytest.raises(ValueError):
+            _parse_pace_to_ms("5:00/furlong")                                  # unknown unit
 
     @pytest.mark.asyncio
     async def test_run_preserves_method_and_distance(self):

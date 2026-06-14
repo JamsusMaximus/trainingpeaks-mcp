@@ -76,29 +76,28 @@ class SpeedZonesInput(BaseModel):
         return v
 
 
+_PACE_UNIT_METRES = {"km": 1000.0, "mi": 1609.344, "mile": 1609.344,
+                     "miles": 1609.344, "m": 1.0, "yd": 0.9144}
+
+
 def _parse_pace_to_ms(pace_str: str, is_swim: bool = False) -> float:
-    """Parse a pace string to metres per second.
-
-    Args:
-        pace_str: Pace like '4:30/km' or '1:45/100m'.
-        is_swim: Whether this is a swim pace (per 100m).
-
-    Returns:
-        Speed in metres per second.
+    """Parse a pace string ('M:SS[/unit]') to metres per second, HONOURING the
+    unit (km / mi / 100m / 100yd / …). Unknown units raise rather than being
+    silently treated as km/100m. Default unit: 100m for swim, km otherwise.
     """
-    # Strip unit suffix if present
-    pace_part = pace_str.split("/")[0]
-    parts = pace_part.split(":")
-    minutes = int(parts[0])
-    seconds = int(parts[1])
-    total_seconds = minutes * 60 + seconds
+    time_part, _, unit_part = pace_str.partition("/")
+    unit = unit_part.strip().lower() or ("100m" if is_swim else "km")
+    mo = re.fullmatch(r"(\d*)\s*(km|miles?|mi|yd|m)", unit)
+    if not mo:
+        raise ValueError(f"Unknown pace unit '/{unit_part.strip()}' in '{pace_str}'")
+    count = int(mo.group(1)) if mo.group(1) else 1
+    metres = count * _PACE_UNIT_METRES[mo.group(2)]
 
+    mm, _, ss = time_part.strip().partition(":")
+    total_seconds = int(mm) * 60 + int(ss)
     if total_seconds == 0:
         raise ValueError(f"Invalid pace: {pace_str}")
-
-    if is_swim:
-        return 100.0 / total_seconds
-    return 1000.0 / total_seconds
+    return metres / total_seconds
 
 
 async def tp_get_athlete_settings() -> dict[str, Any]:
@@ -239,6 +238,10 @@ async def _update_single_zone_set(
     put_err = await _put_zone_array(client, athlete_id, put_path, payload)
     if put_err:
         return put_err
+    notes = [note] if note else []
+    if new_threshold is None:
+        notes.append("only anchors updated (max/resting); zone bands NOT recomputed — "
+                     "recompute in TP if this method derives bands from max/resting")
     result: dict[str, Any] = {
         "success": True,
         "workout_type_id": new_group.get("workoutTypeId"),
@@ -246,8 +249,8 @@ async def _update_single_zone_set(
         "threshold": new_group.get("threshold"),
         "zones": new_group.get("zones"),
     }
-    if note:
-        result["note"] = note
+    if notes:
+        result["note"] = "; ".join(notes)
     return result
 
 
