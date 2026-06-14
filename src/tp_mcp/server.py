@@ -62,6 +62,7 @@ from tp_mcp.tools import (
     tp_get_workout_prs,
     tp_get_workout_types,
     tp_get_workouts,
+    tp_get_zone_methods,
     tp_list_athletes,
     tp_list_notes,
     tp_log_metrics,
@@ -929,6 +930,30 @@ TOOLS = [
         description="List all sport types and subtypes with IDs. Use to find subtype_id for create/update.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
+    # --- Zone Calculation Methods ---
+    Tool(
+        name="tp_get_zone_methods",
+        description=(
+            "List available zone-calculation methods per metric (power / heartrate "
+            "/ speed), each with its zone count and zone labels. TP has no method-"
+            "names endpoint and settings store only an opaque method int; this "
+            "probes the zone calculator (read-only) to fingerprint each method by "
+            "its zone labels. `derives_threshold` marks methods that derive the "
+            "threshold from a (field-)test, so a direct threshold can't be set. "
+            "Coach-scoped (uses your own user), not athlete-specific."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "metric": {
+                    "type": "string",
+                    "enum": ["power", "heartrate", "speed"],
+                    "description": "Limit to one metric. Omit to list all three.",
+                }
+            },
+            "required": [],
+        },
+    ),
     # --- Workout Library ---
     Tool(
         name="tp_get_libraries",
@@ -1044,6 +1069,8 @@ TOOLS = [
 _ATHLETE_EXEMPT_TOOLS = {
     "tp_auth_status", "tp_refresh_auth", "tp_validate_structure",
     "tp_list_athletes", "tp_get_workout_types",
+    # Coach-scoped — enumerates methods under the caller's own user, not an athlete.
+    "tp_get_zone_methods",
 }
 
 _ATHLETE_PARAM = {
@@ -1383,6 +1410,9 @@ async def _h_delete_avail(args): return await tp_delete_availability(availabilit
 # --- Workout Types ---
 @_handler("tp_get_workout_types")
 async def _h_workout_types(args): return await tp_get_workout_types()
+
+@_handler("tp_get_zone_methods")
+async def _h_zone_methods(args): return await tp_get_zone_methods(metric=args.get("metric"))
 
 # --- Workout Library ---
 @_handler("tp_get_libraries")

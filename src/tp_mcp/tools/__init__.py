@@ -74,6 +74,7 @@ from tp_mcp.tools.workouts import (
     tp_unpair_workout,
     tp_update_workout,
 )
+from tp_mcp.tools.zone_methods import tp_get_zone_methods
 
 __all__ = [
     "tp_add_note_comment",
@@ -121,6 +122,7 @@ __all__ = [
     "tp_get_workout_note",
     "tp_get_workout_prs",
     "tp_get_workout_types",
+    "tp_get_zone_methods",
     "tp_list_athletes",
     "tp_get_workouts",
     "tp_log_metrics",

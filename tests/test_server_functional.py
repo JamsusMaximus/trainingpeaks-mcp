@@ -56,6 +56,7 @@ class TestListTools:
             "tp_add_workout_comment",
             "tp_validate_structure",
             "tp_get_workout_types",
+            "tp_get_zone_methods",
             "tp_get_atp",
             "tp_get_weekly_summary",
             "tp_get_athlete_settings",

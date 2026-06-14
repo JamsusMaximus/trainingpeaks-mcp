@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (64)
+## Tools (66)
 
 ### Workouts
 | Tool | Description |
@@ -63,6 +63,8 @@ Ask your AI assistant things like:
 | `tp_update_ftp` | Update FTP for a sport's power set (bike default; preserves the set's calculation method) |
 | `tp_update_hr_zones` | Update HR threshold/max/resting for a sport (general/bike/run/swim), preserving the method |
 | `tp_update_speed_zones` | Update run/swim threshold pace, preserving the method |
+| `tp_create_zones` | Create a NEW per-sport zone set from scratch (choose the calculation method); errors if one already exists |
+| `tp_get_zone_methods` | List available zone-calculation methods per metric (power/HR/pace) with each method's zone count and labels |
 | `tp_update_nutrition` | Update daily planned calories |
 | `tp_get_pool_length_settings` | Get pool length options |
 
