@@ -19,15 +19,20 @@ from tp_mcp.tools.settings import (
 _OK = APIResponse(success=True, data=None)
 
 
-def _client(settings):
-    """Build a patched TPClient whose GET returns `settings` and PUT succeeds.
-    Returns (patcher, mock_instance)."""
+def _client(settings, calc_zones=None):
+    """Patched TPClient: GET returns `settings`, PUT succeeds. `calc_zones` (if
+    given) is returned by the zone-calculator POST (method-correct path);
+    otherwise the calculator returns no zones and the code falls back to the
+    proportional rescale. Returns (patcher, mock_instance)."""
     p = patch("tp_mcp.tools.settings.TPClient")
     mock_client = p.start()
     mi = AsyncMock()
     mi.ensure_athlete_id = AsyncMock(return_value=123)
+    mi._get_user_data = AsyncMock(return_value={"userId": 1135463})
     mi.get = AsyncMock(return_value=APIResponse(success=True, data=settings))
     mi.put = AsyncMock(return_value=_OK)
+    calc_data = {"zones": calc_zones} if calc_zones is not None else {}
+    mi.post = AsyncMock(return_value=APIResponse(success=True, data=calc_data))
     mock_client.return_value.__aenter__.return_value = mi
     return p, mi
 
@@ -106,7 +111,7 @@ class TestUpdateFTP:
         finally:
             p.stop()
         assert result["success"] and result["workout_type_id"] == 2
-        assert result["calculation_method"] == 1 and result.get("note") is None
+        assert result["calculation_method"] == 1 and result["method_correct"] is False
         payload = mi.put.call_args[1]["json"]
         assert payload[1]["threshold"] == 300 and payload[1]["workoutTypeId"] == 2
         assert payload[0] == settings["powerZones"][0]   # default set untouched
@@ -219,7 +224,7 @@ class TestUpdateHRZones:
         assert payload[0]["maximumHeartRate"] == 195           # updated anchor
         after = [(z["minimum"], z["maximum"]) for z in payload[0]["zones"]]
         assert after == before                                 # bands unchanged
-        assert "only anchors updated" in result.get("note", "")  # method-aware warning
+        assert "recompute in TP" in result.get("note", "")  # method-aware warning (fallback)
 
     @pytest.mark.asyncio
     async def test_no_params_rejected(self):
@@ -304,3 +309,59 @@ class TestUpdateSpeedZones:
     @pytest.mark.asyncio
     async def test_no_params_rejected(self):
         assert (await tp_update_speed_zones())["isError"] is True
+
+
+# ── Method-correct path: TP zone calculator ──────────────────────────────────
+
+class TestCalculatePath:
+    @pytest.mark.asyncio
+    async def test_ftp_uses_calculator_when_available(self):
+        settings = {"powerZones": [_pzones(280, 0, 5), _pzones(250, 2, 1)]}
+        calc = [{"label": str(i + 1), "minimum": i, "maximum": (i + 1) * 50} for i in range(6)]
+        p, mi = _client(settings, calc_zones=calc)
+        try:
+            result = await tp_update_ftp(ftp=300, workout_type="bike")
+        finally:
+            p.stop()
+        assert result["success"] and result["method_correct"] is True
+        # calculator output is used verbatim (mapped), NOT a proportional rescale
+        payload = mi.put.call_args[1]["json"]
+        assert payload[1]["zones"] == calc and payload[1]["threshold"] == 300
+        # calculator POST was hit with the set's method as zoneType
+        call = mi.post.call_args
+        assert "/power/calculate/1" in call[0][0]
+        assert call[1]["json"]["LTPower"] == 300 and call[1]["json"]["zoneType"] == 1
+
+    @pytest.mark.asyncio
+    async def test_hr_max_based_method_recomputed_by_calculator(self):
+        # The case proportional rescale gets WRONG: a max-based HR set. With the
+        # calculator, changing max_hr recomputes bands method-correctly.
+        settings = {"heartRateZones": [_hzones(160, 0, 3)]}
+        calc = [{"label": f"Z{i}", "minimum": i * 20, "maximum": (i + 1) * 20} for i in range(7)]
+        p, mi = _client(settings, calc_zones=calc)
+        try:
+            result = await tp_update_hr_zones(max_hr=195)   # no threshold change
+        finally:
+            p.stop()
+        assert result["method_correct"] is True
+        payload = mi.put.call_args[1]["json"]
+        assert payload[0]["zones"] == calc                  # bands recomputed, not stale
+        assert payload[0]["maximumHeartRate"] == 195
+        body = mi.post.call_args[1]["json"]
+        assert body["maxHR"] == 195 and body["LTHR"] == 160  # both anchors sent
+
+    @pytest.mark.asyncio
+    async def test_swim_distance_time_calculator_keeps_distance(self):
+        settings = {"speedZones": [_szones(0.83, 1, 3, 5)]}
+        calc = [{"label": f"Z{i}", "minimumAsDouble": i * 0.1, "maximumAsDouble": (i + 1) * 0.1}
+                for i in range(7)]
+        p, mi = _client(settings, calc_zones=calc)
+        try:
+            result = await tp_update_speed_zones(swim_threshold_pace="1:45/100m")
+        finally:
+            p.stop()
+        upd = result["updated"][0]
+        assert upd["method_correct"] is True and upd["distance"] == 5
+        body = mi.post.call_args[1]["json"]
+        assert body["zoneType"] == 3 and body["distance"] == 5   # Distance/Time preserved
+        assert "speed" in body
