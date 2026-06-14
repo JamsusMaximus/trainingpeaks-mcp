@@ -535,10 +535,19 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_ftp",
-        description="Update FTP and recalculate the default power zones.",
+        description="Update FTP (power threshold) and rescale the matching power-zone "
+                    "set, preserving its calculation method.",
         inputSchema={
             "type": "object",
-            "properties": {"ftp": {"type": "integer", "description": "FTP in watts"}},
+            "properties": {
+                "ftp": {"type": "integer", "description": "FTP in watts"},
+                "workout_type": {
+                    "type": "string",
+                    "enum": ["bike", "run", "xcski", "mtnbike", "rowing", "default"],
+                    "default": "bike",
+                    "description": "Which power set (FTP is cycling -> 'bike' default; "
+                                   "falls back to default if absent)."},
+            },
             "required": ["ftp"],
         },
     ),
@@ -551,7 +560,10 @@ TOOLS = [
                 "threshold_hr": {"type": "integer"},
                 "max_hr": {"type": "integer"},
                 "resting_hr": {"type": "integer"},
-                "workout_type": {"type": "string", "enum": ["general", "bike"], "default": "general"},
+                "workout_type": {
+                    "type": "string",
+                    "enum": ["general", "bike", "run", "swim", "xcski", "mtnbike", "rowing"],
+                    "default": "general"},
             },
             "required": [],
         },
@@ -1181,7 +1193,8 @@ async def _h_get_atp(args): return await tp_get_atp(start_date=args["start_date"
 async def _h_get_settings(args): return await tp_get_athlete_settings()
 
 @_handler("tp_update_ftp")
-async def _h_update_ftp(args): return await tp_update_ftp(ftp=args["ftp"])
+async def _h_update_ftp(args):
+    return await tp_update_ftp(ftp=args["ftp"], workout_type=args.get("workout_type", "bike"))
 
 @_handler("tp_update_hr_zones")
 async def _h_update_hr(args):
