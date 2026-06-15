@@ -563,6 +563,138 @@ async def tp_update_speed_zones(
         return result
 
 
+# metric -> (settings array key, PUT path)
+_METRIC_KEYS = {
+    "power": ("powerZones", "powerzones"),
+    "heartrate": ("heartRateZones", "heartratezones"),
+    "speed": ("speedZones", "speedzones"),
+}
+
+
+async def tp_create_zones(
+    metric: str,
+    workout_type: str,
+    calculation_method: int,
+    threshold: float | None = None,
+    pace: str | None = None,
+    max_hr: int | None = None,
+    resting_hr: int | None = None,
+    distance: int = 0,
+) -> dict[str, Any]:
+    """Create a NEW per-sport zone set for an athlete that has none for that
+    sport (use tp_update_ftp/hr_zones/speed_zones to change an EXISTING set).
+    Bands are computed by TrainingPeaks' own calculator for the chosen method.
+
+    Args:
+        metric: 'power' | 'heartrate' | 'speed'.
+        workout_type: sport for the set (e.g. 'bike', 'run', 'swim', 'xcski').
+        calculation_method: the method int (see tp_get_zone_methods).
+        threshold: FTP watts (power) or LTHR bpm (heartrate).
+        pace: threshold pace (speed), e.g. '4:30/km' or '1:45/100m'.
+        max_hr, resting_hr: optional anchors for heartrate methods.
+        distance: optional, for speed sets.
+
+    Limitation: test-based methods (Distance/Time) DERIVE the threshold from a
+    test and can't be created from a plain threshold — return TEST_BASED_METHOD;
+    set those up via a test in the TrainingPeaks UI.
+    """
+    metric = (metric or "").lower()
+    if metric not in _METRIC_KEYS:
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": f"metric must be one of {sorted(_METRIC_KEYS)}."}
+    wt = (workout_type or "").lower()
+    if wt not in _ZONE_WTID:
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": f"workout_type must be one of {sorted(_ZONE_WTID)}."}
+    if not isinstance(calculation_method, int) or isinstance(calculation_method, bool):
+        return {"isError": True, "error_code": "VALIDATION_ERROR",
+                "message": "calculation_method must be an integer (see tp_get_zone_methods)."}
+
+    # Resolve the threshold value in the calculator's native units.
+    if metric == "speed":
+        if not pace:
+            return {"isError": True, "error_code": "VALIDATION_ERROR",
+                    "message": "pace is required for speed zones (e.g. '4:30/km')."}
+        try:
+            thr_value: float = _parse_pace_to_ms(pace, is_swim=(wt == "swim"))
+        except ValueError as e:
+            return {"isError": True, "error_code": "VALIDATION_ERROR", "message": str(e)}
+    else:
+        if threshold is None or float(threshold) <= 0:
+            return {"isError": True, "error_code": "VALIDATION_ERROR",
+                    "message": "threshold (watts for power, bpm for heartrate) is required."}
+        thr_value = float(threshold)
+
+    settings_key, put_path = _METRIC_KEYS[metric]
+    wtid = _ZONE_WTID[wt]
+    integer = metric != "speed"
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {"isError": True, "error_code": "AUTH_INVALID",
+                    "message": "Could not get athlete ID. Re-authenticate."}
+        sr = await client.get(f"/fitness/v1/athletes/{athlete_id}/settings")
+        if sr.is_error:
+            return {"isError": True,
+                    "error_code": sr.error_code.value if sr.error_code else "API_ERROR",
+                    "message": sr.message}
+        if not isinstance(sr.data, dict):
+            return {"isError": True, "error_code": "API_ERROR", "message": "No settings data returned."}
+        groups = sr.data.get(settings_key)
+        groups = list(groups) if isinstance(groups, list) else []
+        if any(isinstance(g, dict) and g.get("workoutTypeId") == wtid for g in groups):
+            return {"isError": True, "error_code": "ZONES_EXIST",
+                    "message": f"{metric} zones already exist for workout_type '{wt}' "
+                               "(workoutTypeId={}); use the update tool to change the "
+                               "threshold.".format(wtid)}
+
+        # Synthetic group carrying the chosen method/anchors → calculator.
+        seed: dict[str, Any] = {"calculationMethod": calculation_method, "threshold": thr_value}
+        extra: dict[str, Any] = {}
+        if metric == "heartrate":
+            extra = {"maximumHeartRate": max_hr, "restingHeartRate": resting_hr}
+        elif metric == "speed":
+            seed["distance"] = distance or 0
+        calc_zones, derived = await _calculated_zones(client, metric, seed, None, extra)
+        if calc_zones is None:
+            return {"isError": True, "error_code": "API_ERROR",
+                    "message": f"Calculator returned no zones for method {calculation_method} "
+                               f"({metric}); check the method int (see tp_get_zone_methods)."}
+        if derived is not None and abs(derived - thr_value) > 0.02 * max(abs(thr_value), 1.0):
+            return {"isError": True, "error_code": "TEST_BASED_METHOD",
+                    "message": "This method derives its threshold from a test "
+                               "(e.g. Distance/Time); create it via a test in the "
+                               "TrainingPeaks UI, or pick a threshold-anchored method."}
+
+        new_group: dict[str, Any] = {
+            "zoneCalculatorId": None,
+            "threshold": round(thr_value) if integer else thr_value,
+            "calculationMethod": calculation_method,
+            "workoutTypeId": wtid,
+            "zones": calc_zones,
+        }
+        if metric == "heartrate":
+            new_group["maximumHeartRate"] = max_hr
+            new_group["restingHeartRate"] = resting_hr
+        elif metric == "speed":
+            new_group["distance"] = distance or 0
+
+        put_err = await _put_zone_array(client, athlete_id, put_path, groups + [new_group])
+        if put_err:
+            return put_err
+        return {
+            "success": True,
+            "created": True,
+            "metric": metric,
+            "workout_type": wt,
+            "workout_type_id": wtid,
+            "calculation_method": calculation_method,
+            "threshold": new_group["threshold"],
+            "zones": calc_zones,
+        }
+
+
 async def tp_update_nutrition(planned_calories: int) -> dict[str, Any]:
     """Update nutrition settings.
 

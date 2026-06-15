@@ -62,6 +62,7 @@ class TestListTools:
             "tp_update_ftp",
             "tp_update_hr_zones",
             "tp_update_speed_zones",
+            "tp_create_zones",
             "tp_update_nutrition",
             "tp_get_pool_length_settings",
             "tp_log_metrics",

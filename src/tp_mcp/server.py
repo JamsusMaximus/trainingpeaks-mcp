@@ -28,6 +28,7 @@ from tp_mcp.tools import (
     tp_create_library_item,
     tp_create_note,
     tp_create_workout,
+    tp_create_zones,
     tp_delete_availability,
     tp_delete_equipment,
     tp_delete_event,
@@ -578,6 +579,35 @@ TOOLS = [
                 "swim_threshold_pace": {"type": "string", "description": "e.g. '1:45/100m'"},
             },
             "required": [],
+        },
+    ),
+    Tool(
+        name="tp_create_zones",
+        description=(
+            "Create a NEW per-sport zone set for an athlete that has none for that "
+            "sport (use tp_update_ftp/hr_zones/speed_zones to change an EXISTING "
+            "set). Bands are computed by TrainingPeaks' calculator for the chosen "
+            "method (see tp_get_zone_methods). Returns ZONES_EXIST if the set is "
+            "already present, or TEST_BASED_METHOD for test-derived methods "
+            "(Distance/Time) — those are set up via a test in the TP UI."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "metric": {"type": "string", "enum": ["power", "heartrate", "speed"]},
+                "workout_type": {"type": "string",
+                                 "description": "Sport for the set, e.g. bike/run/swim/xcski"},
+                "calculation_method": {"type": "integer",
+                                       "description": "Method int (see tp_get_zone_methods)"},
+                "threshold": {"type": "number",
+                              "description": "FTP watts (power) or LTHR bpm (heartrate)"},
+                "pace": {"type": "string",
+                         "description": "Threshold pace for speed, e.g. '4:30/km' / '1:45/100m'"},
+                "max_hr": {"type": "integer"},
+                "resting_hr": {"type": "integer"},
+                "distance": {"type": "integer"},
+            },
+            "required": ["metric", "workout_type", "calculation_method"],
         },
     ),
     Tool(
@@ -1208,6 +1238,16 @@ async def _h_update_speed(args):
     return await tp_update_speed_zones(
         run_threshold_pace=args.get("run_threshold_pace"),
         swim_threshold_pace=args.get("swim_threshold_pace"),
+    )
+
+@_handler("tp_create_zones")
+async def _h_create_zones(args):
+    return await tp_create_zones(
+        metric=args["metric"], workout_type=args["workout_type"],
+        calculation_method=args["calculation_method"],
+        threshold=args.get("threshold"), pace=args.get("pace"),
+        max_hr=args.get("max_hr"), resting_hr=args.get("resting_hr"),
+        distance=args.get("distance", 0),
     )
 
 @_handler("tp_update_nutrition")

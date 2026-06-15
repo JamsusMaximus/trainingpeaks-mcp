@@ -43,6 +43,7 @@ from tp_mcp.tools.peaks import tp_get_peaks, tp_get_workout_prs
 from tp_mcp.tools.profile import tp_get_profile, tp_list_athletes
 from tp_mcp.tools.refresh_auth import tp_refresh_auth
 from tp_mcp.tools.settings import (
+    tp_create_zones,
     tp_get_athlete_settings,
     tp_get_pool_length_settings,
     tp_update_ftp,
@@ -129,6 +130,7 @@ __all__ = [
     "tp_schedule_library_workout",
     "tp_set_workout_note",
     "tp_unpair_workout",
+    "tp_create_zones",
     "tp_update_equipment",
     "tp_update_event",
     "tp_update_note",

@@ -387,3 +387,68 @@ class TestCalculatePath:
             result = await tp_update_speed_zones(swim_threshold_pace="1:45/100m")
         assert result["error_code"] == "TEST_BASED_METHOD"
         mi.put.assert_not_called()                       # nothing written
+
+
+# ── tp_create_zones (new per-sport set) ──────────────────────────────────────
+
+import pytest as _pytest  # noqa: E402
+from tp_mcp.tools.settings import tp_create_zones  # noqa: E402
+
+_CALC7 = [{"label": str(i + 1), "minimum": i, "maximum": i + 1,
+           "minimumAsDouble": float(i), "maximumAsDouble": float(i + 1)} for i in range(7)]
+
+
+@_pytest.mark.asyncio
+async def test_create_zones_power_builds_new_group():
+    # athlete has only the default (wtid 0) power set → bike (wtid 2) is absent
+    settings = {"powerZones": [_pzones(250, 0, 1)]}
+    p, mi = _client(settings, calc_zones=_CALC7)
+    try:
+        out = await tp_create_zones(metric="power", workout_type="bike",
+                                    calculation_method=4, threshold=260)
+    finally:
+        p.stop()
+    assert out["success"] and out["created"]
+    assert out["workout_type_id"] == 2 and out["calculation_method"] == 4
+    # PUT received the full array INCLUDING the new wtid-2 group
+    put_body = mi.put.call_args[1]["json"] if mi.put.call_args[1] else mi.put.call_args[0][1]
+    assert {g["workoutTypeId"] for g in put_body} == {0, 2}
+    new = next(g for g in put_body if g["workoutTypeId"] == 2)
+    assert new["calculationMethod"] == 4 and new["threshold"] == 260 and len(new["zones"]) == 7
+
+
+@_pytest.mark.asyncio
+async def test_create_zones_refuses_when_set_exists():
+    settings = {"powerZones": [_pzones(250, 2, 4)]}   # bike set already present
+    p, _ = _client(settings, calc_zones=_CALC7)
+    try:
+        out = await tp_create_zones(metric="power", workout_type="bike",
+                                    calculation_method=4, threshold=260)
+    finally:
+        p.stop()
+    assert out["isError"] and out["error_code"] == "ZONES_EXIST"
+
+
+@_pytest.mark.asyncio
+async def test_create_zones_speed_needs_pace():
+    p, _ = _client({"speedZones": []}, calc_zones=_CALC7)
+    try:
+        out = await tp_create_zones(metric="speed", workout_type="run",
+                                    calculation_method=2)
+    finally:
+        p.stop()
+    assert out["isError"] and out["error_code"] == "VALIDATION_ERROR"
+
+
+@_pytest.mark.asyncio
+async def test_create_zones_speed_from_pace():
+    p, mi = _client({"speedZones": []}, calc_zones=_CALC7)
+    try:
+        out = await tp_create_zones(metric="speed", workout_type="run",
+                                    calculation_method=2, pace="4:00/km")
+    finally:
+        p.stop()
+    assert out["success"] and out["workout_type_id"] == 3
+    put_body = mi.put.call_args[1]["json"] if mi.put.call_args[1] else mi.put.call_args[0][1]
+    new = next(g for g in put_body if g["workoutTypeId"] == 3)
+    assert new["calculationMethod"] == 2 and len(new["zones"]) == 7
