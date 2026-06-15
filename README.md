@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (64)
+## Tools (66)
 
 ### Workouts
 | Tool | Description |
@@ -60,11 +60,27 @@ Ask your AI assistant things like:
 | Tool | Description |
 |------|-------------|
 | `tp_get_athlete_settings` | Get FTP, thresholds, zones, profile |
-| `tp_update_ftp` | Update FTP and recalculate the default power zones |
-| `tp_update_hr_zones` | Update heart rate zones |
-| `tp_update_speed_zones` | Update run/swim pace zones |
+| `tp_update_ftp` | Update FTP for a sport's power set (bike default; preserves the set's calculation method) |
+| `tp_update_hr_zones` | Update HR threshold/max/resting for a sport (general/bike/run/swim), preserving the method |
+| `tp_update_speed_zones` | Update run/swim threshold pace, preserving the method |
+| `tp_create_zones` | Create a NEW per-sport zone set from scratch (choose the calculation method); errors if one already exists |
+| `tp_get_zone_methods` | List available zone-calculation methods per metric (power/HR/pace) with each method's zone count and labels |
 | `tp_update_nutrition` | Update daily planned calories |
 | `tp_get_pool_length_settings` | Get pool length options |
+
+**Zone updates — how they work & one limitation.** The zone setters target the
+right per-sport zone set (by `workoutTypeId`) and recompute the bands with
+**TrainingPeaks' own zone calculator** (the same call the web UI's *Calculate*
+makes), so the athlete's calculation method (%LTHR, Karvonen, Andy Coggan, …) is
+honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
+
+> **Limitation — test-based (Distance/Time) methods.** A zone set whose method
+> *derives* its threshold from a test result (Speed/Pace **Distance / Time**)
+> cannot have a threshold set directly — there is no stable value to set. These
+> tools detect that case and return `TEST_BASED_METHOD` (writing nothing) rather
+> than storing a wrong threshold; configure such a set via a test in the
+> TrainingPeaks UI. This is deliberate: the connector owns threshold-anchored
+> zones; test-protocol setup stays in the UI.
 
 ### Health Metrics
 | Tool | Description |
