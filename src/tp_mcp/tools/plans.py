@@ -191,15 +191,22 @@ async def tp_get_training_plan_workouts(plan_id: int | str) -> dict[str, Any]:
         return {"plan_id": v.plan_id, "workouts": out, "count": len(out)}
 
 
-# NB on the NATIVE apply command (reverse-engineered from the web app, NOT used):
-# POST /plans/v1/commands/applyplan with [{athleteId(str), planId, planTitle,
-# startType:1, targetDate}] registers an applied-plan record (returns appliedPlanId)
-# but does NOT materialise the workouts by itself — the web client then DRIVES an
-# async job by repeatedly polling POST /plans/v1/appliedplans/applyPlanStatus until
-# done. That status call's exact body shape isn't pinned (it rejects
-# {"AppliedPlanIds":[...]} with 400) and the protocol is a fragile poll-loop, so we
-# use the SYNTHETIC copy below instead: deterministic, one-shot, fully verified.
-# (Revisit native only with a full HAR of the applyPlanStatus request + its polling.)
+# NB on the NATIVE apply command — fully reverse-engineered (Claude-in-Chrome HAR +
+# live probes) but NOT used, because every server-side replication produced a
+# DEGENERATE apply (an applied-plan record with endDate == startDate-ish and ZERO
+# workouts materialised), and the body that makes the web's apply actually populate
+# the calendar could not be reproduced:
+#   1. POST /plans/v1/commands/applyplan  body=[{athleteId(str), planId, planTitle,
+#      startType, targetDate}] → [{appliedPlanId, startDate, endDate, ...}].
+#   2. Async job; drive it by polling POST /plans/v1/appliedplans/applyPlanStatus
+#      with a BARE array body [appliedPlanId] (NOT {"AppliedPlanIds":[...]} — that
+#      400s), response {"batchStatus": N}, 2 = complete.
+# Live result: with startType 1 AND 2 the command returns batchStatus 2 (="done")
+# yet creates NO workouts on the calendar (verified across several far-date applies
+# on two athletes); startType 0 is rejected. The only captured web payload was a
+# startType:1 apply that was itself degenerate, so the working-apply body is unknown.
+# → We use the SYNTHETIC copy below: deterministic, one-shot, fully verified live.
+# (Revisit native only with a HAR of a CONFIRMED-WORKING web apply's request body.)
 
 
 async def tp_apply_training_plan(plan_id: int | str, start_date: str) -> dict[str, Any]:
