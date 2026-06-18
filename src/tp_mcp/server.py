@@ -229,7 +229,7 @@ TOOLS = [
                 "tags": {"type": "string", "description": "Optional comma-separated tags"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
-                "isHidden": {
+                "is_hidden": {
                     "type": "boolean",
                     "description": "Whether to hide the workout",
                     "default": False,
