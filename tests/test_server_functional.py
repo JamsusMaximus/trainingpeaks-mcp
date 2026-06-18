@@ -116,12 +116,12 @@ class TestListTools:
         assert "distance_km" in props
         assert "tss_planned" in props
         assert "structured_workout" in props
-        assert "is_hidden" in props
+        assert "isHidden" in props
         assert "distance_km" not in cw.inputSchema["required"]
         assert "tss_planned" not in cw.inputSchema["required"]
         assert "structured_workout" not in cw.inputSchema["required"]
-        assert "is_hidden" not in cw.inputSchema["required"]
-        assert props["is_hidden"]["default"] is False
+        assert "isHidden" not in cw.inputSchema["required"]
+        assert props["isHidden"]["default"] is False
 
     @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
