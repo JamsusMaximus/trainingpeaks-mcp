@@ -28,6 +28,7 @@ from tp_mcp.tools import (
     tp_create_library_item,
     tp_create_note,
     tp_create_workout,
+    tp_create_zones,
     tp_delete_availability,
     tp_delete_equipment,
     tp_delete_event,
@@ -61,6 +62,7 @@ from tp_mcp.tools import (
     tp_get_workout_prs,
     tp_get_workout_types,
     tp_get_workouts,
+    tp_get_zone_methods,
     tp_list_athletes,
     tp_list_notes,
     tp_log_metrics,
@@ -544,10 +546,19 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_ftp",
-        description="Update FTP and recalculate the default power zones.",
+        description="Update FTP (power threshold) and rescale the matching power-zone "
+                    "set, preserving its calculation method.",
         inputSchema={
             "type": "object",
-            "properties": {"ftp": {"type": "integer", "description": "FTP in watts"}},
+            "properties": {
+                "ftp": {"type": "integer", "description": "FTP in watts"},
+                "workout_type": {
+                    "type": "string",
+                    "enum": ["bike", "run", "xcski", "mtnbike", "rowing", "default"],
+                    "default": "bike",
+                    "description": "Which power set (FTP is cycling -> 'bike' default; "
+                                   "falls back to default if absent)."},
+            },
             "required": ["ftp"],
         },
     ),
@@ -560,7 +571,10 @@ TOOLS = [
                 "threshold_hr": {"type": "integer"},
                 "max_hr": {"type": "integer"},
                 "resting_hr": {"type": "integer"},
-                "workout_type": {"type": "string", "enum": ["general", "bike"], "default": "general"},
+                "workout_type": {
+                    "type": "string",
+                    "enum": ["general", "bike", "run", "swim", "xcski", "mtnbike", "rowing"],
+                    "default": "general"},
             },
             "required": [],
         },
@@ -575,6 +589,35 @@ TOOLS = [
                 "swim_threshold_pace": {"type": "string", "description": "e.g. '1:45/100m'"},
             },
             "required": [],
+        },
+    ),
+    Tool(
+        name="tp_create_zones",
+        description=(
+            "Create a NEW per-sport zone set for an athlete that has none for that "
+            "sport (use tp_update_ftp/hr_zones/speed_zones to change an EXISTING "
+            "set). Bands are computed by TrainingPeaks' calculator for the chosen "
+            "method (see tp_get_zone_methods). Returns ZONES_EXIST if the set is "
+            "already present, or TEST_BASED_METHOD for test-derived methods "
+            "(Distance/Time) — those are set up via a test in the TP UI."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "metric": {"type": "string", "enum": ["power", "heartrate", "speed"]},
+                "workout_type": {"type": "string",
+                                 "description": "Sport for the set, e.g. bike/run/swim/xcski"},
+                "calculation_method": {"type": "integer",
+                                       "description": "Method int (see tp_get_zone_methods)"},
+                "threshold": {"type": "number",
+                              "description": "FTP watts (power) or LTHR bpm (heartrate)"},
+                "pace": {"type": "string",
+                         "description": "Threshold pace for speed, e.g. '4:30/km' / '1:45/100m'"},
+                "max_hr": {"type": "integer"},
+                "resting_hr": {"type": "integer"},
+                "distance": {"type": "integer"},
+            },
+            "required": ["metric", "workout_type", "calculation_method"],
         },
     ),
     Tool(
@@ -896,6 +939,30 @@ TOOLS = [
         description="List all sport types and subtypes with IDs. Use to find subtype_id for create/update.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
+    # --- Zone Calculation Methods ---
+    Tool(
+        name="tp_get_zone_methods",
+        description=(
+            "List available zone-calculation methods per metric (power / heartrate "
+            "/ speed), each with its zone count and zone labels. TP has no method-"
+            "names endpoint and settings store only an opaque method int; this "
+            "probes the zone calculator (read-only) to fingerprint each method by "
+            "its zone labels. `derives_threshold` marks methods that derive the "
+            "threshold from a (field-)test, so a direct threshold can't be set. "
+            "Coach-scoped (uses your own user), not athlete-specific."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "metric": {
+                    "type": "string",
+                    "enum": ["power", "heartrate", "speed"],
+                    "description": "Limit to one metric. Omit to list all three.",
+                }
+            },
+            "required": [],
+        },
+    ),
     # --- Workout Library ---
     Tool(
         name="tp_get_libraries",
@@ -1019,6 +1086,8 @@ TOOLS = [
 _ATHLETE_EXEMPT_TOOLS = {
     "tp_auth_status", "tp_refresh_auth", "tp_validate_structure",
     "tp_list_athletes", "tp_get_workout_types",
+    # Coach-scoped — enumerates methods under the caller's own user, not an athlete.
+    "tp_get_zone_methods",
 }
 
 _ATHLETE_PARAM = {
@@ -1200,7 +1269,8 @@ async def _h_get_atp(args): return await tp_get_atp(start_date=args["start_date"
 async def _h_get_settings(args): return await tp_get_athlete_settings()
 
 @_handler("tp_update_ftp")
-async def _h_update_ftp(args): return await tp_update_ftp(ftp=args["ftp"])
+async def _h_update_ftp(args):
+    return await tp_update_ftp(ftp=args["ftp"], workout_type=args.get("workout_type", "bike"))
 
 @_handler("tp_update_hr_zones")
 async def _h_update_hr(args):
@@ -1214,6 +1284,16 @@ async def _h_update_speed(args):
     return await tp_update_speed_zones(
         run_threshold_pace=args.get("run_threshold_pace"),
         swim_threshold_pace=args.get("swim_threshold_pace"),
+    )
+
+@_handler("tp_create_zones")
+async def _h_create_zones(args):
+    return await tp_create_zones(
+        metric=args["metric"], workout_type=args["workout_type"],
+        calculation_method=args["calculation_method"],
+        threshold=args.get("threshold"), pace=args.get("pace"),
+        max_hr=args.get("max_hr"), resting_hr=args.get("resting_hr"),
+        distance=args.get("distance", 0),
     )
 
 @_handler("tp_update_nutrition")
@@ -1349,6 +1429,9 @@ async def _h_delete_avail(args): return await tp_delete_availability(availabilit
 # --- Workout Types ---
 @_handler("tp_get_workout_types")
 async def _h_workout_types(args): return await tp_get_workout_types()
+
+@_handler("tp_get_zone_methods")
+async def _h_zone_methods(args): return await tp_get_zone_methods(metric=args.get("metric"))
 
 # --- Workout Library ---
 @_handler("tp_get_libraries")
