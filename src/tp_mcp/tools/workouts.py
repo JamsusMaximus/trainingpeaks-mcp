@@ -411,7 +411,7 @@ async def tp_create_workout(
         subtype_id: Optional workout subtype ID (e.g. Road Bike=3).
         tags: Optional comma-separated tags string.
         feeling: Optional TrainingPeaks feeling value (0-10).
-        rpe: Optional RPE score (1-10).
+        rpe: Optional RPE score (0-10).
         is_hidden: Optional to hide the workout to the athlete.
 
     Returns:
