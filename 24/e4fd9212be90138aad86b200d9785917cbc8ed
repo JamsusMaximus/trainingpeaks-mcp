@@ -1,0 +1,19 @@
+src/tp_mcp/tools/workouts.py
+  s_58a3cf10a521cb::t_75ae79c45b8ae4 414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "24e4fd9212be90138aad86b200d9785917cbc8ed",
+  "prompts": {},
+  "sessions": {
+    "s_58a3cf10a521cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b5220c7-cfbb-4c1d-85c7-0aa1d8b89179",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
