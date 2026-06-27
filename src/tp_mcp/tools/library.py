@@ -41,9 +41,15 @@ async def tp_get_libraries() -> dict[str, Any]:
         libraries = [
             {
                 "id": lib.get("exerciseLibraryId", lib.get("id")),
+                # v2 libraries endpoint returns "libraryName"/"isDefaultContent";
+                # keep the old keys as fallbacks for safety.
                 "name": lib.get("libraryName", lib.get("name", "")),
-                "is_default": lib.get("isDefaultContent", False),
+                "is_default": lib.get("isDefaultContent", lib.get("isDefault", False)),
                 "owner_name": lib.get("ownerName"),
+                # The v2 libraries endpoint usually omits an item count; read it
+                # if present, otherwise fall back to 0.
+                "item_count": lib.get("itemCount", 0),
+                "owner_id": lib.get("ownerId"),
             }
             for lib in data
         ]
@@ -188,8 +194,16 @@ async def tp_create_library(name: str) -> dict[str, Any]:
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
+        # TP expects "libraryName" and the owner's personId, not "name".
+        owner_id = None
+        user_data = await client._get_user_data()
+        if user_data:
+            owner_id = user_data.get("personId")
+
         endpoint = "/exerciselibrary/v1/libraries"
-        payload = {"name": name.strip()}
+        payload: dict[str, Any] = {"libraryName": name.strip()}
+        if owner_id is not None:
+            payload["ownerId"] = owner_id
         response = await client.post(endpoint, json=payload)
 
         if response.is_error:
