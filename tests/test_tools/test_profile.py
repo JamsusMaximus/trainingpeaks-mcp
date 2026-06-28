@@ -6,7 +6,9 @@ import pytest
 
 from tp_mcp.client.context import athlete_override
 from tp_mcp.client.http import APIResponse
-from tp_mcp.tools.profile import _account_fields, tp_get_profile, tp_list_athletes
+from tp_mcp.tools.profile import (
+    _account_fields, _derive_tier, tp_get_profile, tp_list_athletes,
+)
 
 OWN_USER_RESPONSE = {
     "user": {
@@ -103,6 +105,8 @@ class TestGetProfileTargetedAthlete:
         assert result["account"]["expired"] is True
         assert result["account"]["athlete_type"] == 4
         assert result["account"]["user_type"] == 6
+        # …plus the derived tier («Account Type» label in TP UI).
+        assert result["account"]["tier"] == "basic"
         # The logged-in user's profile endpoint must not be the source here.
         instance.get.assert_not_awaited()
 
@@ -140,6 +144,36 @@ class TestGetProfileTargetedAthlete:
 
         assert result["isError"] is True
         assert result["error_code"] == "NOT_FOUND"
+
+
+class TestDeriveTier:
+    """Verified live against the TP UI «Account Type» label on 10 athletes
+    spanning all four states (2026-06-28 sync). Order matters: trial > active
+    subscription > lapsed-tier-1 (coach-paid) > default basic."""
+
+    def test_premium_self_paid_active_subscription(self):
+        # Toktogonov / Omorkanov / Chastushkin / Morozov pattern
+        assert _derive_tier(expired=False, user_type=4, trial_days=0) == "premium_self"
+
+    def test_premium_coach_paid_lapsed_personal_tier_1(self):
+        # Razuvaev / Kochetkov / Khaldin / Kononova pattern
+        assert _derive_tier(expired=True, user_type=1, trial_days=0) == "premium_coach"
+
+    def test_basic_lapsed_non_premium_tier(self):
+        # Sokolov / Demenko / Кашлев / Korotkov pattern (user_type=6)
+        assert _derive_tier(expired=True, user_type=6, trial_days=0) == "basic"
+
+    def test_basic_with_other_non_premium_user_type(self):
+        # Anything not 1 is basic when expired (saw 6/4/2 etc. in the wild).
+        assert _derive_tier(expired=True, user_type=4, trial_days=0) == "basic"
+
+    def test_premium_trial_wins_over_other_signals(self):
+        # Седых pattern: trial active even though expireOn just lapsed.
+        assert _derive_tier(expired=True, user_type=4, trial_days=4) == "premium_trial"
+        assert _derive_tier(expired=False, user_type=4, trial_days=7) == "premium_trial"
+
+    def test_none_when_expired_unknown(self):
+        assert _derive_tier(expired=None, user_type=6, trial_days=0) is None
 
 
 class TestAccountFields:
@@ -190,8 +224,10 @@ class TestListAthletesShape:
         assert len(result["athletes"]) == 2
         coach, charlotte = result["athletes"]
         assert coach["is_self"] is True and coach["athlete_id"] == 100
-        # account block carries the raw fields
+        # account block carries the raw fields + the derived tier
         assert coach["account"]["athlete_type"] == 1
         assert coach["account"]["expired"] is False     # future expireOn
+        assert coach["account"]["tier"] == "premium_self"
         assert charlotte["account"]["athlete_type"] == 4
         assert charlotte["account"]["expired"] is True   # 2017
+        assert charlotte["account"]["tier"] == "basic"

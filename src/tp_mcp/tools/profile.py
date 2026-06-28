@@ -10,25 +10,52 @@ from tp_mcp.client.context import athlete_override
 logger = logging.getLogger("tp-mcp")
 
 
+def _derive_tier(*, expired: bool | None, user_type: int | None,
+                 trial_days: int | None) -> str | None:
+    """Map raw account fields → TP-UI label («Account Type»). Verified against
+    the live UI on 10 athletes spanning all four states (Razuvaev / Kochetkov /
+    Khaldin / Kononova → coach_paid; Sokolov / Demenko / Кашлев / Korotkov →
+    basic; Toktogonov / Omorkanov / Chastushkin / Morozov → self_paid; Седых
+    → trial). Order matters — trial first, then active subscription, then
+    lapsed-but-tier-1 = coach-paid, default basic.
+
+    Returns one of: ``premium_trial`` / ``premium_self`` / ``premium_coach`` /
+    ``basic`` / ``None`` (when ``expired`` couldn't be parsed).
+    """
+    if isinstance(trial_days, int) and trial_days > 0:
+        return "premium_trial"
+    if expired is False:
+        return "premium_self"            # active personal subscription
+    if expired is True and user_type == 1:
+        return "premium_coach"           # lapsed personal premium, coach pays
+    if expired is True:
+        return "basic"                   # no premium tier
+    return None                          # expireOn unparseable / missing
+
+
 def _account_fields(entry: dict[str, Any]) -> dict[str, Any]:
-    """Surface raw premium/account fields from a coach-roster ``athletes[]``
-    entry — passthrough, NOT interpreted.
+    """Premium / account fields from a coach-roster ``athletes[]`` entry, plus
+    a derived ``tier`` («Account Type» in the TP UI).
 
     /users/v3/user does NOT expose a clean ``isPremium`` for a coached athlete
-    (it belongs to the logged-in user). What it DOES carry on each roster entry
-    are several account-related fields whose exact semantics aren't documented
-    by TP — we hand them all through so callers can compare them across known
-    paid / coach-paid / free / trial athletes and learn the pattern. ``expired``
-    is the only derived bit: True when ``expireOn`` is in the past.
+    — that belongs to the logged-in user. The roster entry, though, carries
+    several account-related fields whose exact semantics aren't documented by
+    TP. We surface them raw AND derive a four-state tier label that matches the
+    TP UI (verified live on athletes from each state; see ``_derive_tier``).
 
     Known fields per entry (live-verified on a coach account):
-      • ``expireOn`` — ISO timestamp; some kind of expiration (likely premium /
-        coach-pairing). Many active athletes show past dates → semantics unclear.
-      • ``athleteType`` (int) / ``userType`` (int) — tier-ish codes, values vary
-        (0/2/4/5 and 1/4/6 in our sample).
-      • ``premiumTrial`` / ``premiumTrialDaysRemaining`` — trial state.
+      • ``expireOn`` — ISO timestamp; expiration of the athlete's PERSONAL
+        subscription. A past date does NOT mean «no premium»: on a coach-paid
+        athlete the coach's plan grants premium externally, the personal date
+        stays frozen on whenever the athlete last paid (Razuvaev: 2019-02-25).
+      • ``athleteType`` (int) — varies (0/2/4/5), not used by the derivation.
+      • ``userType`` (int) — 1 = was-ever-premium (paid tier code, persists
+        even after personal expiry); 4 = active personal premium; 6 = basic.
+        The derivation uses this to separate «coach-paid» from «basic».
+      • ``premiumTrial`` (bool) / ``premiumTrialDaysRemaining`` (int) — when
+        days>0 the athlete is on the free trial (premium-equivalent access).
       • ``downgradeAllowed`` / ``downgradeAllowedOn`` / ``lastUpgradeOn`` —
-        billing-action hints.
+        billing-action hints, not part of the derivation.
     """
     exp_raw = entry.get("expireOn")
     expired: bool | None = None
@@ -40,13 +67,17 @@ def _account_fields(entry: dict[str, Any]) -> dict[str, Any]:
             expired = dt < datetime.now(timezone.utc)
         except ValueError:
             expired = None
+    user_type = entry.get("userType")
+    trial_days = entry.get("premiumTrialDaysRemaining")
     return {
+        "tier": _derive_tier(expired=expired, user_type=user_type,
+                             trial_days=trial_days),
         "expire_on": exp_raw,
         "expired": expired,
         "athlete_type": entry.get("athleteType"),
-        "user_type": entry.get("userType"),
+        "user_type": user_type,
         "premium_trial": entry.get("premiumTrial"),
-        "premium_trial_days_remaining": entry.get("premiumTrialDaysRemaining"),
+        "premium_trial_days_remaining": trial_days,
         "downgrade_allowed": entry.get("downgradeAllowed"),
         "downgrade_allowed_on": entry.get("downgradeAllowedOn"),
         "last_upgrade_on": entry.get("lastUpgradeOn"),
@@ -161,13 +192,13 @@ async def tp_list_athletes() -> dict[str, Any]:
     """List athletes available to this account (coach accounts).
 
     Each entry carries ``athlete_id``, ``name``, ``is_self`` plus an ``account``
-    sub-dict with RAW premium / account fields from the coach roster
+    sub-dict. The most useful key there is ``tier`` — one of
+    ``premium_self`` / ``premium_coach`` / ``premium_trial`` / ``basic`` —
+    matching the «Account Type» label in the TP UI (derivation verified live
+    against athletes from each state). Raw underlying fields are kept alongside
     (``expire_on``, ``expired``, ``athlete_type``, ``user_type``,
     ``premium_trial[_days_remaining]``, ``downgrade_allowed[_on]``,
-    ``last_upgrade_on``). Exact semantics aren't documented by TP — surfaced
-    passthrough so callers can correlate them against known coach-paid vs
-    self-paid vs free athletes. See ``_account_fields`` for the field catalogue
-    and caveats.
+    ``last_upgrade_on``). See ``_account_fields`` / ``_derive_tier``.
     """
     async with TPClient() as client:
         user_data = await client._get_user_data()
