@@ -1,12 +1,56 @@
 """TOOL-02: tp_get_profile / tp_list_athletes - Profile and coach tools."""
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from tp_mcp.client import TPClient
 from tp_mcp.client.context import athlete_override
 
 logger = logging.getLogger("tp-mcp")
+
+
+def _account_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    """Surface raw premium/account fields from a coach-roster ``athletes[]``
+    entry — passthrough, NOT interpreted.
+
+    /users/v3/user does NOT expose a clean ``isPremium`` for a coached athlete
+    (it belongs to the logged-in user). What it DOES carry on each roster entry
+    are several account-related fields whose exact semantics aren't documented
+    by TP — we hand them all through so callers can compare them across known
+    paid / coach-paid / free / trial athletes and learn the pattern. ``expired``
+    is the only derived bit: True when ``expireOn`` is in the past.
+
+    Known fields per entry (live-verified on a coach account):
+      • ``expireOn`` — ISO timestamp; some kind of expiration (likely premium /
+        coach-pairing). Many active athletes show past dates → semantics unclear.
+      • ``athleteType`` (int) / ``userType`` (int) — tier-ish codes, values vary
+        (0/2/4/5 and 1/4/6 in our sample).
+      • ``premiumTrial`` / ``premiumTrialDaysRemaining`` — trial state.
+      • ``downgradeAllowed`` / ``downgradeAllowedOn`` / ``lastUpgradeOn`` —
+        billing-action hints.
+    """
+    exp_raw = entry.get("expireOn")
+    expired: bool | None = None
+    if isinstance(exp_raw, str) and exp_raw:
+        try:
+            dt = datetime.fromisoformat(exp_raw.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            expired = dt < datetime.now(timezone.utc)
+        except ValueError:
+            expired = None
+    return {
+        "expire_on": exp_raw,
+        "expired": expired,
+        "athlete_type": entry.get("athleteType"),
+        "user_type": entry.get("userType"),
+        "premium_trial": entry.get("premiumTrial"),
+        "premium_trial_days_remaining": entry.get("premiumTrialDaysRemaining"),
+        "downgrade_allowed": entry.get("downgradeAllowed"),
+        "downgrade_allowed_on": entry.get("downgradeAllowedOn"),
+        "last_upgrade_on": entry.get("lastUpgradeOn"),
+    }
 
 
 async def _targeted_athlete_profile(client: TPClient) -> dict[str, Any]:
@@ -39,9 +83,12 @@ async def _targeted_athlete_profile(client: TPClient) -> dict[str, Any]:
         "athlete_id": athlete_id,
         "name": f"{first} {last}".strip(),
         "email": entry.get("email"),
-        # Premium status belongs to the logged-in account, not a coached
-        # athlete, so it is not available when targeting one.
+        # A clean «premium / basic» label isn't exposed for a coached athlete by
+        # /users/v3/user. Raw account-related fields ARE present on the roster
+        # entry, surfaced under `account` for caller-side analysis (see
+        # _account_fields docstring for the known shape and caveats).
         "account_type": None,
+        "account": _account_fields(entry),
     }
 
 
@@ -113,8 +160,14 @@ async def tp_get_profile() -> dict[str, Any]:
 async def tp_list_athletes() -> dict[str, Any]:
     """List athletes available to this account (coach accounts).
 
-    Returns:
-        Dict with athletes list, each containing athlete_id, name, and is_self flag.
+    Each entry carries ``athlete_id``, ``name``, ``is_self`` plus an ``account``
+    sub-dict with RAW premium / account fields from the coach roster
+    (``expire_on``, ``expired``, ``athlete_type``, ``user_type``,
+    ``premium_trial[_days_remaining]``, ``downgrade_allowed[_on]``,
+    ``last_upgrade_on``). Exact semantics aren't documented by TP — surfaced
+    passthrough so callers can correlate them against known coach-paid vs
+    self-paid vs free athletes. See ``_account_fields`` for the field catalogue
+    and caveats.
     """
     async with TPClient() as client:
         user_data = await client._get_user_data()
@@ -149,6 +202,7 @@ async def tp_list_athletes() -> dict[str, Any]:
                 "athlete_id": a.get("athleteId"),
                 "name": f"{first} {last}".strip(),
                 "is_self": is_self,
+                "account": _account_fields(a),
             })
 
         return {"athletes": result}
