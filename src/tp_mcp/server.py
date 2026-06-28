@@ -62,6 +62,8 @@ from tp_mcp.tools import (
     tp_get_workout_types,
     tp_get_workouts,
     tp_list_athletes,
+    tp_list_athletes_in_group,
+    tp_list_groups,
     tp_list_notes,
     tp_log_metrics,
     tp_pair_workout,
@@ -1011,6 +1013,30 @@ TOOLS = [
             "properties": {},
         },
     ),
+    Tool(
+        name="tp_list_groups",
+        description="List the coach's athlete groups (TP exposes these as tags). "
+                    "Returns id, name, athlete_count, is_default.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="tp_list_athletes_in_group",
+        description="List the athletes in one athlete group, with names resolved "
+                    "from the coach's roster. Use tp_list_groups to get group_id.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "description": "Group (tag) ID from tp_list_groups.",
+                },
+            },
+            "required": ["group_id"],
+        },
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1019,6 +1045,8 @@ TOOLS = [
 _ATHLETE_EXEMPT_TOOLS = {
     "tp_auth_status", "tp_refresh_auth", "tp_validate_structure",
     "tp_list_athletes", "tp_get_workout_types",
+    # Coach-scoped (groups belong to the coach, not a targeted athlete).
+    "tp_list_groups", "tp_list_athletes_in_group",
 }
 
 _ATHLETE_PARAM = {
@@ -1062,6 +1090,12 @@ async def _h_get_profile(args): return await tp_get_profile()
 
 @_handler("tp_list_athletes")
 async def _h_list_athletes(args): return await tp_list_athletes()
+
+@_handler("tp_list_groups")
+async def _h_list_groups(args): return await tp_list_groups()
+
+@_handler("tp_list_athletes_in_group")
+async def _h_list_athletes_in_group(args): return await tp_list_athletes_in_group(group_id=args["group_id"])
 
 @_handler("tp_refresh_auth")
 async def _h_refresh_auth(args): return await tp_refresh_auth(browser=args.get("browser", "auto"))
