@@ -127,7 +127,7 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_delete_library` | Delete a library folder |
 | `tp_create_library_item` | Save a workout template |
 | `tp_update_library_item` | Edit a template |
-| `tp_schedule_library_workout` | Schedule a template to a calendar date |
+| `tp_schedule_library_workout` | Schedule a template to a calendar date, for one athlete or (coach accounts) several at once via `athletes` |
 
 ### Strength Workouts
 | Tool | Description |

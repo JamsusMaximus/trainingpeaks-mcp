@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from tp_mcp.client.context import athlete_override
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.library import (
     tp_create_library,
@@ -341,6 +342,24 @@ class TestScheduleLibraryWorkout:
         assert isinstance(payload["structure"], str)
 
     @pytest.mark.asyncio
+    async def test_single_athlete_ignores_bulk_shape(self):
+        """Omitting athletes keeps the original single-athlete result shape."""
+        items_response = APIResponse(success=True, data=[self.TEMPLATE])
+        create_response = APIResponse(success=True, data={"workoutId": 999})
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=items_response)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_schedule_library_workout("1", "10", "2026-04-01")
+
+        assert result["success"] is True
+        assert "scheduled" not in result
+        assert "errors" not in result
+
+    @pytest.mark.asyncio
     async def test_schedule_unknown_item_returns_not_found(self):
         items_response = APIResponse(success=True, data=[self.TEMPLATE])
         with patch("tp_mcp.tools.library.TPClient") as mock_client:
@@ -355,3 +374,162 @@ class TestScheduleLibraryWorkout:
         assert result.get("isError") is True
         assert result["error_code"] == "NOT_FOUND"
         mock_instance.post.assert_not_called()
+
+
+class TestScheduleLibraryWorkoutBulk:
+    TEMPLATE = TestScheduleLibraryWorkout.TEMPLATE
+
+    def _mock(self, mock_client, athlete_ids, post_responses):
+        items_response = APIResponse(success=True, data=[self.TEMPLATE])
+        mock_instance = AsyncMock()
+        mock_instance.ensure_athlete_id = AsyncMock(side_effect=athlete_ids)
+        mock_instance.get = AsyncMock(return_value=items_response)
+        mock_instance.post = AsyncMock(side_effect=post_responses)
+        mock_client.return_value.__aenter__.return_value = mock_instance
+        return mock_instance
+
+    @pytest.mark.asyncio
+    async def test_bulk_schedules_each_athlete(self):
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = self._mock(
+                mock_client,
+                athlete_ids=[111, 222],
+                post_responses=[
+                    APIResponse(success=True, data={"workoutId": 1001}),
+                    APIResponse(success=True, data={"workoutId": 1002}),
+                ],
+            )
+
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=["Alice", "222"],
+            )
+
+        assert result.get("isError") is not True
+        assert [s["athlete_id"] for s in result["scheduled"]] == [111, 222]
+        assert [s["workout_id"] for s in result["scheduled"]] == [1001, 1002]
+        assert result["errors"] == []
+        endpoints = [c[0][0] for c in mock_instance.post.call_args_list]
+        assert endpoints == [
+            "/fitness/v6/athletes/111/workouts",
+            "/fitness/v6/athletes/222/workouts",
+        ]
+        # Each payload targets its own athlete
+        payloads = [c[1]["json"] for c in mock_instance.post.call_args_list]
+        assert [p["athleteId"] for p in payloads] == [111, 222]
+        assert all(p["title"] == "Sweet Spot" for p in payloads)
+
+    @pytest.mark.asyncio
+    async def test_bulk_partial_failure_is_not_error(self):
+        """One athlete failing is reported in errors, without isError."""
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            self._mock(
+                mock_client,
+                athlete_ids=[111, 222],
+                post_responses=[
+                    APIResponse(success=True, data={"workoutId": 1001}),
+                    APIResponse(success=False, message="boom"),
+                ],
+            )
+
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=["Alice", "Bob"],
+            )
+
+        assert result.get("isError") is not True
+        assert len(result["scheduled"]) == 1
+        assert result["errors"] == [
+            {"athlete": "Bob", "athlete_id": 222, "message": "boom"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_bulk_unresolvable_athlete_reported(self):
+        """An athlete not in the roster (ensure_athlete_id -> None) is a
+        per-athlete error; the rest still get scheduled."""
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            mock_instance = self._mock(
+                mock_client,
+                athlete_ids=[None, 222],
+                post_responses=[
+                    APIResponse(success=True, data={"workoutId": 1002}),
+                ],
+            )
+
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=["Nobody", "222"],
+            )
+
+        assert result.get("isError") is not True
+        assert [s["athlete_id"] for s in result["scheduled"]] == [222]
+        assert result["errors"][0]["athlete"] == "Nobody"
+        assert mock_instance.post.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_bulk_ambiguous_name_reported(self):
+        """ensure_athlete_id raising ValueError (ambiguous name) becomes a
+        per-athlete error rather than blowing up the whole call."""
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            self._mock(
+                mock_client,
+                athlete_ids=[ValueError("Ambiguous athlete name 'Alex'"), 222],
+                post_responses=[
+                    APIResponse(success=True, data={"workoutId": 1002}),
+                ],
+            )
+
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=["Alex", "222"],
+            )
+
+        assert result.get("isError") is not True
+        assert "Ambiguous" in result["errors"][0]["message"]
+        assert [s["athlete_id"] for s in result["scheduled"]] == [222]
+
+    @pytest.mark.asyncio
+    async def test_bulk_total_failure_sets_is_error(self):
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            self._mock(
+                mock_client,
+                athlete_ids=[111, 222],
+                post_responses=[
+                    APIResponse(success=False, message="boom"),
+                    APIResponse(success=False, message="boom"),
+                ],
+            )
+
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=["Alice", "Bob"],
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "API_ERROR"
+        assert result["scheduled"] == []
+        assert len(result["errors"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_both_athlete_and_athletes_rejected(self):
+        """Passing the single 'athlete' target alongside 'athletes' is a
+        validation error before any API call."""
+        token = athlete_override.set("Alice")
+        try:
+            with patch("tp_mcp.tools.library.TPClient") as mock_client:
+                result = await tp_schedule_library_workout(
+                    "1", "10", "2026-04-01", athletes=["Bob"],
+                )
+        finally:
+            athlete_override.reset(token)
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "not both" in result["message"]
+        mock_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_athletes_list_rejected(self):
+        with patch("tp_mcp.tools.library.TPClient") as mock_client:
+            result = await tp_schedule_library_workout(
+                "1", "10", "2026-04-01", athletes=[],
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        mock_client.assert_not_called()
