@@ -1,0 +1,23 @@
+README.md
+  s_c0b197e4fb1472::t_4dbc9271eb75a5 206-216,220
+  s_c0b197e4fb1472::t_7c65946d5e26bc 217-219
+src/tp_mcp/auth/storage.py
+  s_c0b197e4fb1472::t_6c841a84519cb9 77-78,85-86
+  s_c0b197e4fb1472::t_4c39270989dd12 4-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "0acedf3708c19abe990fcc5121f727b54a265c05",
+  "prompts": {},
+  "sessions": {
+    "s_c0b197e4fb1472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05ccd406-5c0a-481a-87d7-bd4fcc256681",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
