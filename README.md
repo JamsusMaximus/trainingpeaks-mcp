@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (66)
+## Tools (78)
 
 ### Workouts
 | Tool | Description |
@@ -107,6 +107,7 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_update_event` | Update event details, attach workouts as legs (multisport) |
 | `tp_delete_event` | Delete an event |
 | `tp_create_note` | Create a calendar note |
+| `tp_list_notes` | List calendar notes for a date range |
 | `tp_get_note` | Get a calendar note by ID |
 | `tp_update_note` | Update title, description, date or visibility of a note |
 | `tp_delete_note` | Delete a calendar note |
@@ -127,6 +128,25 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_create_library_item` | Save a workout template |
 | `tp_update_library_item` | Edit a template |
 | `tp_schedule_library_workout` | Schedule a template to a calendar date |
+
+### Strength Workouts
+| Tool | Description |
+|------|-------------|
+| `tp_search_exercises` | Search the built-in strength exercise library by name (offline) |
+| `tp_create_strength_workout` | Create a structured strength/gym workout (blocks of exercises with sets and parameters) |
+| `tp_get_strength_summary` | Get a strength workout's compliance summary (blocks/prescriptions/sets completed) |
+| `tp_delete_strength_workout` | Delete a strength workout by ID |
+
+### Athlete Groups (coach accounts)
+| Tool | Description |
+|------|-------------|
+| `tp_list_groups` | List the coach's athlete groups (TP tags) |
+| `tp_list_athletes_in_group` | List the athletes in one group, with names resolved from the roster |
+| `tp_create_group` | Create a new athlete group |
+| `tp_rename_group` | Rename an athlete group (default group cannot be renamed) |
+| `tp_delete_group` | Delete a group - the grouping only, athletes are not deleted |
+| `tp_add_athletes_to_group` | Add one or more athletes to a group |
+| `tp_remove_athletes_from_group` | Remove one or more athletes from a group |
 
 ### Reference & Auth
 | Tool | Description |
