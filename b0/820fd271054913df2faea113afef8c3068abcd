@@ -1,0 +1,21 @@
+src/tp_mcp/tools/workouts.py
+  s_c0b197e4fb1472::t_8ce21e0633b057 671
+tests/test_tools/test_new_workouts.py
+  s_c0b197e4fb1472::t_6ffacf36ce7e2e 390-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "b0820fd271054913df2faea113afef8c3068abcd",
+  "prompts": {},
+  "sessions": {
+    "s_c0b197e4fb1472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05ccd406-5c0a-481a-87d7-bd4fcc256681",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
