@@ -7,7 +7,10 @@ import pytest
 from tp_mcp.client.context import athlete_override
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.profile import (
-    _account_fields, _derive_tier, tp_get_profile, tp_list_athletes,
+    _account_fields,
+    _derive_tier,
+    tp_get_profile,
+    tp_list_athletes,
 )
 
 OWN_USER_RESPONSE = {
