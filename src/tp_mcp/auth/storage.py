@@ -48,14 +48,22 @@ def store_credential(cookie: str) -> CredentialResult:
     # Always store in encrypted file first (reliable fallback)
     encrypted_result = store_credential_encrypted(cookie)
 
-    # Also try keyring if available (may fail due to app permissions)
+    # Also try keyring if available (may fail due to app permissions on macOS,
+    # or the Windows Credential Manager blob-size limit for large cookies).
     if is_keyring_available():
-        keyring_result = store_credential_keyring(cookie)
-        if keyring_result.success:
-            return CredentialResult(
-                success=True,
-                message="Credential stored in keyring and encrypted file",
-            )
+        try:
+            keyring_result = store_credential_keyring(cookie)
+            if keyring_result.success:
+                return CredentialResult(
+                    success=True,
+                    message="Credential stored in keyring and encrypted file",
+                )
+        except Exception:
+            # Keyring write raised (e.g. WinError 1783 "The stub received bad
+            # data" when the cookie exceeds the Windows Credential Manager
+            # blob-size limit). The encrypted file write above already
+            # succeeded, so fall back to it instead of crashing.
+            pass
 
     return encrypted_result
 

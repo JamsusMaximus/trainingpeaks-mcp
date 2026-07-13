@@ -16,6 +16,7 @@ from mcp.types import (
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
+    tp_add_athletes_to_group,
     tp_add_note_comment,
     tp_add_workout_comment,
     tp_analyze_workout,
@@ -24,16 +25,20 @@ from tp_mcp.tools import (
     tp_create_availability,
     tp_create_equipment,
     tp_create_event,
+    tp_create_group,
     tp_create_library,
     tp_create_library_item,
     tp_create_note,
+    tp_create_strength_workout,
     tp_create_workout,
     tp_create_zones,
     tp_delete_availability,
     tp_delete_equipment,
     tp_delete_event,
+    tp_delete_group,
     tp_delete_library,
     tp_delete_note,
+    tp_delete_strength_workout,
     tp_delete_workout,
     tp_delete_workout_file,
     tp_download_workout_file,
@@ -55,6 +60,7 @@ from tp_mcp.tools import (
     tp_get_peaks,
     tp_get_pool_length_settings,
     tp_get_profile,
+    tp_get_strength_summary,
     tp_get_weekly_summary,
     tp_get_workout,
     tp_get_workout_comments,
@@ -64,12 +70,17 @@ from tp_mcp.tools import (
     tp_get_workouts,
     tp_get_zone_methods,
     tp_list_athletes,
+    tp_list_athletes_in_group,
+    tp_list_groups,
     tp_list_notes,
     tp_log_metrics,
     tp_pair_workout,
     tp_refresh_auth,
+    tp_remove_athletes_from_group,
+    tp_rename_group,
     tp_reorder_workouts,
     tp_schedule_library_workout,
+    tp_search_exercises,
     tp_set_workout_note,
     tp_unpair_workout,
     tp_update_equipment,
@@ -231,6 +242,11 @@ TOOLS = [
                 "tags": {"type": "string", "description": "Optional comma-separated tags"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "is_hidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout",
+                    "default": False,
+                },
             },
             "required": ["date", "sport", "title"],
         },
@@ -259,6 +275,10 @@ TOOLS = [
                 "coach_comment": {"type": "string"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "is_hidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout"
+                },
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
@@ -1036,6 +1056,14 @@ TOOLS = [
                 "tss": {"type": "number"},
                 "description": {"type": "string"},
                 "structure": {"type": "object"},
+                "workout_type_id": {
+                    "type": "integer",
+                    "description": (
+                        "Sport/workout type: 1=swim, 2=bike, 3=run, etc. "
+                        "Sets the sport on templates saved without one."
+                    ),
+                },
+                "workout_sub_type_id": {"type": "integer"},
             },
             "required": ["library_id", "item_id"],
         },
@@ -1061,6 +1089,168 @@ TOOLS = [
             "properties": {},
         },
     ),
+    # --- Structured strength / gym workouts ---
+    Tool(
+        name="tp_search_exercises",
+        description=(
+            "Search the built-in strength exercise library by name (offline). "
+            "Returns library exercise IDs to use in tp_create_strength_workout, "
+            "plus each exercise's native parameters and a demo video URL."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Exercise name substring (case-insensitive)."},
+                "limit": {"type": "integer", "description": "Max results, 1-100 (default 20)."},
+                "muscle_group": {
+                    "type": "string",
+                    "description": "Optional muscle-group filter, e.g. 'glute', 'hamstring', 'chest'.",
+                },
+            },
+            "required": ["query"],
+        },
+    ),
+    Tool(
+        name="tp_create_strength_workout",
+        description=(
+            "Create a structured strength/gym workout on the athlete's calendar. "
+            "Blocks of exercises (from tp_search_exercises) with sets and "
+            "parameters (Reps, WeightKg, Duration, …)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "Planned date YYYY-MM-DD."},
+                "title": {"type": "string", "description": "Workout title, e.g. 'Upper Body'."},
+                "instructions": {"type": "string", "description": "Optional session instructions."},
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Ordered blocks. Each block: {type: WarmUp|SingleExercise|"
+                        "Superset|Circuit|CoolDown, title?, notes?, exercises: "
+                        "[{id: '<library id>', notes?, sets: [{<param>: <value>}, ...]}]}. "
+                        "Parameters: Reps, RepsPerSide, WeightKg, WeightLb, "
+                        "WeightPerSideKg, WeightPerSideLb, WeightPercentage, Duration "
+                        "(seconds), DistanceMeters/Km/Ft/Yd/Miles, HeightCm/M/In/Ft, "
+                        "RPE, Watts, VelocityMetersPerSec, Cals. Superset/Circuit blocks "
+                        "require the same number of sets for every exercise."
+                    ),
+                },
+            },
+            "required": ["date", "title", "blocks"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_summary",
+        description="Get a strength workout's compliance summary (blocks/prescriptions/sets completed).",
+        inputSchema={
+            "type": "object",
+            "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_delete_strength_workout",
+        description="Delete a strength workout by ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_list_groups",
+        description="List the coach's athlete groups (TP exposes these as tags). "
+                    "Returns id, name, athlete_count, is_default.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="tp_list_athletes_in_group",
+        description="List the athletes in one athlete group, with names resolved "
+                    "from the coach's roster. Use tp_list_groups to get group_id.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "description": "Group (tag) ID from tp_list_groups.",
+                },
+            },
+            "required": ["group_id"],
+        },
+    ),
+    Tool(
+        name="tp_create_group",
+        description="Create a new athlete group.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The group name."},
+            },
+            "required": ["name"],
+        },
+    ),
+    Tool(
+        name="tp_rename_group",
+        description="Rename an athlete group. The default group cannot be renamed.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+                "name": {"type": "string", "description": "The new group name."},
+            },
+            "required": ["group_id", "name"],
+        },
+    ),
+    Tool(
+        name="tp_delete_group",
+        description="Delete an athlete group (the grouping only — athletes are not "
+                    "deleted). The default group cannot be deleted.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+            },
+            "required": ["group_id"],
+        },
+    ),
+    Tool(
+        name="tp_add_athletes_to_group",
+        description="Add one or more athletes to a group. Moving an athlete = add "
+                    "to the new group + remove from the old one.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+                "athlete_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Athlete IDs to add.",
+                },
+            },
+            "required": ["group_id", "athlete_ids"],
+        },
+    ),
+    Tool(
+        name="tp_remove_athletes_from_group",
+        description="Remove one or more athletes from a group.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group (tag) ID."},
+                "athlete_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Athlete IDs to remove.",
+                },
+            },
+            "required": ["group_id", "athlete_ids"],
+        },
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1071,6 +1261,12 @@ _ATHLETE_EXEMPT_TOOLS = {
     "tp_list_athletes", "tp_get_workout_types",
     # Coach-scoped — enumerates methods under the caller's own user, not an athlete.
     "tp_get_zone_methods",
+    # Offline exercise-library search — not athlete-scoped.
+    "tp_search_exercises",
+    # Coach-scoped (groups belong to the coach, not a targeted athlete).
+    "tp_list_groups", "tp_list_athletes_in_group",
+    "tp_create_group", "tp_rename_group", "tp_delete_group",
+    "tp_add_athletes_to_group", "tp_remove_athletes_from_group",
 }
 
 _ATHLETE_PARAM = {
@@ -1115,6 +1311,33 @@ async def _h_get_profile(args): return await tp_get_profile()
 @_handler("tp_list_athletes")
 async def _h_list_athletes(args): return await tp_list_athletes()
 
+@_handler("tp_list_groups")
+async def _h_list_groups(args): return await tp_list_groups()
+
+@_handler("tp_list_athletes_in_group")
+async def _h_list_athletes_in_group(args): return await tp_list_athletes_in_group(group_id=args["group_id"])
+
+@_handler("tp_create_group")
+async def _h_create_group(args): return await tp_create_group(name=args["name"])
+
+@_handler("tp_rename_group")
+async def _h_rename_group(args): return await tp_rename_group(group_id=args["group_id"], name=args["name"])
+
+@_handler("tp_delete_group")
+async def _h_delete_group(args): return await tp_delete_group(group_id=args["group_id"])
+
+@_handler("tp_add_athletes_to_group")
+async def _h_add_athletes_to_group(args):
+    return await tp_add_athletes_to_group(
+        group_id=args["group_id"], athlete_ids=args["athlete_ids"]
+    )
+
+@_handler("tp_remove_athletes_from_group")
+async def _h_remove_athletes_from_group(args):
+    return await tp_remove_athletes_from_group(
+        group_id=args["group_id"], athlete_ids=args["athlete_ids"]
+    )
+
 @_handler("tp_refresh_auth")
 async def _h_refresh_auth(args): return await tp_refresh_auth(browser=args.get("browser", "auto"))
 
@@ -1139,6 +1362,7 @@ async def _h_create_workout(args):
         structured_workout=args.get("structured_workout"),
         subtype_id=args.get("subtype_id"), tags=args.get("tags"),
         feeling=args.get("feeling"), rpe=args.get("rpe"),
+        is_hidden=args.get("is_hidden", False),
     )
 
 @_handler("tp_update_workout")
@@ -1153,6 +1377,7 @@ async def _h_update_workout(args):
         coach_comment=args.get("coach_comment"), feeling=args.get("feeling"),
         rpe=args.get("rpe"), structure=args.get("structure"),
         structured_workout=args.get("structured_workout"),
+        is_hidden=args.get("is_hidden"),
     )
 
 @_handler("tp_delete_workout")
@@ -1230,6 +1455,27 @@ async def _h_get_peaks(args):
 
 @_handler("tp_analyze_workout")
 async def _h_analyze(args): return await tp_analyze_workout(workout_id=args["workout_id"])
+
+# --- Structured strength / gym ---
+@_handler("tp_search_exercises")
+async def _h_search_exercises(args):
+    return await tp_search_exercises(
+        query=args.get("query", ""), limit=args.get("limit", 20),
+        muscle_group=args.get("muscle_group"))
+
+@_handler("tp_create_strength_workout")
+async def _h_create_strength(args):
+    return await tp_create_strength_workout(
+        date=args["date"], title=args["title"],
+        blocks=args.get("blocks") or [], instructions=args.get("instructions"))
+
+@_handler("tp_get_strength_summary")
+async def _h_get_strength_summary(args):
+    return await tp_get_strength_summary(workout_id=args["workout_id"])
+
+@_handler("tp_delete_strength_workout")
+async def _h_delete_strength(args):
+    return await tp_delete_strength_workout(workout_id=args["workout_id"])
 
 # --- Fitness & Summary ---
 @_handler("tp_get_fitness")
@@ -1447,6 +1693,8 @@ async def _h_update_lib_item(args):
         name=args.get("name"), duration_hours=args.get("duration_hours"),
         tss=args.get("tss"), description=args.get("description"),
         structure=args.get("structure"),
+        workout_type_id=args.get("workout_type_id"),
+        workout_sub_type_id=args.get("workout_sub_type_id"),
     )
 
 @_handler("tp_schedule_library_workout")

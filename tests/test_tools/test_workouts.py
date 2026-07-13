@@ -304,6 +304,37 @@ class TestTpCreateWorkout:
         assert payload["workoutTypeValueId"] == 3
         assert payload["title"] == "Morning Run"
         assert payload["totalTimePlanned"] == 1.0  # 60 min -> 1.0 hours
+        assert payload["isHidden"] is False
+
+    @pytest.mark.asyncio
+    async def test_create_workout_hidden(self):
+        """is_hidden should map to the TrainingPeaks isHidden payload field."""
+        create_response = APIResponse(
+            success=True,
+            data={
+                "workoutId": 5004,
+                "title": "Hidden Run",
+                "workoutDay": "2026-01-10T00:00:00",
+            },
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2026-01-10",
+                sport="Run",
+                title="Hidden Run",
+                duration_minutes=60,
+                is_hidden=True,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["isHidden"] is True
 
     @pytest.mark.asyncio
     async def test_create_workout_datetime_preserves_time(self):

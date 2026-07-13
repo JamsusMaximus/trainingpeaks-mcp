@@ -67,6 +67,7 @@ class CreateWorkoutInput(BaseModel):
     tags: str | None = Field(default=None, max_length=500)
     feeling: int | None = Field(default=None, ge=0, le=10)
     rpe: int | None = Field(default=None, ge=0, le=10)
+    is_hidden: bool | None = None
 
     @field_validator("date", mode="before")
     @classmethod
@@ -119,6 +120,7 @@ class UpdateWorkoutInput(BaseModel):
     coach_comment: str | None = None
     feeling: int | None = Field(default=None, ge=0, le=10)
     rpe: int | None = Field(default=None, ge=0, le=10)
+    is_hidden: bool | None = None
     structure: Any = None
     structured_workout: Any = None
 
