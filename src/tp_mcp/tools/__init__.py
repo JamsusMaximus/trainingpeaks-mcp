@@ -28,6 +28,15 @@ from tp_mcp.tools.events import (
     tp_update_note,
 )
 from tp_mcp.tools.fitness import tp_get_fitness
+from tp_mcp.tools.groups import (
+    tp_add_athletes_to_group,
+    tp_create_group,
+    tp_delete_group,
+    tp_list_athletes_in_group,
+    tp_list_groups,
+    tp_remove_athletes_from_group,
+    tp_rename_group,
+)
 from tp_mcp.tools.library import (
     tp_create_library,
     tp_create_library_item,
@@ -127,6 +136,13 @@ __all__ = [
     "tp_get_workout_prs",
     "tp_get_workout_types",
     "tp_list_athletes",
+    "tp_list_groups",
+    "tp_list_athletes_in_group",
+    "tp_create_group",
+    "tp_rename_group",
+    "tp_delete_group",
+    "tp_add_athletes_to_group",
+    "tp_remove_athletes_from_group",
     "tp_get_workouts",
     "tp_log_metrics",
     "tp_pair_workout",

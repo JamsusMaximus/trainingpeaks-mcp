@@ -75,6 +75,17 @@ class TestCreateWorkoutInput:
         )
         assert result.sport == "Run"
         assert result.duration_minutes == 60
+        assert result.is_hidden is None
+
+    def test_accepts_hidden_flag(self):
+        result = CreateWorkoutInput(
+            date="2025-06-01",
+            sport="Run",
+            title="Morning Run",
+            duration_minutes=60,
+            is_hidden=True,
+        )
+        assert result.is_hidden is True
 
     def test_valid_datetime(self):
         result = CreateWorkoutInput(
@@ -189,6 +200,11 @@ class TestUpdateWorkoutInput:
         result = UpdateWorkoutInput(workout_id="123", date="2026-04-14")
         assert result.date is not None
         assert result.date.isoformat() == "2026-04-14"
+        assert result.is_hidden is None
+
+    def test_accepts_hidden_flag(self):
+        result = UpdateWorkoutInput(workout_id="123", is_hidden=True)
+        assert result.is_hidden is True
 
     def test_accepts_datetime(self):
         result = UpdateWorkoutInput(workout_id="123", date="2026-04-14T16:45:00")
