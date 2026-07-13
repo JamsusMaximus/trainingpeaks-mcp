@@ -1,0 +1,45 @@
+src/tp_mcp/server.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 19,28,37,71-72,77-78,243-247,276-279,992-999,1095-1186,1197-1200,1245-1271,1296,1311,1613-1614
+src/tp_mcp/tools/__init__.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 31-39,139-145
+src/tp_mcp/tools/library.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 44-45,47,49-52,197-202,204-206,372-373,385-387,450-453
+src/tp_mcp/tools/workouts.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 397,415,435,494,565,595,700-701
+src/tp_mcp/tools/groups.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 1-411
+tests/test_tools/test_groups.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 1-315
+tests/test_server_functional.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 99-105,130,134-135,144,417-446
+  s_c0b197e4fb1472::t_1bbd15e1daefb7 447
+src/tp_mcp/tools/_validation.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 70,123
+src/tp_mcp/auth/storage.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 51-52,54-66
+tests/test_tools/test_library.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 15,23-26,40-41,78,87-88,136-183
+  s_c0b197e4fb1472::t_370f0b12840c2d 184-185
+tests/test_tools/test_new_workouts.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 309-364
+tests/test_tools/test_validation.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 78-88,203-207
+tests/test_tools/test_workouts.py
+  s_c0b197e4fb1472::t_be8efbb0d168e7 307-337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "ea3e80ace35e265ed5cc60a0713ea167c9e4221b",
+  "prompts": {},
+  "sessions": {
+    "s_c0b197e4fb1472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05ccd406-5c0a-481a-87d7-bd4fcc256681",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
