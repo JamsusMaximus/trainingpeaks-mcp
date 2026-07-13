@@ -388,6 +388,59 @@ class TestUpdateWorkout:
         assert put_payload["workoutTypeValueId"] == 2
 
     @pytest.mark.asyncio
+    async def test_update_subtype_sets_subtype_field_only(self):
+        """subtype_id should set workoutSubTypeId and leave workoutTypeValueId untouched (#81)."""
+        existing = {
+            "workoutId": 1001,
+            "workoutTypeFamilyId": 1,
+            "workoutTypeValueId": 1,
+        }
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(workout_id="1001", subtype_id=2)
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert put_payload["workoutSubTypeId"] == 2
+        # Main sport type must not be overwritten by the subtype
+        assert put_payload["workoutTypeValueId"] == 1
+        assert put_payload["workoutTypeFamilyId"] == 1
+
+    @pytest.mark.asyncio
+    async def test_update_sport_and_subtype_together(self):
+        """Passing both sport and subtype_id should set all three type fields correctly (#81)."""
+        existing = {
+            "workoutId": 1001,
+            "workoutTypeFamilyId": 3,
+            "workoutTypeValueId": 3,
+        }
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(workout_id="1001", sport="Swim", subtype_id=2)
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert put_payload["workoutTypeFamilyId"] == 1
+        assert put_payload["workoutTypeValueId"] == 1
+        assert put_payload["workoutSubTypeId"] == 2
+
+    @pytest.mark.asyncio
     async def test_update_allows_zero_rpe(self):
         """RPE 0 should be accepted when updating workouts."""
         existing = {"workoutId": 1001, "title": "Recovery"}
