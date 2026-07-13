@@ -117,9 +117,15 @@ async def tp_get_libraries() -> dict[str, Any]:
         libraries = [
             {
                 "id": lib.get("exerciseLibraryId", lib.get("id")),
+                # v2 libraries endpoint returns "libraryName"/"isDefaultContent";
+                # keep the old keys as fallbacks for safety.
                 "name": lib.get("libraryName", lib.get("name", "")),
-                "is_default": lib.get("isDefaultContent", False),
+                "is_default": lib.get("isDefaultContent", lib.get("isDefault", False)),
                 "owner_name": lib.get("ownerName"),
+                # The v2 libraries endpoint usually omits an item count; read it
+                # if present, otherwise fall back to 0.
+                "item_count": lib.get("itemCount", 0),
+                "owner_id": lib.get("ownerId"),
             }
             for lib in data
         ]
@@ -264,8 +270,16 @@ async def tp_create_library(name: str) -> dict[str, Any]:
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
+        # TP expects "libraryName" and the owner's personId, not "name".
+        owner_id = None
+        user_data = await client._get_user_data()
+        if user_data:
+            owner_id = user_data.get("personId")
+
         endpoint = "/exerciselibrary/v1/libraries"
-        payload = {"name": name.strip()}
+        payload: dict[str, Any] = {"libraryName": name.strip()}
+        if owner_id is not None:
+            payload["ownerId"] = owner_id
         response = await client.post(endpoint, json=payload)
 
         if response.is_error:
@@ -432,6 +446,8 @@ async def tp_update_library_item(
     tss: float | None = None,
     description: str | None = None,
     structure: dict[str, Any] | None = None,
+    workout_type_id: int | None = None,
+    workout_sub_type_id: int | None = None,
 ) -> dict[str, Any]:
     """Edit a workout template.
 
@@ -443,6 +459,9 @@ async def tp_update_library_item(
         tss: Optional planned TSS.
         description: Optional description.
         structure: Optional structure (nested object).
+        workout_type_id: Optional sport/workout type (1=swim, 2=bike, 3=run, ...).
+            Use to set the sport on templates that were saved without one.
+        workout_sub_type_id: Optional workout subtype id (e.g. 6=Indoor Bike).
 
     Returns:
         Dict with confirmation or error.
@@ -505,6 +524,10 @@ async def tp_update_library_item(
             existing["description"] = description
         if structure is not None:
             existing["structure"] = _ensure_structure_preview(structure)
+        if workout_type_id is not None:
+            existing["workoutTypeId"] = workout_type_id
+        if workout_sub_type_id is not None:
+            existing["workoutSubTypeId"] = workout_sub_type_id
 
         put_endpoint = (
             f"/exerciselibrary/v1/libraries/{lib_validated.workout_id}"

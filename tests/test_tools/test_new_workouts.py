@@ -307,6 +307,62 @@ class TestUpdateWorkout:
         assert put_payload["workoutTypeFamilyId"] == 3
 
     @pytest.mark.asyncio
+    async def test_update_keeps_hidden(self):
+        """The TrainingPeaks isHidden field should be preserved if not explicitly updated."""
+        existing = {
+            "workoutId": 1001,
+            "title": "Original",
+            "workoutDay": "2026-03-01T00:00:00",
+            "workoutTypeFamilyId": 3,
+            "workoutTypeValueId": 3,
+            "isHidden": False,
+        }
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(workout_id="1001", sport="Bike")
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert put_payload["workoutTypeFamilyId"] == 2
+        assert put_payload["workoutTypeValueId"] == 2
+        assert put_payload["isHidden"] is False
+
+    @pytest.mark.asyncio
+    async def test_update_hidden(self):
+        """is_hidden should update the TrainingPeaks isHidden field."""
+        existing = {
+            "workoutId": 1001,
+            "title": "Original",
+            "workoutDay": "2026-03-01T00:00:00",
+            "workoutTypeFamilyId": 3,
+            "workoutTypeValueId": 3,
+            "isHidden": False,
+        }
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(workout_id="1001", is_hidden=True)
+
+        assert result["success"] is True
+        put_payload = mock_instance.put.call_args[1]["json"]
+        assert put_payload["isHidden"] is True
+
+    @pytest.mark.asyncio
     async def test_update_sport_changes_ids(self):
         """Changing sport should update family and type IDs."""
         existing = {

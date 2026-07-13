@@ -28,6 +28,15 @@ from tp_mcp.tools.events import (
     tp_update_note,
 )
 from tp_mcp.tools.fitness import tp_get_fitness
+from tp_mcp.tools.groups import (
+    tp_add_athletes_to_group,
+    tp_create_group,
+    tp_delete_group,
+    tp_list_athletes_in_group,
+    tp_list_groups,
+    tp_remove_athletes_from_group,
+    tp_rename_group,
+)
 from tp_mcp.tools.library import (
     tp_create_library,
     tp_create_library_item,
@@ -43,12 +52,19 @@ from tp_mcp.tools.peaks import tp_get_peaks, tp_get_workout_prs
 from tp_mcp.tools.profile import tp_get_profile, tp_list_athletes
 from tp_mcp.tools.refresh_auth import tp_refresh_auth
 from tp_mcp.tools.settings import (
+    tp_create_zones,
     tp_get_athlete_settings,
     tp_get_pool_length_settings,
     tp_update_ftp,
     tp_update_hr_zones,
     tp_update_nutrition,
     tp_update_speed_zones,
+)
+from tp_mcp.tools.strength import (
+    tp_create_strength_workout,
+    tp_delete_strength_workout,
+    tp_get_strength_summary,
+    tp_search_exercises,
 )
 from tp_mcp.tools.structure import tp_validate_structure
 from tp_mcp.tools.weekly_summary import tp_get_weekly_summary
@@ -73,6 +89,7 @@ from tp_mcp.tools.workouts import (
     tp_unpair_workout,
     tp_update_workout,
 )
+from tp_mcp.tools.zone_methods import tp_get_zone_methods
 
 __all__ = [
     "tp_add_note_comment",
@@ -120,7 +137,15 @@ __all__ = [
     "tp_get_workout_note",
     "tp_get_workout_prs",
     "tp_get_workout_types",
+    "tp_get_zone_methods",
     "tp_list_athletes",
+    "tp_list_groups",
+    "tp_list_athletes_in_group",
+    "tp_create_group",
+    "tp_rename_group",
+    "tp_delete_group",
+    "tp_add_athletes_to_group",
+    "tp_remove_athletes_from_group",
     "tp_get_workouts",
     "tp_log_metrics",
     "tp_pair_workout",
@@ -129,6 +154,7 @@ __all__ = [
     "tp_schedule_library_workout",
     "tp_set_workout_note",
     "tp_unpair_workout",
+    "tp_create_zones",
     "tp_update_equipment",
     "tp_update_event",
     "tp_update_note",
@@ -140,4 +166,8 @@ __all__ = [
     "tp_update_workout",
     "tp_upload_workout_file",
     "tp_validate_structure",
+    "tp_search_exercises",
+    "tp_create_strength_workout",
+    "tp_get_strength_summary",
+    "tp_delete_strength_workout",
 ]
