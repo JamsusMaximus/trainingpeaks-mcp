@@ -1,7 +1,9 @@
 """Unified credential storage with automatic backend selection.
 
 Uses system keyring when available, falls back to encrypted file storage.
-Environment variable override is also supported for CI/testing.
+The TP_AUTH_COOKIE environment variable is a supported first-class auth
+source for headless servers, containers, and CI, and takes precedence
+over both stored backends.
 """
 
 import os
@@ -72,14 +74,16 @@ def get_credential() -> CredentialResult:
     """Retrieve the TrainingPeaks auth cookie.
 
     Checks in order:
-    1. Environment variable (for CI/testing)
+    1. TP_AUTH_COOKIE environment variable (supported auth method for
+       headless servers, containers, and CI)
     2. System keyring
     3. Encrypted file
 
     Returns:
         CredentialResult with cookie if found.
     """
-    # Check environment variable first (CI/testing override)
+    # Check environment variable first (supported headless/container/CI
+    # auth path; takes precedence over stored credentials)
     env_cookie = os.environ.get(ENV_VAR_NAME)
     if env_cookie:
         return CredentialResult(
