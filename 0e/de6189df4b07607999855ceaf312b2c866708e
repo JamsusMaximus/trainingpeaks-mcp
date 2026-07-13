@@ -1,0 +1,23 @@
+pyproject.toml
+  s_c0b197e4fb1472::t_bcb9f3c6cc1911 7
+README.md
+  s_c0b197e4fb1472::t_43b7f758cfcbbc 26
+  s_c0b197e4fb1472::t_17f30d77f6ffa1 110
+  s_c0b197e4fb1472::t_14035ea8c61862 132-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "0ede6189df4b07607999855ceaf312b2c866708e",
+  "prompts": {},
+  "sessions": {
+    "s_c0b197e4fb1472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05ccd406-5c0a-481a-87d7-bd4fcc256681",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
