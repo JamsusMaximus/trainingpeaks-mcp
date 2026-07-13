@@ -103,6 +103,41 @@ class CreateEventInput(BaseModel):
         return v
 
 
+def _distance_km(distance: Any, distance_units: Any) -> float | None:
+    """Compute a canonical distance in km from TP's raw distance + distanceUnits.
+
+    TP is inconsistent across athletes for the same event: the same race may come
+    back as (50000, "Meters"), (50, "Kilometers"), (50000, "") or (50, None).
+    Unit strings are matched case-insensitively; miles convert at 1.609344 km/mi.
+    When units are blank/missing, a value >= 1000 is assumed to be metres and
+    divided by 1000 — a best-effort heuristic (no real-world event is >= 1000 km),
+    otherwise the value is treated as already being in km.
+    """
+    if isinstance(distance, bool) or not isinstance(distance, (int, float)):
+        return None
+    value = float(distance)
+    units = str(distance_units or "").strip().lower()
+    if units in ("meters", "metres", "meter", "metre", "m"):
+        return value / 1000.0
+    if units in ("miles", "mile", "mi"):
+        return value * 1.609344
+    if units in ("kilometers", "kilometres", "kilometer", "kilometre", "km"):
+        return value
+    if not units and value >= 1000:
+        # Blank units with a large value: assume metres (best-effort guess).
+        return value / 1000.0
+    return value
+
+
+def _with_distance_km(event: Any) -> Any:
+    """Return the event with a normalised `distance_km` field added (raw fields kept)."""
+    if not isinstance(event, dict):
+        return event
+    event = dict(event)
+    event["distance_km"] = _distance_km(event.get("distance"), event.get("distanceUnits"))
+    return event
+
+
 async def tp_get_focus_event() -> dict[str, Any]:
     """Get the A-priority focus event with goals and results."""
     async with TPClient() as client:
@@ -127,7 +162,7 @@ async def tp_get_focus_event() -> dict[str, Any]:
         if not response.data:
             return {"event": None, "message": "No focus event set."}
 
-        return {"event": response.data}
+        return {"event": _with_distance_km(response.data)}
 
 
 async def tp_get_next_event() -> dict[str, Any]:
@@ -154,7 +189,7 @@ async def tp_get_next_event() -> dict[str, Any]:
         if not response.data:
             return {"event": None, "message": "No upcoming events."}
 
-        return {"event": response.data}
+        return {"event": _with_distance_km(response.data)}
 
 
 async def tp_get_events(start_date: str, end_date: str) -> dict[str, Any]:
@@ -199,9 +234,10 @@ async def tp_get_events(start_date: str, end_date: str) -> dict[str, Any]:
             }
 
         data = response.data if isinstance(response.data, list) else []
+        events = [_with_distance_km(evt) for evt in data]
         return {
-            "events": data,
-            "count": len(data),
+            "events": events,
+            "count": len(events),
             "date_range": {"start": start_date, "end": end_date},
         }
 

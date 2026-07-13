@@ -66,6 +66,104 @@ class TestGetNextEvent:
         assert result["event"]["name"] == "Local 10K"
 
 
+class TestEventDistanceNormalisation:
+    """Event tools inject a canonical distance_km alongside TP's raw
+    distance/distanceUnits, which vary per athlete for the same race (#71)."""
+
+    @staticmethod
+    async def _next_event_result(data):
+        response = APIResponse(success=True, data=data)
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            return await tp_get_next_event()
+
+    @pytest.mark.asyncio
+    async def test_meters_units(self):
+        result = await self._next_event_result(
+            {"name": "50K", "distance": 50000, "distanceUnits": "Meters"}
+        )
+        assert result["event"]["distance_km"] == 50.0
+        # Raw fields untouched
+        assert result["event"]["distance"] == 50000
+        assert result["event"]["distanceUnits"] == "Meters"
+
+    @pytest.mark.asyncio
+    async def test_kilometers_units(self):
+        result = await self._next_event_result(
+            {"name": "50K", "distance": 50, "distanceUnits": "Kilometers"}
+        )
+        assert result["event"]["distance_km"] == 50.0
+
+    @pytest.mark.asyncio
+    async def test_blank_units_large_value_assumed_meters(self):
+        result = await self._next_event_result(
+            {"name": "50K", "distance": 50000, "distanceUnits": ""}
+        )
+        assert result["event"]["distance_km"] == 50.0
+
+    @pytest.mark.asyncio
+    async def test_null_units_small_value_assumed_km(self):
+        result = await self._next_event_result(
+            {"name": "50K", "distance": 50, "distanceUnits": None}
+        )
+        assert result["event"]["distance_km"] == 50.0
+
+    @pytest.mark.asyncio
+    async def test_missing_distance(self):
+        result = await self._next_event_result({"name": "No distance"})
+        assert result["event"]["distance_km"] is None
+
+    @pytest.mark.asyncio
+    async def test_non_numeric_distance(self):
+        result = await self._next_event_result(
+            {"name": "Bad data", "distance": "n/a", "distanceUnits": "Kilometers"}
+        )
+        assert result["event"]["distance_km"] is None
+
+    @pytest.mark.asyncio
+    async def test_miles_units(self):
+        result = await self._next_event_result(
+            {"name": "Marathon", "distance": 26.2, "distanceUnits": "Miles"}
+        )
+        assert result["event"]["distance_km"] == pytest.approx(42.164813, rel=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_focus_event_gets_distance_km(self):
+        response = APIResponse(
+            success=True,
+            data={"name": "IM World Champs", "distance": 226000, "distanceUnits": "Meters"},
+        )
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_focus_event()
+
+        assert result["event"]["distance_km"] == 226.0
+
+    @pytest.mark.asyncio
+    async def test_get_events_list_gets_distance_km(self):
+        events = [
+            {"name": "Race A", "distance": 10000, "distanceUnits": "Meters"},
+            {"name": "Race B", "distance": 21.1, "distanceUnits": "Kilometers"},
+        ]
+        response = APIResponse(success=True, data=events)
+        with patch("tp_mcp.tools.events.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_events("2026-01-01", "2026-03-01")
+
+        assert [e["distance_km"] for e in result["events"]] == [10.0, 21.1]
+
+
 class TestGetEvents:
     @pytest.mark.asyncio
     async def test_list_events(self):
