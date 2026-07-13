@@ -231,6 +231,11 @@ TOOLS = [
                 "tags": {"type": "string", "description": "Optional comma-separated tags"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "is_hidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout",
+                    "default": False,
+                },
             },
             "required": ["date", "sport", "title"],
         },
@@ -259,6 +264,10 @@ TOOLS = [
                 "coach_comment": {"type": "string"},
                 "feeling": {"type": "integer", "description": WORKOUT_FEELING_DESCRIPTION},
                 "rpe": {"type": "integer", "description": WORKOUT_RPE_DESCRIPTION},
+                "is_hidden": {
+                    "type": "boolean",
+                    "description": "Whether to hide the workout"
+                },
                 "structure": {
                     "type": ["object", "string"],
                     "description": STRUCTURE_DESCRIPTION,
@@ -971,6 +980,14 @@ TOOLS = [
                 "tss": {"type": "number"},
                 "description": {"type": "string"},
                 "structure": {"type": "object"},
+                "workout_type_id": {
+                    "type": "integer",
+                    "description": (
+                        "Sport/workout type: 1=swim, 2=bike, 3=run, etc. "
+                        "Sets the sport on templates saved without one."
+                    ),
+                },
+                "workout_sub_type_id": {"type": "integer"},
             },
             "required": ["library_id", "item_id"],
         },
@@ -1104,6 +1121,7 @@ async def _h_create_workout(args):
         structured_workout=args.get("structured_workout"),
         subtype_id=args.get("subtype_id"), tags=args.get("tags"),
         feeling=args.get("feeling"), rpe=args.get("rpe"),
+        is_hidden=args.get("is_hidden", False),
     )
 
 @_handler("tp_update_workout")
@@ -1118,6 +1136,7 @@ async def _h_update_workout(args):
         coach_comment=args.get("coach_comment"), feeling=args.get("feeling"),
         rpe=args.get("rpe"), structure=args.get("structure"),
         structured_workout=args.get("structured_workout"),
+        is_hidden=args.get("is_hidden"),
     )
 
 @_handler("tp_delete_workout")
@@ -1398,6 +1417,8 @@ async def _h_update_lib_item(args):
         name=args.get("name"), duration_hours=args.get("duration_hours"),
         tss=args.get("tss"), description=args.get("description"),
         structure=args.get("structure"),
+        workout_type_id=args.get("workout_type_id"),
+        workout_sub_type_id=args.get("workout_sub_type_id"),
     )
 
 @_handler("tp_schedule_library_workout")
