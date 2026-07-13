@@ -668,7 +668,7 @@ async def tp_update_workout(
             existing["workoutTypeFamilyId"] = family_id
             existing["workoutTypeValueId"] = type_id
         if params.subtype_id is not None:
-            existing["workoutTypeValueId"] = params.subtype_id
+            existing["workoutSubTypeId"] = params.subtype_id
         if params.title is not None:
             existing["title"] = params.title
         if params.description is not None:
