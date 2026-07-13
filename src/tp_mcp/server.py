@@ -1070,13 +1070,26 @@ TOOLS = [
     ),
     Tool(
         name="tp_schedule_library_workout",
-        description="Schedule a library template to a calendar date.",
+        description=(
+            "Schedule a library template to a calendar date, for yourself or "
+            "(coach accounts) for one or many athletes."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
                 "library_id": {"type": "string"},
                 "item_id": {"type": "string"},
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
+                "athletes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Bulk mode (coach accounts): athlete names or IDs to "
+                        "schedule the same template to, one workout each. "
+                        "Returns per-athlete results. Mutually exclusive with "
+                        "'athlete'."
+                    ),
+                },
             },
             "required": ["library_id", "item_id", "date"],
         },
@@ -1701,6 +1714,7 @@ async def _h_update_lib_item(args):
 async def _h_schedule_lib(args):
     return await tp_schedule_library_workout(
         library_id=args["library_id"], item_id=args["item_id"], date=args["date"],
+        athletes=args.get("athletes"),
     )
 
 
