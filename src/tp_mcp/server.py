@@ -13,6 +13,7 @@ from mcp.types import (
     Tool,
 )
 
+from tp_mcp.access import is_tool_allowed, denial_reason, policy_summary
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
@@ -1294,8 +1295,13 @@ for _tool in TOOLS:
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
-    """List available tools."""
-    return TOOLS
+    """List available tools, filtered by the active access policy.
+
+    Tools above the configured privilege (TP_MCP_MODE) or explicitly
+    disabled (TP_MCP_DISABLED_TOOLS) are hidden, so the model never sees
+    capabilities the human operator has not granted.
+    """
+    return [tool for tool in TOOLS if is_tool_allowed(tool.name)]
 
 
 # ---------------------------------------------------------------------------
@@ -1723,6 +1729,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     logger.info("Tool call: %s", name)
 
+    # Enforce the access policy (defense in depth: list_tools already hides
+    # disallowed tools, but reject here too in case one is called by name).
+    if not is_tool_allowed(name):
+        logger.warning("Blocked tool call by access policy: %s", name)
+        blocked = {
+            "isError": True,
+            "error_code": "TOOL_NOT_ALLOWED",
+            "message": denial_reason(name),
+        }
+        return [TextContent(type="text", text=json.dumps(blocked, indent=2))]
+
     # Extract athlete targeting for coach accounts and set context var
     athlete_target = arguments.pop("athlete", None)
     token = athlete_override.set(athlete_target)
@@ -1770,6 +1787,7 @@ async def _validate_auth_on_startup() -> bool:
 async def run_server_async() -> None:
     """Run the MCP server (async)."""
     logger.info("Starting TrainingPeaks MCP Server")
+    logger.info(policy_summary())
     await _validate_auth_on_startup()
 
     async with stdio_server() as (read_stream, write_stream):
