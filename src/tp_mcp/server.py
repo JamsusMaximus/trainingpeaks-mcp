@@ -13,7 +13,7 @@ from mcp.types import (
     Tool,
 )
 
-from tp_mcp.access import is_tool_allowed, denial_reason, policy_summary
+from tp_mcp.access import denial_reason, is_tool_allowed, policy_summary
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
