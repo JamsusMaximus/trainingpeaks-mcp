@@ -231,6 +231,12 @@ class TestTpAnalyzeWorkout:
         assert "totals" in result
         assert "TSS" in result["totals"]
         assert result["totals"]["TSS"]["value"] == 75.2
+        # Totals keyed by friendlyName ("NP"/"Distance"), not the v2 identifier
+        # ("NormalizedPower"/"TotalDistance") — preserves the old v1 total names.
+        assert "NP" in result["totals"]
+        assert result["totals"]["NP"]["value"] == 220
+        assert "Distance" in result["totals"]
+        assert result["totals"]["Distance"]["value"] == 40.5
         assert len(result["dataChannels"]) == 2
         assert result["dataChannels"][0]["identifier"] == "Power"
         assert result["time_series_points"] == 3

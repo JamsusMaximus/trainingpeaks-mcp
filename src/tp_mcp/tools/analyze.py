@@ -227,8 +227,12 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
                     return laps_err
 
     summary_data = (summary or {}).get("data") or {}
+    # Key totals by ``friendlyName`` (e.g. "NP", "Distance") rather than the v2
+    # identifier (e.g. "NormalizedPower", "TotalDistance") to preserve the same
+    # total names the old v1 endpoint returned; fall back to the identifier when
+    # a channel has no friendlyName.
     totals = [
-        {"name": name, "value": meta.get("value"), "unit": meta.get("unit")}
+        {"name": meta.get("friendlyName") or name, "value": meta.get("value"), "unit": meta.get("unit")}
         for name, meta in summary_data.items()
         if isinstance(meta, dict)
     ]
