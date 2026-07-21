@@ -337,6 +337,10 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "rpe": raw_data.get("rpe"),
                 "feeling": raw_data.get("feeling"),
                 "new_comment": raw_data.get("newComment"),
+                # TP UI "Pre-Activity Comments" (coach) / "Post-Activity Comments"
+                # (athlete) — distinct from the chat-style workout_comments.
+                "coach_comment": raw_data.get("coachComments"),
+                "athlete_comment": raw_data.get("athleteComments"),
                 "has_private_workout_note": raw_data.get("hasPrivateWorkoutNoteForCaller"),
                 "metrics": {
                     "duration_planned": workout.duration_planned,

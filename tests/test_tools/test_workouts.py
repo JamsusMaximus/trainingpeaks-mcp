@@ -224,6 +224,8 @@ class TestTpGetWorkout:
             "feeling": 3,
             "newComment": "Felt controlled.",
             "hasPrivateWorkoutNoteForCaller": True,
+            "coachComments": "Just roll through everything here.",
+            "athleteComments": "Legs felt heavy.",
         })
         workout_response = APIResponse(success=True, data=workout_data)
         details_response = APIResponse(success=True, data={})
@@ -240,6 +242,8 @@ class TestTpGetWorkout:
         assert result["feeling"] == 3
         assert result["new_comment"] == "Felt controlled."
         assert result["has_private_workout_note"] is True
+        assert result["coach_comment"] == "Just roll through everything here."
+        assert result["athlete_comment"] == "Legs felt heavy."
 
     @pytest.mark.asyncio
     async def test_get_workout_not_found(self):
