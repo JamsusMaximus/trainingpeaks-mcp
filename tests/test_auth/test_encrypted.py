@@ -6,8 +6,8 @@ import os
 import pytest
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from tp_mcp.auth import encrypted
 from tp_mcp.auth.encrypted import (
-    CREDENTIALS_FILE,
     EncryptedCredentialStore,
     _derive_key,
     _derive_key_legacy,
@@ -15,11 +15,18 @@ from tp_mcp.auth.encrypted import (
 
 
 @pytest.fixture(autouse=True)
-def _clean_credentials():
-    """Remove credential file before and after each test."""
-    CREDENTIALS_FILE.unlink(missing_ok=True)
-    yield
-    CREDENTIALS_FILE.unlink(missing_ok=True)
+def _isolate_credentials(tmp_path, monkeypatch):
+    """Redirect the credential store to a per-test temp directory.
+
+    The store reads CONFIG_DIR/CREDENTIALS_FILE from module globals at call
+    time, so patching the module attributes is sufficient. Without this, a
+    plain test run operates on the developer's REAL
+    ~/.config/trainingpeaks-mcp/credentials.enc — and deletes their live
+    login (this actually happened).
+    """
+    config_dir = tmp_path / "trainingpeaks-mcp"
+    monkeypatch.setattr(encrypted, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(encrypted, "CREDENTIALS_FILE", config_dir / "credentials.enc")
 
 
 class TestDeriveKey:
@@ -73,8 +80,8 @@ class TestEncryptedCredentialStore:
         nonce = os.urandom(12)
         aesgcm = AESGCM(legacy_key)
         ciphertext = aesgcm.encrypt(nonce, b"legacy-cookie", None)
-        CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CREDENTIALS_FILE.write_bytes(base64.b64encode(nonce + ciphertext))
+        encrypted.CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        encrypted.CREDENTIALS_FILE.write_bytes(base64.b64encode(nonce + ciphertext))
 
         # Retrieve via store (should fall back to legacy and migrate)
         store = EncryptedCredentialStore()
@@ -91,8 +98,8 @@ class TestEncryptedCredentialStore:
 
     def test_decryption_failure_returns_error(self):
         """Corrupted file should return a graceful error."""
-        CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CREDENTIALS_FILE.write_bytes(base64.b64encode(b"corrupted-data-here!!"))
+        encrypted.CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        encrypted.CREDENTIALS_FILE.write_bytes(base64.b64encode(b"corrupted-data-here!!"))
 
         store = EncryptedCredentialStore()
         result = store.get()
