@@ -294,13 +294,18 @@ class TestAvailability:
             result = await tp_create_availability(
                 start_date="2026-04-01", end_date="2026-04-07",
                 limited=True, sport_types=["Run", "Swim"],
+                description="Holiday",
             )
 
         assert result["success"] is True
         assert result["limited"] is True
         payload = mock_instance.post.call_args[1]["json"]
-        assert payload["limited"] is True
-        assert payload["sportTypes"] == ["Run", "Swim"]
+        assert payload["personId"] == 123
+        assert payload["type"] == 2
+        assert payload["availableSportTypes"] == [3, 1]
+        assert payload["description"] == "Holiday"
+        assert "athleteId" not in payload
+        assert "limited" not in payload
 
 
 class TestGetNote:

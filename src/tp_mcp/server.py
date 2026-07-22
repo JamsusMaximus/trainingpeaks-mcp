@@ -61,6 +61,8 @@ from tp_mcp.tools import (
     tp_get_pool_length_settings,
     tp_get_profile,
     tp_get_strength_summary,
+    tp_get_strength_workout,
+    tp_get_strength_workouts,
     tp_get_weekly_summary,
     tp_get_workout,
     tp_get_workout_comments,
@@ -180,7 +182,11 @@ TOOLS = [
     # --- Workouts ---
     Tool(
         name="tp_get_workouts",
-        description="List workouts in date range. Query only days needed. Max 90 days.",
+        description=(
+            "List workouts in date range. Query only days needed. Max 90 days. "
+            "Does NOT include strength-builder gym workouts — use "
+            "tp_get_strength_workouts for those."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
@@ -929,7 +935,11 @@ TOOLS = [
                 "sport_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Available sport types if limited",
+                    "description": "If limited, sports that REMAIN available — names (e.g. 'Run') or TP sport-type ids",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional short label shown on the calendar entry",
                 },
             },
             "required": ["start_date", "end_date"],
@@ -1157,6 +1167,37 @@ TOOLS = [
     Tool(
         name="tp_get_strength_summary",
         description="Get a strength workout's compliance summary (blocks/prescriptions/sets completed).",
+        inputSchema={
+            "type": "object",
+            "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_workouts",
+        description=(
+            "List structured strength/gym workouts in a date range. Strength "
+            "workouts live on a separate API and do NOT appear in tp_get_workouts; "
+            "use this to find them and their IDs, then tp_get_strength_workout for "
+            "full detail. Returns date, title, duration, compliance, set totals, "
+            "and an exercise preview."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "Range start YYYY-MM-DD."},
+                "end_date": {"type": "string", "description": "Range end YYYY-MM-DD (inclusive)."},
+            },
+            "required": ["start_date", "end_date"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_workout",
+        description=(
+            "Get a strength workout's full detail by ID: blocks, exercises, and "
+            "sets with prescribed vs executed values (Reps, WeightKg, …), plus "
+            "RPE, feel and compliance. Get IDs from tp_get_strength_workouts."
+        ),
         inputSchema={
             "type": "object",
             "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
@@ -1486,6 +1527,15 @@ async def _h_create_strength(args):
 async def _h_get_strength_summary(args):
     return await tp_get_strength_summary(workout_id=args["workout_id"])
 
+@_handler("tp_get_strength_workouts")
+async def _h_get_strength_workouts(args):
+    return await tp_get_strength_workouts(
+        start_date=args["start_date"], end_date=args["end_date"])
+
+@_handler("tp_get_strength_workout")
+async def _h_get_strength_workout(args):
+    return await tp_get_strength_workout(workout_id=args["workout_id"])
+
 @_handler("tp_delete_strength_workout")
 async def _h_delete_strength(args):
     return await tp_delete_strength_workout(workout_id=args["workout_id"])
@@ -1661,6 +1711,7 @@ async def _h_create_avail(args):
     return await tp_create_availability(
         start_date=args["start_date"], end_date=args["end_date"],
         limited=args.get("limited", False), sport_types=args.get("sport_types"),
+        description=args.get("description"),
     )
 
 @_handler("tp_delete_availability")

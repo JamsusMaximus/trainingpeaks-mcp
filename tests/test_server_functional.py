@@ -115,6 +115,8 @@ class TestListTools:
             "tp_search_exercises",
             "tp_create_strength_workout",
             "tp_get_strength_summary",
+            "tp_get_strength_workouts",
+            "tp_get_strength_workout",
             "tp_delete_strength_workout",
         }
         assert v2_tools.issubset(names)

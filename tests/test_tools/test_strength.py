@@ -7,11 +7,16 @@ import pytest
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.strength import (
     _build_payload,
+    _fmt_set,
+    _fmt_workout_detail,
     _input_format,
+    _min,
     _validate_blocks,
     tp_create_strength_workout,
     tp_delete_strength_workout,
     tp_get_strength_summary,
+    tp_get_strength_workout,
+    tp_get_strength_workouts,
     tp_search_exercises,
 )
 
@@ -250,4 +255,166 @@ class TestSummaryAndDelete:
             with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
                 mh.return_value.__aenter__.return_value = http
                 r = await tp_get_strength_summary(workout_id="555")
+        assert r["error_code"] == "NOT_FOUND"
+
+
+# ── Detail projection helpers (pure) ─────────────────────────────────────────
+
+
+class TestDetailHelpers:
+    def test_min_conversion(self):
+        assert _min(2400) == 40.0
+        assert _min(2612) == 43.5
+        assert _min(None) is None
+        assert _min("bad") is None
+
+    def test_fmt_set_splits_prescribed_executed(self):
+        s = {
+            "isComplete": True,
+            "parameterValues": [
+                {"parameter": "Reps", "prescribedValue": "10", "executedValue": "8"},
+                {"parameter": "WeightKg", "prescribedValue": "24", "executedValue": None},
+            ],
+        }
+        out = _fmt_set(s)
+        assert out["prescribed"] == {"Reps": "10", "WeightKg": "24"}
+        assert out["executed"] == {"Reps": "8"}  # None executed value dropped
+        assert out["complete"] is True
+
+    def test_fmt_workout_detail_shape(self):
+        data = {
+            "id": "22398584",
+            "prescribedDate": "2026-07-20",
+            "title": "Supersets",
+            "workoutType": "StructuredStrength",
+            "instructions": None,
+            "prescribedDurationInSeconds": 2400,
+            "executedDurationInSeconds": 2612,
+            "complianceState": "Compliant",
+            "compliancePercent": 100.0,
+            "rpe": 4,
+            "feel": 5,
+            "snapshot": {"totalSets": 30, "completedSets": 30},
+            "blocks": [
+                {
+                    "blockType": "Superset",
+                    "title": "Superset 1",
+                    "coachNotes": None,
+                    "compliancePercent": 100.0,
+                    "prescriptions": [
+                        {
+                            "exercise": {"title": "Goblet Squat", "videoUrl": "http://v"},
+                            "coachNotes": "go deep",
+                            "compliancePercent": 100.0,
+                            "sets": [
+                                {"isComplete": True, "parameterValues": [
+                                    {"parameter": "Reps", "prescribedValue": "10", "executedValue": "10"},
+                                    {"parameter": "WeightLb", "prescribedValue": "45", "executedValue": "45"},
+                                ]},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        out = _fmt_workout_detail(data)
+        assert out["workout_id"] == "22398584"
+        assert out["prescribed_duration_min"] == 40.0
+        assert out["executed_duration_min"] == 43.5
+        assert out["rpe"] == 4 and out["feel"] == 5
+        assert out["total_sets"] == 30 and out["completed_sets"] == 30
+        block = out["blocks"][0]
+        assert block["type"] == "Superset"
+        ex = block["exercises"][0]
+        assert ex["exercise"] == "Goblet Squat"
+        assert ex["video_url"] == "http://v"
+        assert ex["sets"][0]["prescribed"] == {"Reps": "10", "WeightLb": "45"}
+
+
+class TestListAndDetail:
+    @pytest.mark.asyncio
+    async def test_list_success(self):
+        # Endpoint returns a bare JSON array.
+        items = [
+            {"id": "2", "prescribedDate": "2026-07-20", "title": "B", "workoutType": "StructuredStrength",
+             "prescribedDurationInSeconds": 2400, "complianceState": "Compliant", "compliancePercent": 100.0,
+             "totalSets": 30, "completedSets": 30,
+             "sequenceSummary": [{"title": "Warm Up"}, {"title": "Pull Up"}]},
+            {"id": "1", "prescribedDate": "2026-07-13", "title": "A", "workoutType": "StructuredStrength",
+             "prescribedDurationInSeconds": 2100, "complianceState": "Compliant", "compliancePercent": 100.0,
+             "totalSets": 20, "completedSets": 20, "sequenceSummary": []},
+        ]
+        http = _mock_http(200, items)
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workouts(start_date="2026-07-01", end_date="2026-07-22")
+        assert r["count"] == 2
+        # Sorted ascending by date regardless of API order.
+        assert [w["date"] for w in r["workouts"]] == ["2026-07-13", "2026-07-20"]
+        assert r["workouts"][1]["exercises"] == ["Warm Up", "Pull Up"]
+        assert r["workouts"][1]["prescribed_duration_min"] == 40.0
+
+    @pytest.mark.asyncio
+    async def test_list_requires_dates(self):
+        r = await tp_get_strength_workouts(start_date="", end_date="2026-07-22")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_list_auth_failure(self):
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client(athlete_id=None)
+            r = await tp_get_strength_workouts(start_date="2026-07-01", end_date="2026-07-22")
+        assert r["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_list_expired_session(self):
+        http = _mock_http(401, {})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workouts(start_date="2026-07-01", end_date="2026-07-22")
+        assert r["error_code"] == "AUTH_EXPIRED"
+
+    @pytest.mark.asyncio
+    async def test_detail_success(self):
+        data = {"id": "22398584", "prescribedDate": "2026-07-20", "title": "Supersets",
+                "workoutType": "StructuredStrength", "snapshot": {"totalSets": 30, "completedSets": 30},
+                "blocks": []}
+        http = _mock_http(200, {"data": data, "errors": {}})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout(workout_id="22398584")
+        assert r["workout_id"] == "22398584"
+        assert r["blocks"] == []
+
+    @pytest.mark.asyncio
+    async def test_detail_not_found(self):
+        http = _mock_http(404, {"message": "nope"})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout(workout_id="999")
+        assert r["error_code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_detail_auth_failure(self):
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client(athlete_id=None)
+            r = await tp_get_strength_workout(workout_id="1")
+        assert r["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_detail_empty_data_is_not_found(self):
+        http = _mock_http(200, {"data": None, "errors": {}})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout(workout_id="999")
         assert r["error_code"] == "NOT_FOUND"

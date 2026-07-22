@@ -10,6 +10,10 @@ exists server-side), so `tp_search_exercises` runs fully offline.
 
 Verified against the live API:
   • create  → POST   /rx/activity/v1/workouts/save        (returns numeric id)
+  • list    → GET    /rx/activity/v1/workouts/calendar/{calendarId}/{start}/{end}
+              (bare JSON array of workout summaries — the ONLY discovery route;
+              strength workouts never appear in the /fitness/v6 endpoints)
+  • detail  → GET    /rx/activity/v1/workouts/{id}         (full blocks/sets, {data} wrapper)
   • summary → GET    /rx/activity/v1/workouts/{id}/summary
   • delete  → DELETE /rx/activity/v1/workouts/{id}
   • a prescription must declare its own `parameters` (the prescribed columns),
@@ -425,6 +429,182 @@ async def tp_get_strength_summary(workout_id: str) -> dict[str, Any]:
             "rpe": d.get("rpe"),
             "feel": d.get("feel"),
         }
+
+
+def _min(seconds: Any) -> float | None:
+    """Seconds → minutes (1 dp), or None."""
+    if seconds is None:
+        return None
+    try:
+        return round(float(seconds) / 60.0, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_set(s: dict[str, Any]) -> dict[str, Any]:
+    """Flatten one set's parameterValues into prescribed/executed maps."""
+    prescribed: dict[str, Any] = {}
+    executed: dict[str, Any] = {}
+    for pv in s.get("parameterValues") or []:
+        p = pv.get("parameter")
+        if not p:
+            continue
+        if pv.get("prescribedValue") is not None:
+            prescribed[p] = pv["prescribedValue"]
+        if pv.get("executedValue") is not None:
+            executed[p] = pv["executedValue"]
+    return {"prescribed": prescribed, "executed": executed, "complete": bool(s.get("isComplete"))}
+
+
+def _fmt_prescription(p: dict[str, Any]) -> dict[str, Any]:
+    """One prescription = one exercise + its sets."""
+    ex = p.get("exercise") or {}
+    return {
+        "exercise": ex.get("title"),
+        "video_url": ex.get("videoUrl"),
+        "notes": p.get("coachNotes"),
+        "compliance_percent": p.get("compliancePercent"),
+        "sets": [_fmt_set(s) for s in (p.get("sets") or [])],
+    }
+
+
+def _fmt_workout_detail(d: dict[str, Any]) -> dict[str, Any]:
+    """Project a full strength workout detail payload to the fields tools expose."""
+    blocks_out = []
+    for b in d.get("blocks") or []:
+        blocks_out.append(
+            {
+                "type": b.get("blockType"),
+                "title": b.get("title"),
+                "notes": b.get("coachNotes"),
+                "compliance_percent": b.get("compliancePercent"),
+                "exercises": [_fmt_prescription(p) for p in (b.get("prescriptions") or [])],
+            }
+        )
+    snap = d.get("snapshot") or {}
+    return {
+        "workout_id": str(d.get("id")),
+        "date": d.get("prescribedDate"),
+        "title": d.get("title"),
+        "workout_type": d.get("workoutType"),
+        "instructions": d.get("instructions"),
+        "prescribed_duration_min": _min(d.get("prescribedDurationInSeconds")),
+        "executed_duration_min": _min(d.get("executedDurationInSeconds")),
+        "compliance_state": d.get("complianceState"),
+        "compliance_percent": d.get("compliancePercent"),
+        "rpe": d.get("rpe"),
+        "feel": d.get("feel"),
+        "total_sets": snap.get("totalSets"),
+        "completed_sets": snap.get("completedSets"),
+        "blocks": blocks_out,
+    }
+
+
+async def tp_get_strength_workouts(start_date: str, end_date: str) -> dict[str, Any]:
+    """List structured strength (gym) workouts on the athlete's calendar in a date range.
+
+    Strength workouts from TrainingPeaks' strength builder live on a separate API
+    from endurance workouts and do NOT appear in `tp_get_workouts`. Use this to
+    discover them (and their IDs), then `tp_get_strength_workout` for full detail.
+
+    Args:
+        start_date: Range start, YYYY-MM-DD.
+        end_date: Range end, YYYY-MM-DD (inclusive).
+
+    Returns:
+        Dict with `count`, `date_range`, and `workouts` — each with workout_id,
+        date, title, workout_type, planned duration, compliance, set totals, and
+        an ordered `exercises` preview (from the workout's sequence summary).
+    """
+    start = str(start_date).strip()
+    end = str(end_date).strip()
+    if not start or not end:
+        return _err("VALIDATION_ERROR", "start_date and end_date are required (YYYY-MM-DD).")
+
+    async with TPClient() as client:
+        athlete_id, access, err = await _access(client)
+        if err:
+            return err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/calendar/{athlete_id}/{start}/{end}",
+                    headers=_headers(access),
+                )
+        except httpx.TimeoutException:
+            return _err("NETWORK_ERROR", "Strength list timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error listing strength workouts")
+            return _err("NETWORK_ERROR", "A network error occurred.")
+
+        if r.status_code != 200:
+            return _map_status(r.status_code, r.text)
+
+        # This endpoint returns a bare JSON array of workout summaries.
+        items = r.json()
+        if not isinstance(items, list):
+            items = items.get("data") or []
+        workouts = [
+            {
+                "workout_id": str(w.get("id")),
+                "date": w.get("prescribedDate"),
+                "title": w.get("title"),
+                "workout_type": w.get("workoutType"),
+                "prescribed_duration_min": _min(w.get("prescribedDurationInSeconds")),
+                "compliance_state": w.get("complianceState"),
+                "compliance_percent": w.get("compliancePercent"),
+                "total_sets": w.get("totalSets"),
+                "completed_sets": w.get("completedSets"),
+                "exercises": [
+                    s.get("title") for s in (w.get("sequenceSummary") or []) if s.get("title")
+                ],
+            }
+            for w in items
+        ]
+        workouts.sort(key=lambda w: w["date"] or "")
+        return {
+            "count": len(workouts),
+            "date_range": {"start": start, "end": end},
+            "workouts": workouts,
+        }
+
+
+async def tp_get_strength_workout(workout_id: str) -> dict[str, Any]:
+    """Get a strength workout's full detail: blocks, exercises, sets, weights.
+
+    Args:
+        workout_id: The strength workout ID (from tp_get_strength_workouts).
+
+    Returns:
+        Dict with the workout metadata (date, title, duration, compliance, RPE,
+        feel) and `blocks` → `exercises` → `sets`, each set giving prescribed vs
+        executed parameter values (Reps, WeightKg, …) and a completion flag.
+    """
+    wid = str(workout_id).strip()
+    if not wid:
+        return _err("VALIDATION_ERROR", "workout_id is required.")
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/{wid}",
+                    headers=_headers(access),
+                )
+        except httpx.TimeoutException:
+            return _err("NETWORK_ERROR", "Strength detail timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error reading strength workout")
+            return _err("NETWORK_ERROR", "A network error occurred.")
+
+        if r.status_code != 200:
+            return _map_status(r.status_code, r.text)
+        d = r.json().get("data") or {}
+        if not d:
+            return _err("NOT_FOUND", "Strength workout not found.")
+        return _fmt_workout_detail(d)
 
 
 async def tp_delete_strength_workout(workout_id: str) -> dict[str, Any]:
