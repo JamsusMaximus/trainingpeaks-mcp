@@ -948,11 +948,38 @@ async def tp_get_availability(start_date: str, end_date: str) -> dict[str, Any]:
         }
 
 
+# Availability DTO verified live against TP (2026-07). The body identifies
+# the athlete via "personId" (numerically equal to the athlete id) — NOT
+# "athleteId": the server cross-checks it against the URL athlete id, and a
+# body where it fails to bind is rejected with 400 "AthleteId of request url
+# and AthleteId in body of request do not match". "type" is 1 = unavailable,
+# 2 = limited; limited entries list the sports that REMAIN available as TP
+# sport-type ids ("availableSportTypes", ids from /fitness/v6/workouttypes).
+_AVAILABILITY_SPORT_IDS = {
+    "swim": 1,
+    "bike": 2,
+    "run": 3,
+    "brick": 4,
+    "crosstrain": 5,
+    "race": 6,
+    "day off": 7,
+    "mountain bike": 8,
+    "mtb": 8,
+    "strength": 9,
+    "custom": 10,
+    "xc-ski": 11,
+    "rowing": 12,
+    "walk": 13,
+    "other": 100,
+}
+
+
 async def tp_create_availability(
     start_date: str,
     end_date: str,
     limited: bool = False,
     sport_types: list[str] | None = None,
+    description: str | None = None,
 ) -> dict[str, Any]:
     """Mark dates as unavailable or limited.
 
@@ -960,7 +987,9 @@ async def tp_create_availability(
         start_date: Start date (YYYY-MM-DD).
         end_date: End date (YYYY-MM-DD).
         limited: If True, mark as limited (not fully unavailable).
-        sport_types: If limited, list of available sport types.
+        sport_types: If limited, the sports that REMAIN available — names
+            (e.g. "Run") or TP sport-type ids.
+        description: Optional short label shown on the calendar entry.
 
     Returns:
         Dict with confirmation or error.
@@ -984,14 +1013,36 @@ async def tp_create_availability(
                 "message": "Could not get athlete ID. Re-authenticate.",
             }
 
+        sport_ids: list[int] = []
+        for s in sport_types or []:
+            if isinstance(s, int) or (isinstance(s, str) and s.isdigit()):
+                sport_ids.append(int(s))
+                continue
+            sid = _AVAILABILITY_SPORT_IDS.get(str(s).strip().lower())
+            if sid is None:
+                return {
+                    "isError": True,
+                    "error_code": "VALIDATION_ERROR",
+                    "message": (
+                        f"Unknown sport type '{s}'. Use a TP sport-type id or one of: "
+                        + ", ".join(sorted(_AVAILABILITY_SPORT_IDS))
+                    ),
+                }
+            sport_ids.append(sid)
+
         payload: dict[str, Any] = {
-            "athleteId": athlete_id,
+            "personId": athlete_id,
             "startDate": f"{params.start_date.isoformat()}T00:00:00",
             "endDate": f"{params.end_date.isoformat()}T00:00:00",
-            "limited": limited,
+            "type": 2 if limited else 1,
+            # "Other" is the only reason value verified against the live API;
+            # free-text context belongs in `description`.
+            "reason": "Other",
         }
-        if limited and sport_types:
-            payload["sportTypes"] = sport_types
+        if description:
+            payload["description"] = description
+        if limited and sport_ids:
+            payload["availableSportTypes"] = sport_ids
 
         endpoint = f"/fitness/v1/athletes/{athlete_id}/availability"
         response = await client.post(endpoint, json=payload)

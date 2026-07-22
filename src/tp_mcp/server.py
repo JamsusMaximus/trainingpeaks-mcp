@@ -935,7 +935,11 @@ TOOLS = [
                 "sport_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Available sport types if limited",
+                    "description": "If limited, sports that REMAIN available — names (e.g. 'Run') or TP sport-type ids",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional short label shown on the calendar entry",
                 },
             },
             "required": ["start_date", "end_date"],
@@ -1707,6 +1711,7 @@ async def _h_create_avail(args):
     return await tp_create_availability(
         start_date=args["start_date"], end_date=args["end_date"],
         limited=args.get("limited", False), sport_types=args.get("sport_types"),
+        description=args.get("description"),
     )
 
 @_handler("tp_delete_availability")
