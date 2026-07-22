@@ -1,0 +1,19 @@
+src/tp_mcp/tools/events.py
+  s_d287063292874f::t_b88f554fe0113a 1038-1039
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a8a72e97317bad6eaf9c8d192b20f8999051bde7",
+  "prompts": {},
+  "sessions": {
+    "s_d287063292874f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0dc46a18-8d39-4ab5-a489-d4c1c9937207",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
