@@ -155,15 +155,15 @@ class TestDeriveTier:
     subscription > lapsed-tier-1 (coach-paid) > default basic."""
 
     def test_premium_self_paid_active_subscription(self):
-        # Toktogonov / Omorkanov / Chastushkin / Morozov pattern
+        # Active personal subscription: future expireOn.
         assert _derive_tier(expired=False, user_type=4, trial_days=0) == "premium_self"
 
     def test_premium_coach_paid_lapsed_personal_tier_1(self):
-        # Razuvaev / Kochetkov / Khaldin / Kononova pattern
+        # Coach-paid: personal premium lapsed, tier-1 user type persists.
         assert _derive_tier(expired=True, user_type=1, trial_days=0) == "premium_coach"
 
     def test_basic_lapsed_non_premium_tier(self):
-        # Sokolov / Demenko / Кашлев / Korotkov pattern (user_type=6)
+        # Basic: lapsed with non-premium user_type (6).
         assert _derive_tier(expired=True, user_type=6, trial_days=0) == "basic"
 
     def test_basic_with_other_non_premium_user_type(self):
@@ -171,7 +171,7 @@ class TestDeriveTier:
         assert _derive_tier(expired=True, user_type=4, trial_days=0) == "basic"
 
     def test_premium_trial_wins_over_other_signals(self):
-        # Седых pattern: trial active even though expireOn just lapsed.
+        # Trial stays active even though expireOn just lapsed.
         assert _derive_tier(expired=True, user_type=4, trial_days=4) == "premium_trial"
         assert _derive_tier(expired=False, user_type=4, trial_days=7) == "premium_trial"
 

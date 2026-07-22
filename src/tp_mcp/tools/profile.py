@@ -13,11 +13,9 @@ logger = logging.getLogger("tp-mcp")
 def _derive_tier(*, expired: bool | None, user_type: int | None,
                  trial_days: int | None) -> str | None:
     """Map raw account fields → TP-UI label («Account Type»). Verified against
-    the live UI on 10 athletes spanning all four states (Razuvaev / Kochetkov /
-    Khaldin / Kononova → coach_paid; Sokolov / Demenko / Кашлев / Korotkov →
-    basic; Toktogonov / Omorkanov / Chastushkin / Morozov → self_paid; Седых
-    → trial). Order matters — trial first, then active subscription, then
-    lapsed-but-tier-1 = coach-paid, default basic.
+    the live UI on a real coach roster spanning all four states (coach-paid,
+    basic, self-paid and trial athletes). Order matters — trial first, then
+    active subscription, then lapsed-but-tier-1 = coach-paid, default basic.
 
     Returns one of: ``premium_trial`` / ``premium_self`` / ``premium_coach`` /
     ``basic`` / ``None`` (when ``expired`` couldn't be parsed).
@@ -47,7 +45,8 @@ def _account_fields(entry: dict[str, Any]) -> dict[str, Any]:
       • ``expireOn`` — ISO timestamp; expiration of the athlete's PERSONAL
         subscription. A past date does NOT mean «no premium»: on a coach-paid
         athlete the coach's plan grants premium externally, the personal date
-        stays frozen on whenever the athlete last paid (Razuvaev: 2019-02-25).
+        stays frozen on whenever the athlete last paid (observed live: an
+        expireOn years in the past on an athlete with coach-granted premium).
       • ``athleteType`` (int) — varies (0/2/4/5), not used by the derivation.
       • ``userType`` (int) — 1 = was-ever-premium (paid tier code, persists
         even after personal expiry); 4 = active personal premium; 6 = basic.
