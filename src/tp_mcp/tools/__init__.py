@@ -64,6 +64,8 @@ from tp_mcp.tools.strength import (
     tp_create_strength_workout,
     tp_delete_strength_workout,
     tp_get_strength_summary,
+    tp_get_strength_workout,
+    tp_get_strength_workouts,
     tp_search_exercises,
 )
 from tp_mcp.tools.structure import tp_validate_structure
@@ -169,5 +171,7 @@ __all__ = [
     "tp_search_exercises",
     "tp_create_strength_workout",
     "tp_get_strength_summary",
+    "tp_get_strength_workout",
+    "tp_get_strength_workouts",
     "tp_delete_strength_workout",
 ]
