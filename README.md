@@ -135,6 +135,8 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_search_exercises` | Search the built-in strength exercise library by name (offline) |
 | `tp_create_strength_workout` | Create a structured strength/gym workout (blocks of exercises with sets and parameters) |
 | `tp_get_strength_summary` | Get a strength workout's compliance summary (blocks/prescriptions/sets completed) |
+| `tp_get_strength_workouts` | List strength/gym workouts in a date range (they don't appear in `tp_get_workouts`) |
+| `tp_get_strength_workout` | Get a strength workout's full detail: blocks, exercises, sets, prescribed vs executed weights |
 | `tp_delete_strength_workout` | Delete a strength workout by ID |
 
 ### Athlete Groups (coach accounts)
