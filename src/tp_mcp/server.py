@@ -20,6 +20,7 @@ from tp_mcp.tools import (
     tp_add_note_comment,
     tp_add_workout_comment,
     tp_analyze_workout,
+    tp_apply_training_plan,
     tp_auth_status,
     tp_copy_workout,
     tp_create_availability,
@@ -63,6 +64,8 @@ from tp_mcp.tools import (
     tp_get_strength_summary,
     tp_get_strength_workout,
     tp_get_strength_workouts,
+    tp_get_training_plan,
+    tp_get_training_plan_workouts,
     tp_get_weekly_summary,
     tp_get_workout,
     tp_get_workout_comments,
@@ -75,6 +78,7 @@ from tp_mcp.tools import (
     tp_list_athletes_in_group,
     tp_list_groups,
     tp_list_notes,
+    tp_list_training_plans,
     tp_log_metrics,
     tp_pair_workout,
     tp_refresh_auth,
@@ -553,6 +557,53 @@ TOOLS = [
                 "end_date": {"type": "string", "description": "YYYY-MM-DD"},
             },
             "required": ["start_date", "end_date"],
+        },
+    ),
+    # --- Training Plans (multi-week Plan Store / "My Plans" — distinct from
+    #     workout libraries and the ATP) ---
+    Tool(
+        name="tp_list_training_plans",
+        description="List the coach's authored multi-week training plans (id, title, "
+                    "weeks, workout count, total hours, category, price).",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="tp_get_training_plan",
+        description="Summary of one training plan: weeks, per-week duration/distance, "
+                    "sport breakdown, description.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "plan_id": {"type": "integer", "description": "Plan id (from tp_list_training_plans)"},
+            },
+            "required": ["plan_id"],
+        },
+    ),
+    Tool(
+        name="tp_get_training_plan_workouts",
+        description="All workouts of a training plan laid out by week/day "
+                    "(sport, title, description, duration, TSS, has_structure).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "plan_id": {"type": "integer", "description": "Plan id"},
+            },
+            "required": ["plan_id"],
+        },
+    ),
+    Tool(
+        name="tp_apply_training_plan",
+        description="Apply a training plan to an athlete's calendar from a start date "
+                    "by copying each plan workout (with structure) to start_date + its "
+                    "relative day. Targets the athlete given via the athlete parameter.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "plan_id": {"type": "integer", "description": "Plan id"},
+                "start_date": {"type": "string", "description": "Calendar date for plan day 1 (YYYY-MM-DD)"},
+                "athlete": {"type": "string", "description": "Target athlete name or ID (coach accounts)"},
+            },
+            "required": ["plan_id", "start_date"],
         },
     ),
     # --- Athlete Settings ---
@@ -1553,6 +1604,19 @@ async def _h_weekly_summary(args): return await tp_get_weekly_summary(week_of=ar
 
 @_handler("tp_get_atp")
 async def _h_get_atp(args): return await tp_get_atp(start_date=args["start_date"], end_date=args["end_date"])
+
+@_handler("tp_list_training_plans")
+async def _h_list_training_plans(args): return await tp_list_training_plans()
+
+@_handler("tp_get_training_plan")
+async def _h_get_training_plan(args): return await tp_get_training_plan(plan_id=args["plan_id"])
+
+@_handler("tp_get_training_plan_workouts")
+async def _h_get_training_plan_workouts(args): return await tp_get_training_plan_workouts(plan_id=args["plan_id"])
+
+@_handler("tp_apply_training_plan")
+async def _h_apply_training_plan(args):
+    return await tp_apply_training_plan(plan_id=args["plan_id"], start_date=args["start_date"])
 
 # --- Athlete Settings ---
 @_handler("tp_get_athlete_settings")

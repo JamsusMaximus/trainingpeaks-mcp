@@ -1,6 +1,7 @@
 """HTTP client wrapper for TrainingPeaks API."""
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -9,6 +10,8 @@ from typing import Any
 import httpx
 
 from tp_mcp.auth import get_credential
+
+logger = logging.getLogger("tp-mcp")
 
 TP_API_BASE = "https://tpapi.trainingpeaks.com"
 DEFAULT_TIMEOUT = 30.0
@@ -52,6 +55,24 @@ class ErrorCode(Enum):
     VALIDATION_ERROR = "VALIDATION_ERROR"
     API_ERROR = "API_ERROR"
     NETWORK_ERROR = "NETWORK_ERROR"
+    FORBIDDEN_ENDPOINT = "FORBIDDEN_ENDPOINT"
+
+
+# Hard-blocked endpoints — destructive operations the connector must NEVER issue,
+# regardless of caller (tool, probe, or future code). DEFENSE-IN-DEPTH safeguard.
+#
+# /plans/v1/commands/applyplan — the NATIVE training-plan apply command. Live
+# incident 2026-06-17: applying a published plan via this command produced a
+# degenerate application that associated the SOURCE plan-template's own workouts
+# with the application; a subsequent Unapply ("remove all associated workouts")
+# then DELETED the template's 139 workouts, emptying a published Plan-Store plan.
+# The connector applies plans with a SYNTHETIC copy (tp_apply_training_plan), which
+# never calls this command, so blocking it loses no functionality.
+_FORBIDDEN_ENDPOINTS: tuple[str, ...] = ("/plans/v1/commands/applyplan",)
+
+
+def _is_forbidden(endpoint: str) -> bool:
+    return any(bad in endpoint for bad in _FORBIDDEN_ENDPOINTS)
 
 
 @dataclass
@@ -307,6 +328,16 @@ class TPClient:
         Returns:
             APIResponse with data or error.
         """
+        if _is_forbidden(endpoint):
+            logger.error("BLOCKED forbidden endpoint: %s %s", method, endpoint)
+            return APIResponse(
+                success=False,
+                error_code=ErrorCode.FORBIDDEN_ENDPOINT,
+                message=(f"Endpoint {endpoint} is disabled in this connector "
+                         "(destructive plan operation — has emptied a published plan). "
+                         "Use the synthetic tp_apply_training_plan instead."),
+            )
+
         await self._ensure_client()
         assert self._client is not None
 
@@ -471,6 +502,13 @@ class TPClient:
         Returns:
             RawResponse with binary content and headers, or error.
         """
+        if _is_forbidden(endpoint):
+            logger.error("BLOCKED forbidden endpoint: GET %s", endpoint)
+            return RawResponse(
+                success=False,
+                error_code=ErrorCode.FORBIDDEN_ENDPOINT,
+                message=f"Endpoint {endpoint} is disabled in this connector.",
+            )
         await self._ensure_client()
         assert self._client is not None
 

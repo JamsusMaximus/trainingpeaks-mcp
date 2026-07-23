@@ -201,3 +201,28 @@ class TestHandleResponse:
 
         assert result.success is True
         assert result.data is None
+
+
+class TestForbiddenEndpoints:
+    """Safeguard: destructive plan commands are hard-blocked at the client (the
+    native applyplan + unapply emptied a published plan's template, 2026-06-17)."""
+
+    def test_helper_matches_applyplan_only(self):
+        from tp_mcp.client.http import _is_forbidden
+        assert _is_forbidden("/plans/v1/commands/applyplan")
+        assert _is_forbidden("/plans/v1/commands/applyplan?x=1")
+        # the synthetic-apply read paths + status poll stay allowed
+        assert not _is_forbidden("/plans/v1/plans/163992/workouts/2018-12-17/2019-04-10")
+        assert not _is_forbidden("/plans/v1/appliedplans/applyPlanStatus")
+        assert not _is_forbidden("/fitness/v6/athletes/123/workouts")
+
+    @pytest.mark.asyncio
+    async def test_applyplan_blocked_with_no_network_call(self):
+        from tp_mcp.client.http import ErrorCode
+        client = TPClient()
+        # Sent via post() → _request(): blocked before any auth/HTTP happens.
+        r = await client.post("/plans/v1/commands/applyplan", json=[{"planId": 1}])
+        assert r.is_error and r.error_code == ErrorCode.FORBIDDEN_ENDPOINT
+        # get_raw() is guarded too.
+        rr = await client.get_raw("/plans/v1/commands/applyplan")
+        assert rr.is_error and rr.error_code == ErrorCode.FORBIDDEN_ENDPOINT
