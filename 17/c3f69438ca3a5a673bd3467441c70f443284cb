@@ -1,0 +1,25 @@
+src/tp_mcp/apps/pmc_chart.html
+  s_b09b332d4c022e::t_9c212fe2d218d0 1-179
+README.md
+  s_b09b332d4c022e::t_2fee2a7b980373 172-188
+src/tp_mcp/apps/__init__.py
+  s_b09b332d4c022e::t_22ff1e968c8535 97
+docs/mcp-2026-07-28-adoption-prd.md
+  s_b09b332d4c022e::t_fd7bbcada61502 135-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "17c3f69438ca3a5a673bd3467441c70f443284cb",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
