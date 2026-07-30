@@ -1,5 +1,10 @@
 # TrainingPeaks MCP Server - Progress
 
+> **ARCHIVED (2026-07-30).** This tracking file is superseded by
+> [mcp-2026-07-28-adoption-prd.md](mcp-2026-07-28-adoption-prd.md), whose per-PR
+> checkboxes are the live source of truth for ongoing work. Kept for history;
+> no longer updated.
+
 ## Current Phase
 MVP - Complete & Production Ready
 
