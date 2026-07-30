@@ -109,24 +109,24 @@ Port `server.py` to `mcp` 2.x on the low-level path. Wire-visible behaviour iden
 - [x] Regression sweep: re-run `scripts/capture_tool_shapes.py` on the v2 server, diff against the committed 1.x baseline - zero shape deltas, or each delta explained in the PR description. Run it with fresh auth and note that an expired cookie or TrainingPeaks outage looks identical to a regression: re-run `tp_auth_status` first to separate the two
 - [x] Real-client smoke (release-blocking): done via headless current Claude Code driving the branch build (live tp_auth_status returned the correct athlete id) plus the full 60-tool live sweep; Claude Desktop GUI smoke deferred to PR 8 (James)
 - [x] CI: extend workflow branch filters to include `v2.x`; update the resolved-`mcp`-major assertion to 2
-- [ ] Cut `v2.x` maintenance branch from the `v2.2.0` tag; document the maintenance-release procedure (branch → CI → tag `v2.2.x`) in the README dev section
-- [ ] Release notes (defined contents): what changed and the failure signature if you hit it; the escape hatch (`git checkout v2.2.0 && pip install -e .`); the `v2.x` branch and what it will receive (fixes only); minimum Python 3.10; a note that pulling main is now a major upgrade
-- [ ] Announcement: pin an issue (or open a Discussion) ahead of merging, so the five open-issue reporters and PR #142's author aren't surprised
-- [ ] CI green on 3.10–3.14; merge; tag `v3.0.0`
+- [x] Cut `v2.x` maintenance branch from the `v2.2.0` tag; document the maintenance-release procedure (branch → CI → tag `v2.2.x`) in the README dev section
+- [x] Release notes (defined contents): what changed and the failure signature if you hit it; the escape hatch (`git checkout v2.2.0 && pip install -e .`); the `v2.x` branch and what it will receive (fixes only); minimum Python 3.10; a note that pulling main is now a major upgrade
+- [x] Announcement: pin an issue (or open a Discussion) ahead of merging, so the five open-issue reporters and PR #142's author aren't surprised
+- [x] CI green on 3.10–3.14; merge; tag `v3.0.0`
 
 ### PR 4 - MCP Apps foundation (merges to main, no tag)
 
 The shared wiring, made concrete by refine (the SDK's low-level path supports all of it directly - no research phase left).
 
-- [ ] Advertise the Apps extension: populate `Server.extensions` / `create_initialization_options(extensions=...)` with `io.modelcontextprotocol/ui`
-- [ ] Implement `resources/list` + `resources/read` for `ui://` resources, MIME `text/html;profile=mcp-app` (SDK default cache fields keep these spec-conformant). Note in the PR: this is tp_mcp's first `resources` capability - the three HTML blobs will appear in clients' resource pickers; acceptable
-- [ ] App HTML storage per decisions: `.html` files in `src/tp_mcp/apps/` + a `_load(name)` helper; **build a wheel and assert the `.html` files are inside it** (CI uses editable installs, which mask packaging gaps; `[tool.hatch.build.targets.wheel]` currently ships `src/tp_mcp` - verify assets are included)
-- [ ] Client detection: import `client_supports_apps` from `mcp.server.apps` (accepts the low-level context - no mirroring needed)
-- [ ] Shared `_meta` stamping helper used by all three app PRs: emits BOTH the nested `_meta.ui.resourceUri` (spec shape) and the deprecated flat `_meta["ui/resourceUri"]` key (pre-GA hosts) - centralised here so PRs 5–7 stay genuinely independent and consistent
-- [ ] Per-merge zero-breakage gate (this PR merges to main untagged, and the constraint applies to merges): smoke in one real client that the server still starts, `tools/list` works, and an existing tool round-trips - the new `resources` capability must not disturb anything existing
-- [ ] Pairing tests (replicating the SDK's `Apps`-extension startup validation): every tool `_meta.ui.resourceUri` has a matching registered `ui://` resource; resources serve the correct MIME type
-- [ ] XSS test fixture: a workout titled `<script>alert(1)</script><img src=x onerror=alert(2)>` used by every app PR's rendering test
-- [ ] Protocol-aware spike, recorded in the PR description: which Claude clients negotiate 2026-07-28 with a local stdio server today (the extension rides `server/discover`, so a legacy-handshake client cannot see it at all - check the negotiated version first, then whether the app renders)
+- [x] Advertise the Apps extension: populate `Server.extensions` / `create_initialization_options(extensions=...)` with `io.modelcontextprotocol/ui`
+- [x] Implement `resources/list` + `resources/read` for `ui://` resources, MIME `text/html;profile=mcp-app` (SDK default cache fields keep these spec-conformant). Note in the PR: this is tp_mcp's first `resources` capability - the three HTML blobs will appear in clients' resource pickers; acceptable
+- [x] App HTML storage per decisions: `.html` files in `src/tp_mcp/apps/` + a `_load(name)` helper; **build a wheel and assert the `.html` files are inside it** (CI uses editable installs, which mask packaging gaps; `[tool.hatch.build.targets.wheel]` currently ships `src/tp_mcp` - verify assets are included)
+- [x] Client detection: import `client_supports_apps` from `mcp.server.apps` (accepts the low-level context - no mirroring needed)
+- [x] Shared `_meta` stamping helper used by all three app PRs: emits BOTH the nested `_meta.ui.resourceUri` (spec shape) and the deprecated flat `_meta["ui/resourceUri"]` key (pre-GA hosts) - centralised here so PRs 5–7 stay genuinely independent and consistent
+- [x] Per-merge zero-breakage gate (this PR merges to main untagged, and the constraint applies to merges): smoke in one real client that the server still starts, `tools/list` works, and an existing tool round-trips - the new `resources` capability must not disturb anything existing
+- [x] Pairing tests (replicating the SDK's `Apps`-extension startup validation): every tool `_meta.ui.resourceUri` has a matching registered `ui://` resource; resources serve the correct MIME type
+- [x] XSS test fixture: a workout titled `<script>alert(1)</script><img src=x onerror=alert(2)>` used by every app PR's rendering test
+- [x] Protocol-aware spike DONE (2026-07-30): Claude Code 2.1.220 sends a legacy `initialize` with protocolVersion **2025-11-25** to local stdio servers - it cannot see the Apps extension yet (rides `server/discover`). Apps ship wired + text-degrading, ready for the client rollout; re-check at PR 8
 
 ### PR 5 - PMC fitness chart app
 

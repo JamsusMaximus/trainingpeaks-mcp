@@ -12,14 +12,19 @@ from mcp.server.stdio import stdio_server
 from mcp.types import (
     CallToolRequestParams,
     CallToolResult,
+    ListResourcesResult,
     ListToolsResult,
     PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    Resource,
     TextContent,
+    TextResourceContents,
     Tool,
     ToolAnnotations,
 )
 
-from tp_mcp import __version__
+from tp_mcp import __version__, apps
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
@@ -1969,6 +1974,11 @@ async def call_tool(name: str, arguments: dict[str, Any] | None = None) -> list[
 # SDK v2 protocol adapters + server construction
 # ---------------------------------------------------------------------------
 
+# MCP Apps: stamp _meta.ui.resourceUri onto app-bound tools and serve their
+# ui:// HTML resources. Hand-rolled wiring per the adoption PRD (the SDK's
+# Apps extension targets MCPServer only).
+apps.stamp_tools(TOOLS)
+
 _TOOLS_LIST_TTL_MS = 3600000  # TOOLS is a module-level constant; 1h freshness hint
 
 
@@ -1981,12 +1991,32 @@ async def _on_call_tool(ctx: ServerRequestContext, params: CallToolRequestParams
     return CallToolResult(content=list(contents))
 
 
+async def _on_list_resources(
+    ctx: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListResourcesResult:
+    return ListResourcesResult(
+        resources=[Resource(**r) for r in apps.list_resources()],
+        ttl_ms=_TOOLS_LIST_TTL_MS,
+    )
+
+
+async def _on_read_resource(ctx: ServerRequestContext, params: ReadResourceRequestParams) -> ReadResourceResult:
+    found = apps.read_resource(str(params.uri))
+    if found is None:
+        raise ValueError(f"Unknown resource: {params.uri}")
+    mime, html = found
+    return ReadResourceResult(contents=[TextResourceContents(uri=params.uri, mime_type=mime, text=html)])
+
+
 server = Server(
     "trainingpeaks-mcp",
     version=__version__,
     on_list_tools=_on_list_tools,
     on_call_tool=_on_call_tool,
+    on_list_resources=_on_list_resources,
+    on_read_resource=_on_read_resource,
 )
+server.extensions[apps.EXTENSION_ID] = {}
 
 
 async def _validate_auth_on_startup() -> bool:

@@ -1,0 +1,10 @@
+{
+  "why": "Workout titles, descriptions, step names and coach/athlete comments are user-authored free text rendered inside app iframes. Every app PR's rendering test must feed these through its data path and assert they render inert.",
+  "strings": [
+    "<script>alert(1)</script>",
+    "<img src=x onerror=alert(2)>",
+    "\"><svg onload=alert(3)>",
+    "javascript:alert(4)",
+    "Grimpeur's 'brutal' 4x8min @ 105% <FTP> & \"more\""
+  ]
+}
