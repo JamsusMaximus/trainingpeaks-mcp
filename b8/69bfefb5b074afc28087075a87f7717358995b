@@ -1,0 +1,48 @@
+tests/test_v2_migration.py
+  s_b09b332d4c022e::t_6eba8555bb0e8f 99-122,125,127-128,130-150
+  s_b09b332d4c022e::t_b157d44f1694c0 1-98,123-124,129
+  s_b09b332d4c022e::t_d1147e07028cfe 126
+tests/test_tools/test_coach_support.py
+  s_b09b332d4c022e::t_8409d434a3bfab 318,326
+scripts/legacy_client_check.py
+  s_b09b332d4c022e::t_eb1b23275fb62a 1-48
+pyproject.toml
+  s_b09b332d4c022e::t_bf815e5a6155ce 7,29
+tests/test_server_functional.py
+  s_b09b332d4c022e::t_8409d434a3bfab 134,139-142,149,161-162,172
+tests/test_tool_metadata.py
+  s_b09b332d4c022e::t_8409d434a3bfab 25,35,40,44,62-63,68-70,74-76,81-82,86,96
+src/tp_mcp/server.py
+  s_b09b332d4c022e::t_a9214342d94023 1391
+  s_b09b332d4c022e::t_37c6745f1664ca 1917-1926,1929-1930,1932,1936-1937,1943-1952,1968-1989
+  s_b09b332d4c022e::t_af92de29e2c518 122-123
+  s_b09b332d4c022e::t_62d42f1f5e0a01 10,13-16,22
+  s_b09b332d4c022e::t_dfdad683dee44f 6
+  s_b09b332d4c022e::t_bd8264bdd4e46d 170,175,180,201,219,234,278,314,323,336,354,371,389,398,410,419,432,452,465,480,498,507,520,530,546,560,575,581,593,606,620,626,643,660,679,701,710,716,735,747,760,771,792,812,822,827,832,844,861,887,896,909,918,927,942,951,963,975,987,1009,1019,1033,1049,1054,1063,1075,1084,1093,1117,1145,1168,1181,1201,1228,1243,1259,1268,1278,1287,1301,1312,1325,1337,1353,1462-1465
+  s_b09b332d4c022e::t_319b9c0b978298 1470
+  s_b09b332d4c022e::t_cbe1e06ba5eb21 2011-2012
+  s_b09b332d4c022e::t_e551d097640966 1990-1991
+docs/mcp-2026-07-28-adoption-prd.md
+  s_b09b332d4c022e::t_6cde3a6b4c7171 49,62-69,76-88,94-111
+.github/workflows/ci.yml
+  s_b09b332d4c022e::t_6a7b3c4ff7af23 5,7,45-69
+  s_b09b332d4c022e::t_bf815e5a6155ce 33,35
+uv.lock
+  s_b09b332d4c022e::t_7d6615aab66ea7 4-7,280-292,309-310,312-319,321,326,328,330,587,591,593-594,605,607-620,687-698,1269,1296,1305-1313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b869bfefb5b074afc28087075a87f7717358995b",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
