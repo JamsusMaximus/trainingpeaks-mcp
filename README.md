@@ -182,6 +182,7 @@ complete on its own.
 |------|-----|
 | `tp_get_fitness` | Interactive CTL/ATL/TSB performance-management chart |
 | `tp_get_weekly_summary` | Week card: per-day load bars, planned vs completed, totals |
+| `tp_get_workout` | Interval-profile viewer for structured workouts (summary fallback otherwise) |
 
 *(Note: as of July 2026, Claude clients still connect to local stdio servers over the
 pre-2026 protocol, so the apps ship ready but won't render until client support rolls

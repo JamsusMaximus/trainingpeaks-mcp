@@ -152,10 +152,10 @@ Planned vs completed with per-day load bars from `tp_get_weekly_summary`. **High
 
 Interval profile (steps, durations, targets) from `tp_get_workout`.
 
-- [ ] `ui://` resource on `tp_get_workout`, stamped via PR 4's shared `_meta` helper (nested + deprecated flat key)
-- [ ] Viewer HTML: interval profile; unstructured workouts fall back to summary fields; `prefers-color-scheme`
-- [ ] XSS fixture test (step names are user-authored); no-external-request check; text payload unchanged
-- [ ] Pairing test extended; README tool table + Security section swept (apps HTML executes in the host renderer - add the subsection; note apps receive the already-sanitised tool payload)
+- [x] `ui://` resource on `tp_get_workout`, stamped via PR 4's shared `_meta` helper (nested + deprecated flat key)
+- [x] Viewer HTML: interval profile; unstructured workouts fall back to summary fields; `prefers-color-scheme`
+- [x] XSS fixture test (step names are user-authored); no-external-request check; text payload unchanged
+- [x] Pairing test extended; README tool table + Security section swept (apps HTML executes in the host renderer - add the subsection; note apps receive the already-sanitised tool payload)
 
 ### PR 8 - Release 3.1.0 + final verification (checklist, no diff)
 

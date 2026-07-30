@@ -98,3 +98,6 @@ register_app("tp_get_fitness", "ui://trainingpeaks/pmc-chart.html", "pmc_chart.h
 register_app(
     "tp_get_weekly_summary", "ui://trainingpeaks/weekly-summary.html", "weekly_summary.html", "Weekly summary card"
 )
+register_app(
+    "tp_get_workout", "ui://trainingpeaks/workout-structure.html", "workout_structure.html", "Workout structure viewer"
+)

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workout structure</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --grid: #e5e7eb; --tile: #f3f4f6;
+    --warm: #93c5fd; --active: #2563eb; --hard: #dc2626; --rest: #d1d5db; --cool: #86efac;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --grid: #2a2f36; --tile: #1c2127;
+      --warm: #1e3a5f; --active: #60a5fa; --hard: #f87171; --rest: #374151; --cool: #14532d;
+    }
+  }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+               font: 13px/1.4 -apple-system, system-ui, sans-serif; }
+  .wrap { padding: 12px 14px; }
+  .head h2 { margin: 0 0 2px; font-size: 14px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  #chartbox { position: relative; }
+  svg { width: 100%; height: 170px; display: block; }
+  #tip { position: absolute; pointer-events: none; background: var(--tile); color: var(--fg);
+         border: 1px solid var(--grid); border-radius: 6px; padding: 5px 8px; font-size: 11px;
+         display: none; white-space: pre; z-index: 2; }
+  .tiles { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .tile { background: var(--tile); border-radius: 8px; padding: 6px 12px; }
+  .tile .v { font-size: 16px; font-weight: 650; }
+  .tile .l { color: var(--muted); font-size: 11px; }
+  #desc { color: var(--muted); font-size: 12px; margin-top: 10px; white-space: pre-wrap; }
+  #empty { color: var(--muted); padding: 24px 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><h2 id="title">Workout</h2><div class="sub" id="sub"></div></div>
+  <div id="chartbox" hidden>
+    <svg id="chart" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
+    <div id="tip"></div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div id="desc"></div>
+  <div id="empty">Waiting for workout data&#8230;</div>
+</div>
+<script>
+"use strict";
+// Workout titles, descriptions and STEP NAMES are user-authored: textContent only.
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs) {
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function fmt(x, dp) { return (x == null || isNaN(x)) ? "-" : Number(x).toFixed(dp == null ? 0 : dp); }
+function mins(sec) { return Math.round(sec / 60) + "min"; }
+
+function extractPayload(data) {
+  try {
+    const text = data && data.result && data.result.content && data.result.content[0]
+      && data.result.content[0].text;
+    if (typeof text === "string") return JSON.parse(text);
+  } catch (e) { /* fall through */ }
+  if (data && data.result && data.result.structuredContent) return data.result.structuredContent;
+  if (data && (data.structured_workout !== undefined || data.title)) return data;
+  return null;
+}
+
+function flattenSteps(sw) {
+  // Native TP: structure = [{type: "step"|"repetition", length: {...}, steps: [...]}]
+  const out = [];
+  const blocks = (sw && Array.isArray(sw.structure)) ? sw.structure : [];
+  for (const b of blocks) {
+    const inner = Array.isArray(b.steps) ? b.steps : (b.type === "step" ? [b] : []);
+    const reps = (b.type === "repetition" && b.length && b.length.unit === "repetition")
+      ? Math.max(1, Number(b.length.value) || 1) : 1;
+    for (let r = 0; r < reps; r++) {
+      for (const s of inner) {
+        const dur = (s.length && s.length.unit === "second") ? Number(s.length.value) || 0 : 0;
+        const t = (Array.isArray(s.targets) && s.targets[0]) ? s.targets[0] : {};
+        out.push({
+          name: typeof s.name === "string" ? s.name : "",
+          dur: dur,
+          lo: Number(t.minValue) || 0,
+          hi: Number(t.maxValue) || 0,
+          cls: typeof s.intensityClass === "string" ? s.intensityClass : "active",
+        });
+      }
+    }
+  }
+  return out.filter(s => s.dur > 0);
+}
+
+function colourFor(step) {
+  const c = step.cls.toLowerCase();
+  if (c.indexOf("warm") === 0) return "var(--warm)";
+  if (c.indexOf("cool") === 0) return "var(--cool)";
+  if (c === "rest") return "var(--rest)";
+  return step.hi >= 100 ? "var(--hard)" : "var(--active)";
+}
+
+function renderProfile(steps) {
+  $("chartbox").hidden = false;
+  const svg = $("chart");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = 720, H = 170, padB = 16, padT = 6;
+  const total = steps.reduce((a, s) => a + s.dur, 0) || 1;
+  const maxI = Math.max(110, ...steps.map(s => s.hi)) * 1.05;
+  // FTP reference line at 100%
+  const yFtp = padT + (1 - 100 / maxI) * (H - padT - padB);
+  svg.appendChild(el("line", { x1: 0, x2: W, y1: yFtp, y2: yFtp,
+    stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "4,3" }));
+  const ftpLabel = el("text", { x: W - 4, y: yFtp - 3, fill: "var(--muted)",
+    "font-size": 9, "text-anchor": "end" });
+  ftpLabel.textContent = "FTP";
+  svg.appendChild(ftpLabel);
+
+  let t = 0;
+  const rects = [];
+  for (const s of steps) {
+    const x = (t / total) * W, w = Math.max(1.5, (s.dur / total) * W - 1);
+    const mid = (s.lo + s.hi) / 2 || 1;
+    const h = Math.max(3, (mid / maxI) * (H - padT - padB));
+    const rect = el("rect", { x: x, y: H - padB - h, width: w, height: h,
+      fill: colourFor(s), rx: 1.5 });
+    svg.appendChild(rect);
+    rects.push([x, x + w, s]);
+    t += s.dur;
+  }
+  const tip = $("tip"), box = $("chartbox");
+  svg.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect();
+    const fx = (ev.clientX - r.left) / r.width * W;
+    const hit = rects.find(([a, b2]) => fx >= a && fx <= b2);
+    if (!hit) { tip.style.display = "none"; return; }
+    const s = hit[2];
+    tip.textContent = (s.name || s.cls) + "\n" + mins(s.dur) + " @ "
+      + fmt(s.lo) + "-" + fmt(s.hi) + "%";
+    tip.style.display = "block";
+    const bx = box.getBoundingClientRect();
+    tip.style.left = Math.min(ev.clientX - bx.left + 12, bx.width - 120) + "px";
+    tip.style.top = (ev.clientY - bx.top + 10) + "px";
+  });
+  svg.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+}
+
+function addTile(v, l) {
+  const tile = document.createElement("div"); tile.className = "tile";
+  const vd = document.createElement("div"); vd.className = "v"; vd.textContent = v;
+  const ld = document.createElement("div"); ld.className = "l"; ld.textContent = l;
+  tile.appendChild(vd); tile.appendChild(ld); $("tiles").appendChild(tile);
+}
+
+function render(p) {
+  $("empty").hidden = true;
+  $("title").textContent = p.title || "Workout";
+  $("sub").textContent = [p.sport, p.date].filter(Boolean).join(" - ");
+  while ($("tiles").firstChild) $("tiles").removeChild($("tiles").firstChild);
+  const m = p.metrics || {};
+  const dur = m.duration_actual != null ? m.duration_actual : m.duration_planned;
+  if (dur != null) addTile(fmt(dur, 1) + "h", m.duration_actual != null ? "duration" : "planned duration");
+  const tss = m.tss_actual != null ? m.tss_actual : m.tss_planned;
+  if (tss != null) addTile(fmt(tss), m.tss_actual != null ? "TSS" : "planned TSS");
+  const dist = m.distance_actual_km != null ? m.distance_actual_km : m.distance_planned_km;
+  if (dist != null) addTile(fmt(dist, 1) + "km", "distance");
+  if (m.avg_power != null) addTile(fmt(m.avg_power) + "W", "avg power");
+  if (m.avg_hr != null) addTile(fmt(m.avg_hr), "avg HR");
+
+  const steps = flattenSteps(p.structured_workout);
+  if (steps.length > 0) {
+    renderProfile(steps);
+  } else {
+    $("chartbox").hidden = true;  // unstructured: summary fields only
+  }
+  $("desc").textContent = typeof p.description === "string" ? p.description : "";
+}
+
+window.addEventListener("message", (event) => {
+  const payload = extractPayload(event.data);
+  if (payload) render(payload);
+});
+</script>
+</body>
+</html>
