@@ -1,3 +1,8 @@
 """TrainingPeaks MCP Server."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("tp-mcp")
+except PackageNotFoundError:  # source tree without an installed distribution
+    __version__ = "unknown"
