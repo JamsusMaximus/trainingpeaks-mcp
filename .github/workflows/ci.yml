@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2.x]
   pull_request:
-    branches: [main]
+    branches: [main, v2.x]
   schedule:
     # Weekly canary: catches fresh-install breakage from unpinned upstream
     # releases between pushes (mcp 2.0.0 broke installs with zero red CI).
@@ -30,9 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Assert mcp SDK major version
+      - name: Assert mcp SDK major version (2.x)
         run: |
-          python -c "from importlib.metadata import version; v = version('mcp'); assert int(v.split('.')[0]) == 1, f'mcp resolved to {v}, expected 1.x - the <2 cap in pyproject.toml is not being enforced'"
+          python -c "from importlib.metadata import version; v = version('mcp'); assert int(v.split('.')[0]) == 2, f'mcp resolved to {v}, expected 2.x - the <2 cap in pyproject.toml is not being enforced'"
 
       - name: Lint
         run: ruff check src/
@@ -42,3 +42,28 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+  legacy-client:
+    # Release-blocking compat gate: a REAL SDK 1.x client must work against
+    # the v2 server (deterministic - does not depend on any vendor's rollout).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install server (SDK 2.x)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Create legacy client venv (mcp 1.26.0)
+        run: |
+          python -m venv /tmp/legacy
+          /tmp/legacy/bin/pip install 'mcp==1.26.0'
+
+      - name: Drive v2 server with the 1.x ClientSession
+        run: /tmp/legacy/bin/python scripts/legacy_client_check.py tp-mcp serve

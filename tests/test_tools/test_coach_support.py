@@ -315,7 +315,7 @@ class TestSchemaInjection:
         from tp_mcp.server import TOOLS, _ATHLETE_EXEMPT_TOOLS
         for tool in TOOLS:
             if tool.name not in _ATHLETE_EXEMPT_TOOLS:
-                assert "athlete" in tool.inputSchema["properties"], (
+                assert "athlete" in tool.input_schema["properties"], (
                     f"Tool {tool.name} missing 'athlete' property"
                 )
 
@@ -323,7 +323,7 @@ class TestSchemaInjection:
         from tp_mcp.server import TOOLS, _ATHLETE_EXEMPT_TOOLS
         for tool in TOOLS:
             if tool.name in _ATHLETE_EXEMPT_TOOLS:
-                assert "athlete" not in tool.inputSchema["properties"], (
+                assert "athlete" not in tool.input_schema["properties"], (
                     f"Exempt tool {tool.name} should not have 'athlete' property"
                 )
 

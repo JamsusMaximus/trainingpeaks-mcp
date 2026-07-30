@@ -22,7 +22,7 @@ class TestEveryToolHasMetadata:
         assert not missing, f"Tools without annotations: {missing}. {_HELP}"
 
     def test_every_tool_declares_open_world(self):
-        bad = [t.name for t in TOOLS if not t.annotations.openWorldHint]
+        bad = [t.name for t in TOOLS if not t.annotations.open_world_hint]
         assert not bad, f"All tools call the external TrainingPeaks API: {bad}. {_HELP}"
 
 
@@ -32,16 +32,16 @@ class TestReadWriteClassification:
             t.name
             for t in TOOLS
             if t.name.startswith(("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_"))
-            and not t.annotations.readOnlyHint
+            and not t.annotations.read_only_hint
         ]
         assert not bad, f"Read-prefixed tools missing readOnlyHint: {bad}. {_HELP}"
 
     def test_delete_tools_are_destructive(self):
-        bad = [t.name for t in TOOLS if t.name.startswith("tp_delete_") and not t.annotations.destructiveHint]
+        bad = [t.name for t in TOOLS if t.name.startswith("tp_delete_") and not t.annotations.destructive_hint]
         assert not bad, f"tp_delete_* tools missing destructiveHint: {bad}. {_HELP}"
 
     def test_no_read_only_tool_is_destructive(self):
-        bad = [t.name for t in TOOLS if t.annotations.readOnlyHint and t.annotations.destructiveHint]
+        bad = [t.name for t in TOOLS if t.annotations.read_only_hint and t.annotations.destructive_hint]
         assert not bad, f"Contradictory metadata (read-only AND destructive): {bad}"
 
     def test_exception_sets_only_name_real_tools(self):
@@ -59,31 +59,31 @@ class TestSpotChecks:
     def test_get_workouts(self):
         t = self._tool("tp_get_workouts")
         assert t.title == "Get workouts"
-        assert t.annotations.readOnlyHint is True
-        assert t.annotations.destructiveHint is False
+        assert t.annotations.read_only_hint is True
+        assert t.annotations.destructive_hint is False
 
     def test_delete_workout(self):
         t = self._tool("tp_delete_workout")
         assert t.title == "Delete workout"
-        assert t.annotations.readOnlyHint is False
-        assert t.annotations.destructiveHint is True
-        assert t.annotations.idempotentHint is True  # deleting twice: same state
+        assert t.annotations.read_only_hint is False
+        assert t.annotations.destructive_hint is True
+        assert t.annotations.idempotent_hint is True  # deleting twice: same state
 
     def test_create_workout_is_non_idempotent_create(self):
         t = self._tool("tp_create_workout")
-        assert t.annotations.readOnlyHint is False
-        assert t.annotations.destructiveHint is False
-        assert t.annotations.idempotentHint is False  # retry duplicates
+        assert t.annotations.read_only_hint is False
+        assert t.annotations.destructive_hint is False
+        assert t.annotations.idempotent_hint is False  # retry duplicates
 
     def test_update_ftp_is_idempotent_write(self):
         t = self._tool("tp_update_ftp")
         assert t.title == "Update FTP"
-        assert t.annotations.readOnlyHint is False
-        assert t.annotations.idempotentHint is True
+        assert t.annotations.read_only_hint is False
+        assert t.annotations.idempotent_hint is True
 
     def test_remove_athletes_is_destructive_non_delete_name(self):
         t = self._tool("tp_remove_athletes_from_group")
-        assert t.annotations.destructiveHint is True
+        assert t.annotations.destructive_hint is True
 
     def test_acronym_titles(self):
         assert self._tool("tp_update_hr_zones").title == "Update HR zones"
@@ -93,4 +93,4 @@ class TestSpotChecks:
     def test_auth_status_override(self):
         t = self._tool("tp_auth_status")
         assert t.title == "Check auth status"
-        assert t.annotations.readOnlyHint is True
+        assert t.annotations.read_only_hint is True

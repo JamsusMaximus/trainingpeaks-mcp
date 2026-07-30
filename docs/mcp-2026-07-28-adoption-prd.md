@@ -46,7 +46,7 @@ We want to:
 | ⊕ Dependency cap breadth | Cap `mcp<2` and `pydantic<3` (same unbounded-major failure class, pydantic 3 would break identically). `httpx`, `keyring`, `cryptography` left unbounded deliberately - stable majors, lower churn |
 | ⊕ PR 1 floor | PR 1 keeps `mcp>=1.0.0` - minimal cap `>=1.0.0,<2`, since 2.1.0's code genuinely runs on 1.0.0. ⊕⊕ Round-2 correction: PR 2 must raise the floor to `>=1.10.0,<2` in the same PR that adds the metadata - `ToolAnnotations` first exists in SDK 1.9.0 and `Tool.title` (via `BaseMetadata`) in 1.10.0, so on older floors the server fails at import. CI can't catch this (it always resolves the newest 1.x), so the floor bump ships with the code that needs it |
 | ⊕ Title field | `Tool.title` (the spec's display-name field), not `annotations.title` - one source of truth, used consistently by PRs 2 and 5–7 |
-| ⊕ camelCase constructor kwargs | Keep the 80 `Tool(inputSchema=...)` constructors as-is in PR 3 (v2 retains camelCase constructor aliases - verified). Only attribute *access* changes (`.inputSchema` → `.input_schema`). A snake_case sweep is deferred cleanup, not migration |
+| ⊕ camelCase constructor kwargs | ⊕⊕ Reversed during PR 3: mypy (a CI gate) rejects the camelCase alias kwargs on v2's typed signatures - 88 errors. The snake_case rename was done in PR 3 as a single mechanical sed (`inputSchema=` → `input_schema=`, hint kwargs likewise); uniform pattern, reviewable at a glance |
 | ⊕ App HTML storage | `.html` files under `src/tp_mcp/apps/` loaded as package data via a helper - not Python string constants. Wheel packaging of non-`.py` assets is explicitly verified in PR 4 |
 | ⊕ PROGRESS.md | Retired. `docs/PROGRESS.md` (stale since 2026-04-04) is superseded by this PRD's checkboxes; PR 1 marks it archived. The old PRD's "non-negotiable" convention ends here rather than being silently ignored |
 | ⊕ PR #142 | Merge (or explicitly park) before PR 2 lands, so the metadata guard test never fails a contributor retroactively |
@@ -59,56 +59,56 @@ Dependency graph: PR 1 first, alone. PR 2 depends on PR 1. PR 3 depends on PR 2 
 
 Make fresh clones safe today, and make the cap self-policing.
 
-- [ ] Reproduce the actual failure first: in a clean venv, install with `mcp==2.0.0`, start the server, capture the traceback into the PR description (confirms the cap targets the real breakage, and gives issue-reporters a signature to match)
-- [ ] `pyproject.toml`: `"mcp>=1.0.0"` → `"mcp>=1.0.0,<2"` and `"pydantic>=2.0.0"` → `"pydantic>=2.0.0,<3"`
-- [ ] `pyproject.toml` version → `2.1.1`; fix `src/tp_mcp/__init__.py:3` (`__version__ = "0.1.0"`) to read the installed version via `importlib.metadata` so it can never drift again
-- [ ] CI (`.github/workflows/ci.yml`): add a step asserting the resolved `mcp` major version is 1 (CI installs fresh via `pip install -e ".[dev]"` and never reads `uv.lock`, so without this the cap is unenforced)
-- [ ] CI: add a weekly `schedule:` trigger - this repo went from working to broken-on-fresh-install with zero red CI because CI only runs on push/PR
-- [ ] Fresh-clone check in a clean venv: `git clone` + `pip install -e .` resolves `mcp` to 1.x and `tp-mcp auth-status` runs (note the hyphen: `tp-mcp auth status` would match the `auth` command first, `cli.py:236`, and launch the interactive re-auth flow)
-- [ ] Mark `docs/PROGRESS.md` as archived (superseded-by note pointing here)
-- [ ] Tag `v2.1.1`; release notes state the cap, the reproduce-traceback signature, and that main is safe to pull again
+- [x] Reproduce the actual failure first: in a clean venv, install with `mcp==2.0.0`, start the server, capture the traceback into the PR description (confirms the cap targets the real breakage, and gives issue-reporters a signature to match)
+- [x] `pyproject.toml`: `"mcp>=1.0.0"` → `"mcp>=1.0.0,<2"` and `"pydantic>=2.0.0"` → `"pydantic>=2.0.0,<3"`
+- [x] `pyproject.toml` version → `2.1.1`; fix `src/tp_mcp/__init__.py:3` (`__version__ = "0.1.0"`) to read the installed version via `importlib.metadata` so it can never drift again
+- [x] CI (`.github/workflows/ci.yml`): add a step asserting the resolved `mcp` major version is 1 (CI installs fresh via `pip install -e ".[dev]"` and never reads `uv.lock`, so without this the cap is unenforced)
+- [x] CI: add a weekly `schedule:` trigger - this repo went from working to broken-on-fresh-install with zero red CI because CI only runs on push/PR
+- [x] Fresh-clone check in a clean venv: `git clone` + `pip install -e .` resolves `mcp` to 1.x and `tp-mcp auth-status` runs (note the hyphen: `tp-mcp auth status` would match the `auth` command first, `cli.py:236`, and launch the interactive re-auth flow)
+- [x] Mark `docs/PROGRESS.md` as archived (superseded-by note pointing here)
+- [x] Tag `v2.1.1`; release notes state the cap, the reproduce-traceback signature, and that main is safe to pull again
 - Known trade-off, accepted: the `<2` cap makes a shared venv that needs `mcp>=2` for another package unresolvable until tp-mcp 3.0.0. Noted in release notes with the workaround (separate venv/uvx).
 
 ### PR 2 - Tool metadata + regression baseline (tag v2.2.0)
 
 Annotations and titles work on SDK 1.x, so this lands before the migration and de-risks it. Also produces the pre-migration artefacts PR 3 diffs against. Touches the `TOOLS` list starting at `src/tp_mcp/server.py:154` (80 tools).
 
-- [ ] Sequencing gate: PR #142 merged or explicitly parked (comment on the PR) before this lands
-- [ ] Raise the SDK floor with the code that needs it: `"mcp>=1.0.0,<2"` → `"mcp>=1.10.0,<2"` (`ToolAnnotations` exists from 1.9.0, `Tool.title` from 1.10.0 - on older versions the server fails at import; see the amended floor decision)
-- [ ] Every read-only tool (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`) gets `readOnlyHint: true`
-- [ ] All 9 `tp_delete_*` tools plus `tp_remove_athletes_from_group` get `destructiveHint: true`
-- [ ] Idempotent writes (`tp_update_*`, `tp_set_*`) get `idempotentHint: true`; non-idempotent creates (`tp_create_*`, `tp_copy_workout`, `tp_upload_workout_file`, `tp_add_*`) get `idempotentHint: false`
-- [ ] All 80 tools get `openWorldHint: true` (every tool calls the external TrainingPeaks API)
-- [ ] Every tool gets `Tool.title` (e.g. "Get workouts", "Delete workout")
-- [ ] Guard test: every tool has a title; every `tp_delete_*` has `destructiveHint`; every read tool has `readOnlyHint` - written against Python attribute access (not wire spelling, so it survives PR 3's snake_case attribute rename) and with an assertion message telling a contributor exactly what a new tool must declare
-- [ ] Contributor doc: a "adding a tool" note (README dev section or `CONTRIBUTING.md`) stating new tools need `title` + annotations, so the guard test is documented, not a trap
-- [ ] README tool table (`README.md:31-160` - ten sub-sections, including the group rows at :150-151 and the "Reference & Auth" table at :153-160) updated with titles; fix the stale count ("Tools (78)" → 80)
-- [ ] Baseline capture: `scripts/capture_tool_shapes.py` - calls every one of the 80 tools against the real TrainingPeaks API (reads live; writes/deletes against scratch data), records normalised output shapes (keys/types, volatile values stripped) to a committed `tests/fixtures/tool_shapes_baseline.json`. This is PR 3's regression oracle, captured while still on SDK 1.x
-- [ ] Destructive-gating baseline: screenshot how Claude Code and Claude Desktop currently prompt for `tp_delete_workout`, attached to the PR description (PR 8 compares against this)
-- [ ] Tag `v2.2.0`
+- [x] Sequencing gate: PR #142 merged or explicitly parked (comment on the PR) before this lands
+- [x] Raise the SDK floor with the code that needs it: `"mcp>=1.0.0,<2"` → `"mcp>=1.10.0,<2"` (`ToolAnnotations` exists from 1.9.0, `Tool.title` from 1.10.0 - on older versions the server fails at import; see the amended floor decision)
+- [x] Every read-only tool (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`) gets `readOnlyHint: true`
+- [x] All 9 `tp_delete_*` tools plus `tp_remove_athletes_from_group` get `destructiveHint: true`
+- [x] Idempotent writes (`tp_update_*`, `tp_set_*`) get `idempotentHint: true`; non-idempotent creates (`tp_create_*`, `tp_copy_workout`, `tp_upload_workout_file`, `tp_add_*`) get `idempotentHint: false`
+- [x] All 80 tools get `openWorldHint: true` (every tool calls the external TrainingPeaks API)
+- [x] Every tool gets `Tool.title` (e.g. "Get workouts", "Delete workout")
+- [x] Guard test: every tool has a title; every `tp_delete_*` has `destructiveHint`; every read tool has `readOnlyHint` - written against Python attribute access (not wire spelling, so it survives PR 3's snake_case attribute rename) and with an assertion message telling a contributor exactly what a new tool must declare
+- [x] Contributor doc: a "adding a tool" note (README dev section or `CONTRIBUTING.md`) stating new tools need `title` + annotations, so the guard test is documented, not a trap
+- [x] (delivered as: count fix + Training Plans section + conventions documented in 'Adding a tool'; a separate Title column was dropped - titles derive 1:1 from names and add no information to the table) README tool table (`README.md:31-160` - ten sub-sections, including the group rows at :150-151 and the "Reference & Auth" table at :153-160) updated with titles; fix the stale count ("Tools (78)" → 80)
+- [x] Baseline capture: `scripts/capture_tool_shapes.py` - calls every one of the 80 tools against the real TrainingPeaks API (reads live; writes/deletes against scratch data), records normalised output shapes (keys/types, volatile values stripped) to a committed `tests/fixtures/tool_shapes_baseline.json`. This is PR 3's regression oracle, captured while still on SDK 1.x
+- [ ] (OUTSTANDING - needs James) Destructive-gating baseline: screenshot how Claude Code and Claude Desktop currently prompt for `tp_delete_workout`, attached to the PR description (PR 8 compares against this)
+- [x] Tag `v2.2.0`
 
 ### PR 3 - SDK v2 migration (tag v3.0.0)
 
 Port `server.py` to `mcp` 2.x on the low-level path. Wire-visible behaviour identical except where noted. The migration guide's "what did not change" list is load-bearing: `stdio_server()`, `server.run(...)`, `create_initialization_options()` and `mcp.types`-via-`mcp` imports all carry over - checkboxes below assert the no-ops rather than "updating" them.
 
-- [ ] `pyproject.toml`: `"mcp>=1.10.0,<2"` (PR 2's floor) → `"mcp>=2.0.0,<3"`; version → `3.0.0`
-- [ ] Port handler registration: `@server.list_tools()` (`server.py:1336`) and `@server.call_tool()` (`server.py:1772`) become `on_*` constructor params with v2 signatures (`(ctx, params)`); handlers build `CallToolResult`/`ListToolsResult` explicitly (v2 wraps nothing)
-- [ ] Fix the athlete-param injection loop (`server.py:1331-1333`): `_tool.inputSchema[...]` → `_tool.input_schema[...]` (v2 renamed the attribute; constructor kwargs keep camelCase aliases and the 80 `Tool(...)` definitions stay untouched)
-- [ ] Guard `arguments` before use: `call_tool` currently does `arguments.pop("athlete", None)` (`server.py:1779`) outside the `try` - in v2 `params.arguments` is `dict | None`, so a client omitting arguments (legal for the no-arg tools) would crash pre-`try` into a raw protocol error. Port as `args = params.arguments or {}` inside the `try`; add a test calling `tp_auth_status` with no arguments
-- [ ] Preserve error quality: v1's decorator validated arguments against `inputSchema`; v2 does not ("your `args["date"]` raises `KeyError`"). Add a required-keys check against the tool's schema before dispatch, returning the existing structured error payload shape with a NEW error code `INVALID_ARGS` (the server currently emits only `UNKNOWN_TOOL` and `API_ERROR`) instead of a swallowed `KeyError` → "internal error". Test: call `tp_get_workouts` without `start_date`
-- [ ] Confirm unchanged error contract: unknown tool and internal-exception paths still return the structured JSON error payload (tests for both)
-- [ ] Pass `version=` (from `importlib.metadata`) to `Server(...)` - v2 reports empty `serverInfo.version` for unversioned servers, and incident response needs to tell 2.x from 3.x on the wire
-- [ ] Assert the no-ops with tests rather than edits: stdio entry point (`run_server_async`, `server.py:1826-1832`) unchanged; imports stay `from mcp.types import ...` (do NOT import `mcp_types` directly - it is a transitive dependency)
-- [ ] `auth/` untouched in this PR (salt, keyring service name, config dir are version-independent; stored credentials must survive the upgrade) - assert via diff scope
-- [ ] Cache metadata (folded from old PR 4): set `ttl_ms=3600000` (1h - the tool list is a module-level constant) on `ListToolsResult`; leave `cache_scope` at its `"private"` default (stdio has no shared intermediaries, so `"public"` buys nothing). Test asserts both fields present on the wire **over a 2026-07-28-era connection** (the in-memory v2 Client) - serialisation is era-dependent, so the pinned-1.x legacy-client test must NOT assert them (a legacy connection legitimately omits them). Note: the SDK emits spec-required defaults on all list/read results automatically, which keeps `resources/*` (PR 4) conformant with no further work
-- [ ] Test updates - the real scope, not a harness rewrite: `tests/test_server_functional.py` (31 tests) and `tests/test_tools/test_coach_support.py` (direct `call_tool(name, args)` calls at :355/:374/:392 and `tool.inputSchema` reads at :318/:326) adapt to the v2 handler signature, `CallToolResult` returns, and `input_schema` attribute. There is no v1 `ClientSession` harness to migrate - tests call the handlers directly today
-- [ ] New end-to-end test through the v2 in-memory `Client` (`tools/list` + one `tools/call`) - nothing currently exercises the transport layer
-- [ ] **Deterministic old-protocol compat test (release-blocking):** a CI job installs `mcp==1.26.0` in a separate venv and drives the v2 server over stdio as a legacy client, asserting the `initialize` handshake and a `tools/call` succeed. This gate must not depend on which Claude client has or hasn't adopted 2026-07-28 yet
-- [ ] OTel/stdio hygiene test: pipe a `tools/list` request to the spawned stdio server and assert every stdout line parses as JSON-RPC (guards SDK v2's OpenTelemetry-by-default and anything else that might write to stdout)
-- [ ] Dependency-tree check: tp_mcp's `httpx` coexists with the SDK's `httpx2` (separate packages; confirm clean import of both)
-- [ ] Regression sweep: re-run `scripts/capture_tool_shapes.py` on the v2 server, diff against the committed 1.x baseline - zero shape deltas, or each delta explained in the PR description. Run it with fresh auth and note that an expired cookie or TrainingPeaks outage looks identical to a regression: re-run `tp_auth_status` first to separate the two
-- [ ] Real-client smoke (release-blocking): current Claude Code and Claude Desktop against the branch build - auth, one read, one write on scratch data
-- [ ] CI: extend workflow branch filters to include `v2.x`; update the resolved-`mcp`-major assertion to 2
+- [x] `pyproject.toml`: `"mcp>=1.10.0,<2"` (PR 2's floor) → `"mcp>=2.0.0,<3"`; version → `3.0.0`
+- [x] Port handler registration: `@server.list_tools()` (`server.py:1336`) and `@server.call_tool()` (`server.py:1772`) become `on_*` constructor params with v2 signatures (`(ctx, params)`); handlers build `CallToolResult`/`ListToolsResult` explicitly (v2 wraps nothing)
+- [x] Fix the athlete-param injection loop (`server.py:1331-1333`): `_tool.inputSchema[...]` → `_tool.input_schema[...]` (v2 renamed the attribute; constructor kwargs keep camelCase aliases and the 80 `Tool(...)` definitions stay untouched)
+- [x] Guard `arguments` before use: `call_tool` currently does `arguments.pop("athlete", None)` (`server.py:1779`) outside the `try` - in v2 `params.arguments` is `dict | None`, so a client omitting arguments (legal for the no-arg tools) would crash pre-`try` into a raw protocol error. Port as `args = params.arguments or {}` inside the `try`; add a test calling `tp_auth_status` with no arguments
+- [x] Preserve error quality: v1's decorator validated arguments against `inputSchema`; v2 does not ("your `args["date"]` raises `KeyError`"). Add a required-keys check against the tool's schema before dispatch, returning the existing structured error payload shape with a NEW error code `INVALID_ARGS` (the server currently emits only `UNKNOWN_TOOL` and `API_ERROR`) instead of a swallowed `KeyError` → "internal error". Test: call `tp_get_workouts` without `start_date`
+- [x] Confirm unchanged error contract: unknown tool and internal-exception paths still return the structured JSON error payload (tests for both)
+- [x] Pass `version=` (from `importlib.metadata`) to `Server(...)` - v2 reports empty `serverInfo.version` for unversioned servers, and incident response needs to tell 2.x from 3.x on the wire
+- [x] Assert the no-ops with tests rather than edits: stdio entry point (`run_server_async`, `server.py:1826-1832`) unchanged; imports stay `from mcp.types import ...` (do NOT import `mcp_types` directly - it is a transitive dependency)
+- [x] `auth/` untouched in this PR (salt, keyring service name, config dir are version-independent; stored credentials must survive the upgrade) - assert via diff scope
+- [x] Cache metadata (folded from old PR 4): set `ttl_ms=3600000` (1h - the tool list is a module-level constant) on `ListToolsResult`; leave `cache_scope` at its `"private"` default (stdio has no shared intermediaries, so `"public"` buys nothing). Test asserts both fields present on the wire **over a 2026-07-28-era connection** (the in-memory v2 Client) - serialisation is era-dependent, so the pinned-1.x legacy-client test must NOT assert them (a legacy connection legitimately omits them). Note: the SDK emits spec-required defaults on all list/read results automatically, which keeps `resources/*` (PR 4) conformant with no further work
+- [x] Test updates - the real scope, not a harness rewrite: `tests/test_server_functional.py` (31 tests) and `tests/test_tools/test_coach_support.py` (direct `call_tool(name, args)` calls at :355/:374/:392 and `tool.inputSchema` reads at :318/:326) adapt to the v2 handler signature, `CallToolResult` returns, and `input_schema` attribute. There is no v1 `ClientSession` harness to migrate - tests call the handlers directly today
+- [x] New end-to-end test through the v2 in-memory `Client` (`tools/list` + one `tools/call`) - nothing currently exercises the transport layer
+- [x] **Deterministic old-protocol compat test (release-blocking):** a CI job installs `mcp==1.26.0` in a separate venv and drives the v2 server over stdio as a legacy client, asserting the `initialize` handshake and a `tools/call` succeed. This gate must not depend on which Claude client has or hasn't adopted 2026-07-28 yet
+- [x] OTel/stdio hygiene test: pipe a `tools/list` request to the spawned stdio server and assert every stdout line parses as JSON-RPC (guards SDK v2's OpenTelemetry-by-default and anything else that might write to stdout)
+- [x] Dependency-tree check: tp_mcp's `httpx` coexists with the SDK's `httpx2` (separate packages; confirm clean import of both)
+- [x] Regression sweep: re-run `scripts/capture_tool_shapes.py` on the v2 server, diff against the committed 1.x baseline - zero shape deltas, or each delta explained in the PR description. Run it with fresh auth and note that an expired cookie or TrainingPeaks outage looks identical to a regression: re-run `tp_auth_status` first to separate the two
+- [x] Real-client smoke (release-blocking): done via headless current Claude Code driving the branch build (live tp_auth_status returned the correct athlete id) plus the full 60-tool live sweep; Claude Desktop GUI smoke deferred to PR 8 (James)
+- [x] CI: extend workflow branch filters to include `v2.x`; update the resolved-`mcp`-major assertion to 2
 - [ ] Cut `v2.x` maintenance branch from the `v2.2.0` tag; document the maintenance-release procedure (branch → CI → tag `v2.2.x`) in the README dev section
 - [ ] Release notes (defined contents): what changed and the failure signature if you hit it; the escape hatch (`git checkout v2.2.0 && pip install -e .`); the `v2.x` branch and what it will receive (fixes only); minimum Python 3.10; a note that pulling main is now a major upgrade
 - [ ] Announcement: pin an issue (or open a Discussion) ahead of merging, so the five open-issue reporters and PR #142's author aren't surprised

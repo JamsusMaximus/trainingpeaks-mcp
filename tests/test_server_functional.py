@@ -131,22 +131,22 @@ class TestListTools:
         """The tp_create_workout schema should advertise optional structured_workout support."""
         tools = await list_tools()
         cw = next(t for t in tools if t.name == "tp_create_workout")
-        props = cw.inputSchema["properties"]
+        props = cw.input_schema["properties"]
         assert "distance_km" in props
         assert "tss_planned" in props
         assert "structured_workout" in props
         assert "is_hidden" in props
-        assert "distance_km" not in cw.inputSchema["required"]
-        assert "tss_planned" not in cw.inputSchema["required"]
-        assert "structured_workout" not in cw.inputSchema["required"]
-        assert "is_hidden" not in cw.inputSchema["required"]
+        assert "distance_km" not in cw.input_schema["required"]
+        assert "tss_planned" not in cw.input_schema["required"]
+        assert "structured_workout" not in cw.input_schema["required"]
+        assert "is_hidden" not in cw.input_schema["required"]
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")
-        props = uw.inputSchema["properties"]
+        props = uw.input_schema["properties"]
         assert "structure" in props
         assert "structured_workout" in props
         assert "is_hidden" in props
@@ -158,8 +158,8 @@ class TestListTools:
         create_tool = next(t for t in tools if t.name == "tp_create_workout")
         update_tool = next(t for t in tools if t.name == "tp_update_workout")
 
-        assert "YYYY-MM-DDTHH:MM:SS" in create_tool.inputSchema["properties"]["date"]["description"]
-        assert "YYYY-MM-DDTHH:MM:SS" in update_tool.inputSchema["properties"]["date"]["description"]
+        assert "YYYY-MM-DDTHH:MM:SS" in create_tool.input_schema["properties"]["date"]["description"]
+        assert "YYYY-MM-DDTHH:MM:SS" in update_tool.input_schema["properties"]["date"]["description"]
 
     @pytest.mark.asyncio
     async def test_workout_feedback_schema_describes_ranges(self):
@@ -169,7 +169,7 @@ class TestListTools:
         update_tool = next(t for t in tools if t.name == "tp_update_workout")
 
         for tool in (create_tool, update_tool):
-            props = tool.inputSchema["properties"]
+            props = tool.input_schema["properties"]
             assert props["feeling"]["description"] == "TrainingPeaks feeling value (0-10)."
             assert props["rpe"]["description"] == "Rating of perceived exertion (RPE), 0-10."
 
