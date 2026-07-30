@@ -11,6 +11,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import (
     TextContent,
     Tool,
+    ToolAnnotations,
 )
 
 from tp_mcp.auth import get_credential, validate_auth
@@ -1382,6 +1383,81 @@ _ATHLETE_PARAM = {
 for _tool in TOOLS:
     if _tool.name not in _ATHLETE_EXEMPT_TOOLS:
         _tool.inputSchema["properties"]["athlete"] = _ATHLETE_PARAM
+
+
+# ---------------------------------------------------------------------------
+# Tool metadata: display titles + behaviour annotations
+#
+# Derived from tool names plus the explicit exception sets below, so a new tool
+# gets correct metadata automatically when its name follows the conventions
+# (tp_get_*/tp_list_* read, tp_delete_* destroy, tp_create_* create, ...) and
+# only needs listing here when it does not. tests/test_tool_metadata.py guards
+# every tool.
+# ---------------------------------------------------------------------------
+
+_READ_ONLY_PREFIXES = ("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_")
+_READ_ONLY_EXTRA = {"tp_auth_status"}
+
+# Irrecoverable data removal. Everything else that writes is recoverable by a
+# follow-up call (update/re-add), so destructiveHint stays False there.
+_DESTRUCTIVE_TOOLS = {
+    "tp_delete_availability",
+    "tp_delete_equipment",
+    "tp_delete_event",
+    "tp_delete_group",
+    "tp_delete_library",
+    "tp_delete_note",
+    "tp_delete_strength_workout",
+    "tp_delete_workout",
+    "tp_delete_workout_file",
+    "tp_remove_athletes_from_group",
+}
+
+# Writes that append or create: repeating the call duplicates data. Updates,
+# sets, deletes and membership changes converge on the same state and are
+# therefore idempotent.
+_NON_IDEMPOTENT_WRITES = {
+    "tp_add_note_comment",
+    "tp_add_workout_comment",
+    "tp_apply_training_plan",
+    "tp_copy_workout",
+    "tp_create_availability",
+    "tp_create_equipment",
+    "tp_create_event",
+    "tp_create_group",
+    "tp_create_library",
+    "tp_create_library_item",
+    "tp_create_note",
+    "tp_create_strength_workout",
+    "tp_create_workout",
+    "tp_create_zones",
+    "tp_log_metrics",
+    "tp_schedule_library_workout",
+    "tp_upload_workout_file",
+}
+
+_TITLE_ACRONYMS = {"atp": "ATP", "ftp": "FTP", "hr": "HR", "prs": "PRs"}
+_TITLE_OVERRIDES = {
+    "tp_auth_status": "Check auth status",
+    "tp_get_atp": "Get ATP (annual training plan)",
+}
+
+
+def _derive_title(name: str) -> str:
+    words = name.removeprefix("tp_").split("_")
+    words = [_TITLE_ACRONYMS.get(w, w) for w in words]
+    return (words[0].capitalize() + " " + " ".join(words[1:])).strip()
+
+
+for _tool in TOOLS:
+    _read_only = _tool.name.startswith(_READ_ONLY_PREFIXES) or _tool.name in _READ_ONLY_EXTRA
+    _tool.title = _TITLE_OVERRIDES.get(_tool.name, _derive_title(_tool.name))
+    _tool.annotations = ToolAnnotations(
+        readOnlyHint=_read_only,
+        destructiveHint=_tool.name in _DESTRUCTIVE_TOOLS,
+        idempotentHint=_tool.name not in _NON_IDEMPOTENT_WRITES,
+        openWorldHint=True,  # every tool talks to the external TrainingPeaks API
+    )
 
 
 @server.list_tools()

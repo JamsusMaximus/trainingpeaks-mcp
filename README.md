@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (78)
+## Tools (84)
 
 ### Workouts
 | Tool | Description |
@@ -149,6 +149,14 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_delete_group` | Delete a group - the grouping only, athletes are not deleted |
 | `tp_add_athletes_to_group` | Add one or more athletes to a group |
 | `tp_remove_athletes_from_group` | Remove one or more athletes from a group |
+
+### Training Plans (multi-week)
+| Tool | Description |
+|------|-------------|
+| `tp_list_training_plans` | List the coach's authored multi-week training plans |
+| `tp_get_training_plan` | Summary of one plan: weeks, per-week duration/distance, sport breakdown |
+| `tp_get_training_plan_workouts` | All workouts of a plan laid out by week/day |
+| `tp_apply_training_plan` | Apply a plan to an athlete's calendar from a start date (safe synthetic copy) |
 
 ### Reference & Auth
 | Tool | Description |
@@ -420,6 +428,19 @@ pytest tests/ -v
 mypy src/
 ruff check src/
 ```
+
+### Adding a tool
+
+Every tool automatically gets a display title and behaviour annotations
+(`readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`),
+derived from its name by the metadata block at the bottom of
+`src/tp_mcp/server.py`. Name your tool by the conventions
+(`tp_get_*`/`tp_list_*` for reads, `tp_delete_*` for destructive removals,
+`tp_create_*`/`tp_add_*` for creates) and it needs nothing extra; if it
+doesn't fit the conventions, add it to the exception sets next to that block
+(`_DESTRUCTIVE_TOOLS`, `_NON_IDEMPOTENT_WRITES`, `_READ_ONLY_EXTRA`,
+`_TITLE_OVERRIDES`). `tests/test_tool_metadata.py` fails with instructions if
+a tool is misclassified, and the README tool tables above should gain a row.
 
 ## Licence
 

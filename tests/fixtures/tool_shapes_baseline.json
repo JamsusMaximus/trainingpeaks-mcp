@@ -1,0 +1,1166 @@
+{
+  "mcp_sdk_version": "1.26.0",
+  "tool_count": 84,
+  "tools": {
+    "tp_add_athletes_to_group": {
+      "skipped": "scratch group could not be created"
+    },
+    "tp_add_note_comment": {
+      "shape": {
+        "note_id": "int",
+        "success": "bool"
+      }
+    },
+    "tp_add_workout_comment": {
+      "shape": {
+        "comments": [
+          {
+            "comment": "str",
+            "commenterName": "str",
+            "commenterPersonId": "int",
+            "commenterPhotoUrl": "str",
+            "dateCreated": "str",
+            "firstName": "str",
+            "id": "int",
+            "isCoach": "bool",
+            "isFirstUnread": "bool",
+            "isRead": "bool",
+            "lastName": "str",
+            "workoutId": "int"
+          }
+        ],
+        "count": "int",
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_analyze_workout": {
+      "shape": {
+        "dataChannels": [
+          {
+            "average": "float",
+            "identifier": "str",
+            "max": "float",
+            "min": "float",
+            "name": "str",
+            "unit": "str",
+            "zones": [
+              {
+                "label": "str",
+                "max": "int",
+                "min": "int"
+              }
+            ]
+          }
+        ],
+        "data_file": "str",
+        "lapColumns": [
+          {
+            "friendlyName": "str",
+            "identifier": "str",
+            "type": "str",
+            "unit": "str"
+          }
+        ],
+        "lapData": [
+          {
+            "AverageAltitude": "float",
+            "AverageHeartRate": "int",
+            "AverageSpeed": "float",
+            "AverageVam": "int",
+            "Intensity": "str",
+            "LapTrigger": "str",
+            "MaximumAltitude": "float|int",
+            "MaximumHeartRate": "int",
+            "MaximumSpeed": "float",
+            "MinimumAltitude": "float",
+            "MinimumHeartRate": "int",
+            "Name": "str",
+            "Source": "str",
+            "TotalAscent": "int",
+            "TotalCalories": "int",
+            "TotalDescent": "int",
+            "TotalDistance": "float|int",
+            "TotalElapsedTime": "int",
+            "TotalMovingTime": "int",
+            "TotalTimerTime": "int",
+            "hrIntensityFactor": "float",
+            "hrTSS": "int",
+            "id": "int",
+            "startOffsetSeconds": "int",
+            "stopOffsetSeconds": "int"
+          }
+        ],
+        "startTimestamp": "str",
+        "stopTimestamp": "str",
+        "time_series_points": "int",
+        "totals": {
+          "Distance": {
+            "unit": "str",
+            "value": "float"
+          },
+          "Duration": {
+            "unit": "str",
+            "value": "int"
+          },
+          "El. Gain": {
+            "unit": "str",
+            "value": "int"
+          },
+          "El. Loss": {
+            "unit": "str",
+            "value": "int"
+          },
+          "Elapsed time": {
+            "unit": "str",
+            "value": "int"
+          },
+          "Grade": {
+            "unit": "str",
+            "value": "int"
+          },
+          "Moving time": {
+            "unit": "str",
+            "value": "int"
+          },
+          "VAM": {
+            "unit": "str",
+            "value": "int"
+          },
+          "VAM W/kg": {
+            "unit": "null",
+            "value": "float"
+          },
+          "hrIF": {
+            "unit": "null",
+            "value": "float"
+          },
+          "hrTSS": {
+            "unit": "null",
+            "value": "int"
+          }
+        },
+        "workoutId": "int"
+      }
+    },
+    "tp_apply_training_plan": {
+      "skipped": "deliberate: bulk-creates a full plan of workouts on the real calendar"
+    },
+    "tp_auth_status": {
+      "shape": {
+        "action_needed": "null",
+        "athlete_id": "int",
+        "email": "str",
+        "message": "str",
+        "storage": "str",
+        "valid": "bool"
+      }
+    },
+    "tp_copy_workout": {
+      "shape": {
+        "copied_from": "int",
+        "date": "str",
+        "success": "bool",
+        "title": "str",
+        "workout_id": "int"
+      }
+    },
+    "tp_create_availability": {
+      "shape": {
+        "availability_id": "int",
+        "end_date": "str",
+        "limited": "bool",
+        "start_date": "str",
+        "success": "bool"
+      }
+    },
+    "tp_create_equipment": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_create_event": {
+      "shape": {
+        "date": "str",
+        "event_id": "int",
+        "name": "str",
+        "success": "bool"
+      }
+    },
+    "tp_create_group": {
+      "skipped": "API error API_ERROR: API error: 500"
+    },
+    "tp_create_library": {
+      "shape": {
+        "library_id": "int",
+        "name": "str",
+        "success": "bool"
+      }
+    },
+    "tp_create_library_item": {
+      "shape": {
+        "item_id": "int",
+        "library_id": "int",
+        "name": "str",
+        "success": "bool"
+      }
+    },
+    "tp_create_note": {
+      "shape": {
+        "date": "str",
+        "note_id": "int",
+        "success": "bool",
+        "title": "str"
+      }
+    },
+    "tp_create_strength_workout": {
+      "shape": {
+        "date": "str",
+        "title": "str",
+        "total_blocks": "int",
+        "total_sets": "int",
+        "workout_id": "str"
+      }
+    },
+    "tp_create_workout": {
+      "shape": {
+        "date": "str",
+        "sport": "str",
+        "success": "bool",
+        "title": "str",
+        "workout_id": "int"
+      }
+    },
+    "tp_create_zones": {
+      "skipped": "deliberate: overwrites real zone settings and no API reads them back for restore"
+    },
+    "tp_delete_availability": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_delete_equipment": {
+      "skipped": "create reports success but returns no id and item never appears in the list - cannot target"
+    },
+    "tp_delete_event": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_delete_group": {
+      "skipped": "not reached by the capture plan - extend scripts/capture_tool_shapes.py"
+    },
+    "tp_delete_library": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_delete_note": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_delete_strength_workout": {
+      "shape": {
+        "deleted": "bool",
+        "workout_id": "str"
+      }
+    },
+    "tp_delete_workout": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_delete_workout_file": {
+      "skipped": "no attachment available (upload not captured)"
+    },
+    "tp_download_workout_file": {
+      "skipped": "no attachment available (upload not captured)"
+    },
+    "tp_get_athlete_settings": {
+      "shape": {
+        "settings": {
+          "accountSettingsId": "int",
+          "address": "null",
+          "address2": "null",
+          "affiliateId": "int",
+          "age": "int",
+          "allowMarketingEmails": "bool",
+          "approvedConsent": [
+            "empty"
+          ],
+          "athleteId": "int",
+          "athleteType": "int",
+          "birthday": "str",
+          "cellPhone": "null",
+          "city": "str",
+          "coachedBy": "int",
+          "country": "null",
+          "created": "str",
+          "dateFormat": "str",
+          "email": "str",
+          "enablePostWorkoutNotifications": "bool",
+          "enableVirtualCoachEmails": "bool",
+          "enableWorkoutCommentNotification": "bool",
+          "expireDate": "str",
+          "firstName": "str",
+          "fullName": "str",
+          "gender": "str",
+          "heartRateZones": [
+            {
+              "calculationMethod": "int",
+              "maximumHeartRate": "int",
+              "restingHeartRate": "int",
+              "threshold": "int",
+              "workoutTypeId": "int",
+              "zoneCalculatorId": "null",
+              "zones": [
+                {
+                  "label": "str",
+                  "maximum": "int",
+                  "minimum": "int"
+                }
+              ]
+            }
+          ],
+          "iCalendarKeys": {
+            "mealsOnly": "null",
+            "workoutsAndMeals": "null",
+            "workoutsOnly": "str"
+          },
+          "isAthlete": "bool",
+          "isEmailVerified": "bool",
+          "language": "str",
+          "lastLogon": "str",
+          "lastName": "str",
+          "latitude": "null",
+          "longitude": "null",
+          "numberOfVisits": "int",
+          "nutritionSettings": {
+            "athleteId": "int",
+            "plannedCalories": "int",
+            "substrateUtilizationCategory": "int"
+          },
+          "optedOutOfIcal": "bool",
+          "personId": "int",
+          "personPhotoUrl": "str",
+          "phone": "null",
+          "powerZones": [
+            {
+              "calculationMethod": "int",
+              "threshold": "int",
+              "workoutTypeId": "int",
+              "zoneCalculatorId": "null",
+              "zones": [
+                {
+                  "label": "str",
+                  "maximum": "int",
+                  "minimum": "int"
+                }
+              ]
+            }
+          ],
+          "preferredRunningTssSource": "int",
+          "premiumTrial": "bool",
+          "premiumTrialDaysRemaining": "int",
+          "speedZones": [
+            {
+              "calculationMethod": "int",
+              "distance": "int",
+              "threshold": "float",
+              "workoutTypeId": "int",
+              "zoneCalculatorId": "null",
+              "zones": [
+                {
+                  "label": "str",
+                  "maximum": "float",
+                  "minimum": "float"
+                }
+              ]
+            }
+          ],
+          "state": "null",
+          "temperatureUnit": "int",
+          "thresholdsAutoApply": "bool",
+          "thresholdsNotifyAthlete": "bool",
+          "thresholdsNotifyCoach": "bool",
+          "timeZone": "str",
+          "units": "int",
+          "userIdentifierHash": "str",
+          "userName": "str",
+          "userType": "int",
+          "virtualCoachEmailHour": "int",
+          "windSpeedUnit": "int",
+          "zipCode": "null"
+        }
+      }
+    },
+    "tp_get_atp": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "weeks": [
+          {
+            "period": "str",
+            "race_name": "str",
+            "race_priority": "str",
+            "volume": "float",
+            "week": "str",
+            "weeks_to_event": "int"
+          }
+        ]
+      }
+    },
+    "tp_get_availability": {
+      "shape": {
+        "availability": [
+          {
+            "availableSportTypes": [
+              "empty"
+            ],
+            "description": "str",
+            "endDate": "str",
+            "id": "int",
+            "limitedAvailability": "bool",
+            "personId": "int",
+            "reason": "str",
+            "startDate": "str",
+            "type": "int"
+          }
+        ],
+        "count": "int"
+      }
+    },
+    "tp_get_equipment": {
+      "shape": {
+        "count": "int",
+        "equipment": [
+          "empty"
+        ]
+      }
+    },
+    "tp_get_events": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "events": [
+          {
+            "atpId": "null",
+            "atpPriority": "str",
+            "atpWeekId": "null",
+            "comment": "null",
+            "ctlTarget": "null",
+            "description": "str",
+            "distance": "null",
+            "distanceUnits": "null",
+            "distance_km": "null",
+            "eventDate": "str",
+            "eventType": "str",
+            "externalEventId": "null",
+            "externalEventSource": "null",
+            "goals": {
+              "athleteEventId": "int",
+              "athleteId": "int",
+              "distance": "null",
+              "finish": "null",
+              "place": "null",
+              "pr": "null",
+              "time": "null",
+              "written": [
+                "empty"
+              ]
+            },
+            "id": "int",
+            "isHidden": "bool",
+            "isLocked": "bool",
+            "legs": [
+              "empty"
+            ],
+            "name": "str",
+            "personId": "int",
+            "raceTypeDuration": "null",
+            "results": [
+              {
+                "entrants": "null",
+                "place": "null",
+                "resultType": "str"
+              }
+            ],
+            "workouts": [
+              "empty"
+            ]
+          }
+        ]
+      }
+    },
+    "tp_get_fitness": {
+      "shape": {
+        "current": {
+          "atl": "float",
+          "ctl": "float",
+          "fitness_status": "str",
+          "tsb": "float"
+        },
+        "daily_data": [
+          {
+            "atl": "float",
+            "ctl": "float",
+            "date": "str",
+            "tsb": "float",
+            "tss": "float"
+          }
+        ],
+        "days": "int",
+        "end_date": "str",
+        "start_date": "str"
+      }
+    },
+    "tp_get_focus_event": {
+      "shape": {
+        "event": "null",
+        "message": "str"
+      }
+    },
+    "tp_get_libraries": {
+      "shape": {
+        "count": "int",
+        "libraries": [
+          {
+            "id": "int",
+            "is_default": "bool",
+            "item_count": "int",
+            "name": "str",
+            "owner_id": "int",
+            "owner_name": "str"
+          }
+        ]
+      }
+    },
+    "tp_get_library_item": {
+      "shape": {
+        "item": {
+          "caloriesPlanned": "null",
+          "coachComments": "null",
+          "description": "null",
+          "distancePlanned": "null",
+          "elevationGainPlanned": "null",
+          "energyPlanned": "null",
+          "exerciseLibraryId": "int",
+          "exerciseLibraryItemId": "int",
+          "exerciseLibraryItemType": "str",
+          "fileAttachments": "str",
+          "fromLegacy": "null",
+          "ifPlanned": "null",
+          "itemName": "str",
+          "structure": "null",
+          "totalTimePlanned": "float",
+          "tssPlanned": "float",
+          "velocityPlanned": "null",
+          "workoutSubTypeId": "int",
+          "workoutTypeId": "int"
+        }
+      }
+    },
+    "tp_get_library_items": {
+      "shape": {
+        "count": "int",
+        "items": [
+          {
+            "duration": "float",
+            "id": "int",
+            "name": "str",
+            "sport": "int",
+            "tss": "float"
+          }
+        ],
+        "library_id": "int"
+      }
+    },
+    "tp_get_metrics": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "metrics": [
+          {
+            "athleteId": "int",
+            "details": [
+              {
+                "isPotentiallyNegative": "bool",
+                "label": "str",
+                "modifiedTime": "null|str",
+                "parentId": "int",
+                "time": "str",
+                "type": "int",
+                "uploadClient": "str",
+                "value": "['float|['int|float|int|int']|null']"
+              }
+            ],
+            "id": "str",
+            "timeStamp": "str"
+          }
+        ]
+      }
+    },
+    "tp_get_next_event": {
+      "shape": {
+        "event": "null",
+        "message": "str"
+      }
+    },
+    "tp_get_note": {
+      "shape": {
+        "note": {
+          "created_date": "str",
+          "date": "str",
+          "description": "str",
+          "id": "int",
+          "is_hidden": "bool",
+          "modified_date": "str",
+          "title": "str"
+        }
+      }
+    },
+    "tp_get_note_comments": {
+      "shape": {
+        "comments": [
+          {
+            "comment": "str",
+            "commenter": "str",
+            "created_at": "str",
+            "id": "int"
+          }
+        ],
+        "count": "int"
+      }
+    },
+    "tp_get_nutrition": {
+      "shape": {
+        "count": "int",
+        "message": "str",
+        "nutrition": [
+          "empty"
+        ]
+      }
+    },
+    "tp_get_peaks": {
+      "shape": {
+        "days": "int",
+        "pr_type": "str",
+        "records": [
+          {
+            "date": "str",
+            "rank": "int",
+            "value": "float",
+            "workout_id": "int",
+            "workout_title": "str"
+          }
+        ],
+        "sport": "str"
+      }
+    },
+    "tp_get_pool_length_settings": {
+      "shape": {
+        "pool_length_settings": {
+          "defaultId": "str",
+          "options": [
+            {
+              "id": "str",
+              "label": "null",
+              "length": "float",
+              "units": "str"
+            }
+          ],
+          "supportedUnits": [
+            "str"
+          ]
+        }
+      }
+    },
+    "tp_get_profile": {
+      "shape": {
+        "account_type": "str",
+        "athlete_id": "int",
+        "email": "str",
+        "name": "str"
+      }
+    },
+    "tp_get_strength_summary": {
+      "shape": {
+        "completed_blocks": "int",
+        "completed_prescriptions": "int",
+        "completed_sets": "int",
+        "compliance_percent": "float",
+        "compliance_state": "str",
+        "feel": "null",
+        "rpe": "null",
+        "total_blocks": "int",
+        "total_prescriptions": "int",
+        "total_sets": "int",
+        "workout_id": "str"
+      }
+    },
+    "tp_get_strength_workout": {
+      "shape": {
+        "blocks": [
+          {
+            "compliance_percent": "float",
+            "exercises": [
+              {
+                "compliance_percent": "float",
+                "exercise": "str",
+                "notes": "null",
+                "sets": [
+                  {
+                    "complete": "bool",
+                    "executed": {},
+                    "prescribed": {
+                      "Reps": "str"
+                    }
+                  }
+                ],
+                "video_url": "str"
+              }
+            ],
+            "notes": "null",
+            "title": "null",
+            "type": "str"
+          }
+        ],
+        "completed_sets": "int",
+        "compliance_percent": "float",
+        "compliance_state": "str",
+        "date": "str",
+        "executed_duration_min": "null",
+        "feel": "null",
+        "instructions": "null",
+        "prescribed_duration_min": "null",
+        "rpe": "null",
+        "title": "str",
+        "total_sets": "int",
+        "workout_id": "str",
+        "workout_type": "str"
+      }
+    },
+    "tp_get_strength_workouts": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "workouts": [
+          "empty"
+        ]
+      }
+    },
+    "tp_get_training_plan": {
+      "skipped": "account has no authored training plans"
+    },
+    "tp_get_training_plan_workouts": {
+      "skipped": "account has no authored training plans"
+    },
+    "tp_get_weekly_summary": {
+      "shape": {
+        "fitness": {
+          "atl": "float",
+          "ctl": "float",
+          "date": "str",
+          "tsb": "float",
+          "tss": "float"
+        },
+        "total_duration_hours": "float",
+        "total_tss": "float",
+        "week": {
+          "end": "str",
+          "start": "str"
+        },
+        "workout_count": "int",
+        "workouts": [
+          {
+            "date": "str",
+            "description": "null",
+            "distance_actual_km": "float",
+            "distance_planned_km": "null",
+            "duration_actual": "float",
+            "duration_planned": "null",
+            "id": "str",
+            "sport": "str",
+            "title": "str",
+            "tss": "float",
+            "tss_actual": "float",
+            "tss_planned": "null",
+            "type": "str"
+          }
+        ]
+      }
+    },
+    "tp_get_workout": {
+      "shape": {
+        "attachment_files": [
+          "empty"
+        ],
+        "completed": "null",
+        "date": "str",
+        "description": "str",
+        "device_files": [
+          "empty"
+        ],
+        "feeling": "null",
+        "has_private_workout_note": "bool",
+        "id": "str",
+        "metrics": {
+          "avg_cadence": "null",
+          "avg_hr": "null",
+          "avg_power": "null",
+          "calories": "null",
+          "distance_actual_km": "null",
+          "distance_planned_km": "null",
+          "duration_actual": "null",
+          "duration_planned": "float",
+          "elevation_gain": "null",
+          "if_actual": "null",
+          "if_planned": "null",
+          "normalized_power": "null",
+          "tss_actual": "null",
+          "tss_planned": "null"
+        },
+        "new_comment": "null",
+        "rpe": "null",
+        "sport": "str",
+        "structured_workout": "null",
+        "title": "str",
+        "workout_comments": [
+          {
+            "comment": "str",
+            "commenterName": "str",
+            "commenterPersonId": "int",
+            "commenterPhotoUrl": "str",
+            "dateCreated": "str",
+            "firstName": "str",
+            "id": "int",
+            "isCoach": "bool",
+            "isFirstUnread": "bool",
+            "isRead": "bool",
+            "lastName": "str",
+            "workoutId": "int"
+          }
+        ],
+        "workout_type": "int"
+      }
+    },
+    "tp_get_workout_comments": {
+      "shape": {
+        "comments": [
+          {
+            "comment": "str",
+            "commenterName": "str",
+            "commenterPersonId": "int",
+            "commenterPhotoUrl": "str",
+            "dateCreated": "str",
+            "firstName": "str",
+            "id": "int",
+            "isCoach": "bool",
+            "isFirstUnread": "bool",
+            "isRead": "bool",
+            "lastName": "str",
+            "workoutId": "int"
+          }
+        ],
+        "count": "int"
+      }
+    },
+    "tp_get_workout_note": {
+      "shape": {
+        "note": "str",
+        "updated_at": "str",
+        "workout_id": "str"
+      }
+    },
+    "tp_get_workout_prs": {
+      "shape": {
+        "heart_rate_records": "null",
+        "personal_record_count": "int",
+        "power_records": "null",
+        "speed_records": "null",
+        "workout_id": "str"
+      }
+    },
+    "tp_get_workout_types": {
+      "shape": {
+        "count": "int",
+        "workout_types": [
+          {
+            "id": "int",
+            "name": "str",
+            "subtypes": [
+              {
+                "id": "int",
+                "name": "str"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "tp_get_workouts": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "workouts": [
+          {
+            "date": "str",
+            "description": "null|str",
+            "distance_actual_km": "float|null",
+            "distance_planned_km": "null",
+            "duration_actual": "float",
+            "duration_planned": "float|null",
+            "id": "str",
+            "sport": "str",
+            "title": "str",
+            "tss": "float",
+            "tss_actual": "float",
+            "tss_planned": "float|null",
+            "type": "str"
+          }
+        ]
+      }
+    },
+    "tp_get_zone_methods": {
+      "shape": {
+        "methods": {
+          "heartrate": [
+            {
+              "derives_threshold": "bool",
+              "labels": [
+                "str"
+              ],
+              "method": "int",
+              "zone_count": "int"
+            }
+          ],
+          "power": [
+            {
+              "derives_threshold": "bool",
+              "labels": [
+                "str"
+              ],
+              "method": "int",
+              "zone_count": "int"
+            }
+          ],
+          "speed": [
+            {
+              "derives_threshold": "bool",
+              "labels": [
+                "str"
+              ],
+              "method": "int",
+              "zone_count": "int"
+            }
+          ]
+        }
+      }
+    },
+    "tp_list_athletes": {
+      "shape": {
+        "athletes": [
+          {
+            "account": {
+              "athlete_type": "int",
+              "downgrade_allowed": "bool",
+              "downgrade_allowed_on": "str",
+              "expire_on": "str",
+              "expired": "bool",
+              "last_upgrade_on": "null",
+              "premium_trial": "bool",
+              "premium_trial_days_remaining": "int",
+              "tier": "str",
+              "user_type": "int"
+            },
+            "athlete_id": "int",
+            "is_self": "bool",
+            "name": "str"
+          }
+        ]
+      }
+    },
+    "tp_list_athletes_in_group": {
+      "skipped": "scratch group could not be created"
+    },
+    "tp_list_groups": {
+      "skipped": "API error API_ERROR: API error: 400"
+    },
+    "tp_list_notes": {
+      "shape": {
+        "count": "int",
+        "date_range": {
+          "end": "str",
+          "start": "str"
+        },
+        "notes": [
+          {
+            "attachments": [
+              "empty"
+            ],
+            "comment_count": "int",
+            "created_date": "str",
+            "date": "str",
+            "description": "str",
+            "id": "int",
+            "is_hidden": "bool",
+            "modified_date": "str",
+            "owner_id": "int",
+            "title": "str"
+          }
+        ]
+      }
+    },
+    "tp_list_training_plans": {
+      "shape": {
+        "count": "int",
+        "plans": [
+          "empty"
+        ]
+      }
+    },
+    "tp_log_metrics": {
+      "skipped": "deliberate: metric datapoints have no delete API - would permanently pollute real data"
+    },
+    "tp_pair_workout": {
+      "skipped": "deliberate: needs a device-paired planned+completed workout pair"
+    },
+    "tp_refresh_auth": {
+      "skipped": "deliberate: interactive browser cookie extraction"
+    },
+    "tp_remove_athletes_from_group": {
+      "skipped": "scratch group could not be created"
+    },
+    "tp_rename_group": {
+      "skipped": "scratch group could not be created"
+    },
+    "tp_reorder_workouts": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_schedule_library_workout": {
+      "shape": {
+        "date": "str",
+        "message": "str",
+        "success": "bool",
+        "title": "str",
+        "workout_id": "int"
+      }
+    },
+    "tp_search_exercises": {
+      "shape": {
+        "count": "int",
+        "exercises": [
+          {
+            "id": "str",
+            "muscle_groups": [
+              "str"
+            ],
+            "parameters": [
+              "str"
+            ],
+            "title": "str",
+            "video_url": "str"
+          }
+        ]
+      }
+    },
+    "tp_set_workout_note": {
+      "shape": {
+        "message": "str",
+        "note": "str",
+        "success": "bool",
+        "workout_id": "str"
+      }
+    },
+    "tp_unpair_workout": {
+      "skipped": "deliberate: needs a device-paired workout"
+    },
+    "tp_update_equipment": {
+      "skipped": "create reports success but returns no id and item never appears in the list - cannot target"
+    },
+    "tp_update_event": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_update_ftp": {
+      "skipped": "current FTP not exposed by tp_get_athlete_settings - no safe round-trip"
+    },
+    "tp_update_hr_zones": {
+      "skipped": "current threshold HR not exposed by tp_get_athlete_settings - no safe round-trip"
+    },
+    "tp_update_library_item": {
+      "shape": {
+        "message": "str",
+        "success": "bool"
+      }
+    },
+    "tp_update_note": {
+      "shape": {
+        "note": {
+          "date": "str",
+          "description": "str",
+          "id": "int",
+          "is_hidden": "bool",
+          "modified_date": "str",
+          "title": "str"
+        },
+        "success": "bool"
+      }
+    },
+    "tp_update_nutrition": {
+      "skipped": "no existing planned_calories today - no safe round-trip"
+    },
+    "tp_update_speed_zones": {
+      "skipped": "deliberate: cannot safely round-trip current threshold paces as input strings"
+    },
+    "tp_update_workout": {
+      "shape": {
+        "message": "str",
+        "success": "bool",
+        "workout_id": "int"
+      }
+    },
+    "tp_upload_workout_file": {
+      "skipped": "API error API_ERROR: API error: 415"
+    },
+    "tp_validate_structure": {
+      "shape": {
+        "block_count": "int",
+        "estimated_if": "float",
+        "estimated_tss": "float",
+        "intensity_metric": "str",
+        "total_duration_minutes": "float",
+        "total_duration_seconds": "int",
+        "total_steps": "int",
+        "valid": "bool"
+      }
+    }
+  }
+}
