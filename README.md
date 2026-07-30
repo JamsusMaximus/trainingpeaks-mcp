@@ -219,7 +219,7 @@ pip install -e .
 If you're logged into TrainingPeaks in your browser:
 
 ```bash
-pip install tp-mcp[browser]  # One-time: install browser support
+pip install -e ".[browser]"  # One-time: install browser support
 tp-mcp auth --from-browser chrome  # Or: firefox, safari, edge, auto
 ```
 

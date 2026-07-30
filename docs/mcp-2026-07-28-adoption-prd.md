@@ -161,13 +161,13 @@ Interval profile (steps, durations, targets) from `tp_get_workout`.
 
 One release and one full smoke pass for all three apps, plus the sequence-wide close-out.
 
-- [ ] Tag `v3.1.0` (single release for PRs 4–7 per amended decision); release notes include per-client app-rendering status from PR 5's record
-- [ ] Fresh `git clone` + `pip install -e .` in a clean venv on the tag: server starts, auth works (the real install path - there is no PyPI package to test)
-- [ ] Full smoke in Claude Code AND Claude Desktop: auth status, one read, one write, one delete on scratch data, all three app tools
-- [ ] Destructive gating compared against PR 2's baseline screenshots: the delete prompt observably changed
-- [ ] Old-protocol confidence: the pinned-1.x CI compat test is green on the tag (deterministic); additionally note which real client, if any, still speaks pre-2026 and smoke it
-- [ ] README final sweep: `pip install tp-mcp[browser]` (`README.md:195`) → `pip install -e ".[browser]"` (the bare form would resolve against PyPI if the name ever gets published there, silently replacing a clone install); stale counts; version references
-- [ ] Close the loop: release notes link this PRD; announcement issue updated; open issues re-triaged against 3.x
+- [x] Tag `v3.1.0` (single release for PRs 4–7 per amended decision); release notes include per-client app-rendering status from PR 5's record
+- [x] Fresh `git clone` + `pip install -e .` in a clean venv on the tag: server starts, auth works (the real install path - there is no PyPI package to test)
+- [ ] (Claude Code portion DONE headless - auth/read/apps verified; **Claude Desktop needs James**) Full smoke in Claude Code AND Claude Desktop: auth status, one read, one write, one delete on scratch data, all three app tools
+- [ ] (**needs James** - PR 2 baseline screenshot was never taken; observe current prompt and compare notes instead) Destructive gating compared against PR 2's baseline screenshots: the delete prompt observably changed
+- [x] Old-protocol confidence: the pinned-1.x CI compat test is green on the tag (deterministic); additionally note which real client, if any, still speaks pre-2026 and smoke it
+- [x] README final sweep: `pip install tp-mcp[browser]` (`README.md:195`) → `pip install -e ".[browser]"` (the bare form would resolve against PyPI if the name ever gets published there, silently replacing a clone install); stale counts; version references
+- [x] Close the loop: release notes link this PRD; announcement issue updated; open issues re-triaged against 3.x
 
 ## Out of scope / future additions
 
