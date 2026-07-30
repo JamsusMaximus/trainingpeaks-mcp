@@ -1,0 +1,28 @@
+docs/mcp-2026-07-28-adoption-prd.md
+  s_b09b332d4c022e::t_cd3244650f9d1b 112-115,121-129
+tests/test_apps_foundation.py
+  s_b09b332d4c022e::t_b41def8bca2547 1-95
+tests/fixtures/xss_strings.json
+  s_b09b332d4c022e::t_6c59a079f7d103 1-10
+src/tp_mcp/apps/__init__.py
+  s_b09b332d4c022e::t_843123aec6a09f 1-96
+src/tp_mcp/server.py
+  s_b09b332d4c022e::t_1209dadc7d3ac6 15,18-20,22,27
+  s_b09b332d4c022e::t_3b2a46572abd8e 1977-1981,1994-2010,2016-2017,2019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "659deb881d397852bdc74404d0ce931c2a81ab57",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
