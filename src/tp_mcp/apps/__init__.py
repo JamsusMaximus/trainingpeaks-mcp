@@ -95,3 +95,6 @@ def read_resource(uri: str) -> tuple[str, str] | None:
 # App registrations. Each app PR adds one line plus its .html file.
 # ---------------------------------------------------------------------------
 register_app("tp_get_fitness", "ui://trainingpeaks/pmc-chart.html", "pmc_chart.html", "Fitness chart (PMC)")
+register_app(
+    "tp_get_weekly_summary", "ui://trainingpeaks/weekly-summary.html", "weekly_summary.html", "Weekly summary card"
+)

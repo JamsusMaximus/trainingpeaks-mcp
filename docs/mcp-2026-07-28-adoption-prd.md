@@ -143,10 +143,10 @@ CTL/ATL/TSB from `tp_get_fitness`, rendered inline. First consumer of PR 4's wir
 
 Planned vs completed with per-day load bars from `tp_get_weekly_summary`. **Highest XSS exposure: this payload embeds workout titles and coach/athlete comments.**
 
-- [ ] `ui://` resource + `_meta` refs on `tp_get_weekly_summary` via PR 4's mechanism
-- [ ] Card HTML: per-day bars, planned-vs-completed distinction, totals row; empty-week handling; `prefers-color-scheme`
-- [ ] XSS fixture test against title/comment fields specifically; no-external-request check; text payload unchanged
-- [ ] Pairing test extended
+- [x] `ui://` resource + `_meta` refs on `tp_get_weekly_summary` via PR 4's mechanism
+- [x] Card HTML: per-day bars, planned-vs-completed distinction, totals row; empty-week handling; `prefers-color-scheme`
+- [x] XSS fixture test against title/comment fields specifically; no-external-request check; text payload unchanged
+- [x] Pairing test extended
 
 ### PR 7 - Workout structure viewer app
 

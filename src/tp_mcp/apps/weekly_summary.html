@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weekly summary</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --grid: #e5e7eb;
+    --done: #2563eb; --planned: #93c5fd; --tile: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --grid: #2a2f36;
+      --done: #60a5fa; --planned: #1e3a5f; --tile: #1c2127;
+    }
+  }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+               font: 13px/1.4 -apple-system, system-ui, sans-serif; }
+  .wrap { padding: 12px 14px; }
+  .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .head .range { color: var(--muted); font-size: 12px; }
+  .tiles { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tile { background: var(--tile); border-radius: 8px; padding: 6px 12px; }
+  .tile .v { font-size: 17px; font-weight: 650; }
+  .tile .l { color: var(--muted); font-size: 11px; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .day { min-height: 40px; min-width: 0; }
+  .day .dl { color: var(--muted); font-size: 10px; text-align: center; margin-bottom: 3px; }
+  .bars { display: flex; flex-direction: column-reverse; gap: 2px; height: 90px;
+          border-bottom: 1px solid var(--grid); justify-content: flex-start; }
+  .bar { border-radius: 3px; min-height: 4px; }
+  .bar.done { background: var(--done); }
+  .bar.planned { background: var(--planned); }
+  .wl { margin-top: 4px; }
+  .w { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden;
+       text-overflow: ellipsis; }
+  .legend { display: flex; gap: 14px; color: var(--muted); font-size: 11px; margin-top: 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+              vertical-align: -1px; margin-right: 4px; }
+  #empty { color: var(--muted); padding: 24px 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><h2>Week summary</h2><span class="range" id="range"></span></div>
+  <div class="tiles" id="tiles" hidden>
+    <div class="tile"><div class="v" id="v-count">-</div><div class="l">workouts</div></div>
+    <div class="tile"><div class="v" id="v-hours">-</div><div class="l">hours</div></div>
+    <div class="tile"><div class="v" id="v-tss">-</div><div class="l">TSS</div></div>
+    <div class="tile"><div class="v" id="v-tsb">-</div><div class="l">TSB (end of week)</div></div>
+  </div>
+  <div class="days" id="days" hidden></div>
+  <div class="legend" id="legend" hidden>
+    <span><i style="background:var(--done)"></i>completed</span>
+    <span><i style="background:var(--planned)"></i>planned</span>
+  </div>
+  <div id="empty">Waiting for weekly data&#8230;</div>
+</div>
+<script>
+"use strict";
+// Workout titles/descriptions are user-authored free text: textContent ONLY.
+const $ = (id) => document.getElementById(id);
+
+function fmt(x, dp) { return (x == null || isNaN(x)) ? "-" : Number(x).toFixed(dp == null ? 1 : dp); }
+
+function extractPayload(data) {
+  try {
+    const text = data && data.result && data.result.content && data.result.content[0]
+      && data.result.content[0].text;
+    if (typeof text === "string") return JSON.parse(text);
+  } catch (e) { /* fall through */ }
+  if (data && data.result && data.result.structuredContent) return data.result.structuredContent;
+  if (data && data.week) return data;
+  return null;
+}
+
+function dayKeys(startISO) {
+  const keys = [];
+  const d = new Date(startISO + "T00:00:00Z");
+  for (let i = 0; i < 7; i++) {
+    keys.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return keys;
+}
+
+function render(p) {
+  const week = p.week || {};
+  $("range").textContent = week.start ? (week.start + " to " + (week.end || "")) : "";
+  $("v-count").textContent = p.workout_count == null ? "-" : String(p.workout_count);
+  $("v-hours").textContent = fmt(p.total_duration_hours);
+  $("v-tss").textContent = fmt(p.total_tss, 0);
+  $("v-tsb").textContent = p.fitness ? fmt(p.fitness.tsb) : "-";
+  $("tiles").hidden = false;
+
+  const workouts = Array.isArray(p.workouts) ? p.workouts.filter(w => w && w.date) : [];
+  if (workouts.length === 0) {
+    $("empty").textContent = "No workouts this week.";
+    return;
+  }
+  $("empty").hidden = true;
+  $("legend").hidden = false;
+
+  const keys = week.start ? dayKeys(week.start) : [...new Set(workouts.map(w => String(w.date).slice(0, 10)))].sort();
+  const byDay = {};
+  for (const k of keys) byDay[k] = [];
+  for (const w of workouts) {
+    const k = String(w.date).slice(0, 10);
+    (byDay[k] = byDay[k] || []).push(w);
+  }
+  let maxTss = 1;
+  for (const k in byDay) {
+    const t = byDay[k].reduce((a, w) => a + (Number(w.tss || w.tss_actual || w.tss_planned) || 0), 0);
+    maxTss = Math.max(maxTss, t);
+  }
+
+  const days = $("days");
+  while (days.firstChild) days.removeChild(days.firstChild);
+  days.hidden = false;
+  const dow = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  Object.keys(byDay).sort().forEach((k, i) => {
+    const col = document.createElement("div");
+    col.className = "day";
+    const dl = document.createElement("div");
+    dl.className = "dl";
+    const wd = new Date(k + "T00:00:00Z").getUTCDay(); // 0=Sun
+    dl.textContent = dow[(wd + 6) % 7] + " " + k.slice(8);
+    col.appendChild(dl);
+    const bars = document.createElement("div");
+    bars.className = "bars";
+    for (const w of byDay[k]) {
+      const completed = String(w.type || "").toLowerCase() === "completed"
+        || (w.duration_actual != null && Number(w.duration_actual) > 0);
+      const tss = Number(w.tss || w.tss_actual || w.tss_planned) || 0;
+      const bar = document.createElement("div");
+      bar.className = "bar " + (completed ? "done" : "planned");
+      bar.style.height = Math.max(4, (tss / maxTss) * 82) + "px";
+      bar.title = ""; // set via attribute below with plain text only
+      bar.setAttribute("title", (w.title || w.sport || "workout") + (tss ? " - " + Math.round(tss) + " TSS" : ""));
+      bars.appendChild(bar);
+    }
+    col.appendChild(bars);
+    const wl = document.createElement("div");
+    wl.className = "wl";
+    for (const w of byDay[k]) {
+      const line = document.createElement("div");
+      line.className = "w";
+      line.textContent = (w.sport ? w.sport + ": " : "") + (w.title || "");
+      wl.appendChild(line);
+    }
+    col.appendChild(wl);
+    days.appendChild(col);
+  });
+}
+
+window.addEventListener("message", (event) => {
+  const payload = extractPayload(event.data);
+  if (payload) render(payload);
+});
+</script>
+</body>
+</html>
