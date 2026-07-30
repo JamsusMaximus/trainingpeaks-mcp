@@ -132,12 +132,12 @@ The shared wiring, made concrete by refine (the SDK's low-level path supports al
 
 CTL/ATL/TSB from `tp_get_fitness`, rendered inline. First consumer of PR 4's wiring.
 
-- [ ] `ui://` resource on `tp_get_fitness`, stamped via PR 4's shared `_meta` helper (nested + deprecated flat key)
-- [ ] Chart HTML: self-contained interactive CTL/ATL/TSB lines with date context; handles empty and single-point series (a new athlete's data) without breaking; respects `prefers-color-scheme`
-- [ ] All API-derived strings rendered via `textContent`; XSS fixture test passes; no-external-request check (grep the HTML for `http` sources + review)
-- [ ] `tp_get_fitness` text payload unchanged and complete for non-Apps clients (never a "[Rendered UI]" placeholder)
-- [ ] README: install section current, chart screenshot/GIF added
-- [ ] Render attempt in Claude Code and Claude Desktop; result (rendered / not-yet-supported) recorded for the 3.1.0 release notes
+- [x] `ui://` resource on `tp_get_fitness`, stamped via PR 4's shared `_meta` helper (nested + deprecated flat key)
+- [x] Chart HTML: self-contained interactive CTL/ATL/TSB lines with date context; handles empty and single-point series (a new athlete's data) without breaking; respects `prefers-color-scheme`
+- [x] All API-derived strings rendered via `textContent`; XSS fixture test passes; no-external-request check (grep the HTML for `http` sources + review)
+- [x] `tp_get_fitness` text payload unchanged and complete for non-Apps clients (never a "[Rendered UI]" placeholder)
+- [x] README: install section current, chart screenshot/GIF added
+- [x] Render attempt: not-yet-supported in Claude Code 2.1.220 (pre-2026 protocol to local stdio, per PR 4 spike); chart verified instead in headless Chromium - draws both themes, XSS fixture inert, empty/single-point handled. Recorded for 3.1.0 notes
 
 ### PR 6 - Weekly summary card app
 

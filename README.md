@@ -169,6 +169,23 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 
 ---
 
+## MCP Apps (inline charts)
+
+On clients that support the MCP Apps extension (spec 2026-07-28), some tools render an
+interactive UI inline in the conversation as well as returning their normal text payload.
+On every other client the tools behave exactly as before - the text answer is always
+complete on its own.
+
+![PMC fitness chart rendered inline](docs/images/pmc-chart-app.png)
+
+| Tool | App |
+|------|-----|
+| `tp_get_fitness` | Interactive CTL/ATL/TSB performance-management chart |
+
+*(Note: as of July 2026, Claude clients still connect to local stdio servers over the
+pre-2026 protocol, so the apps ship ready but won't render until client support rolls
+out. The tools' text output is unaffected either way.)*
+
 ## Setup Options
 
 ### Option A: Auto-Setup with Claude Code

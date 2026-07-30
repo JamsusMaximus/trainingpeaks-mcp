@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fitness (PMC)</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --grid: #e5e7eb;
+    --ctl: #2563eb; --atl: #dc2626; --tsb-pos: #16a34a33; --tsb-neg: #dc262633;
+    --tile: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --grid: #2a2f36;
+      --ctl: #60a5fa; --atl: #f87171; --tsb-pos: #4ade8033; --tsb-neg: #f8717133;
+      --tile: #1c2127;
+    }
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+               font: 13px/1.4 -apple-system, system-ui, sans-serif; }
+  .wrap { padding: 12px 14px; }
+  .tiles { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tile { background: var(--tile); border-radius: 8px; padding: 6px 12px; min-width: 72px; }
+  .tile .v { font-size: 18px; font-weight: 650; }
+  .tile .l { color: var(--muted); font-size: 11px; }
+  .legend { display: flex; gap: 14px; color: var(--muted); font-size: 11px; margin: 6px 2px; }
+  .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+  #chartbox { position: relative; }
+  svg { width: 100%; height: 240px; display: block; }
+  #tip { position: absolute; pointer-events: none; background: var(--tile); color: var(--fg);
+         border: 1px solid var(--grid); border-radius: 6px; padding: 5px 8px; font-size: 11px;
+         display: none; white-space: pre; z-index: 2; }
+  #empty { color: var(--muted); padding: 28px 4px; }
+  #range { color: var(--muted); font-size: 11px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tiles" id="tiles" hidden>
+    <div class="tile"><div class="v" id="v-ctl">-</div><div class="l">CTL (fitness)</div></div>
+    <div class="tile"><div class="v" id="v-atl">-</div><div class="l">ATL (fatigue)</div></div>
+    <div class="tile"><div class="v" id="v-tsb">-</div><div class="l">TSB (form)</div></div>
+    <div class="tile"><div class="v" id="v-status">-</div><div class="l">status</div></div>
+  </div>
+  <div class="legend" id="legend" hidden>
+    <span><i style="background:var(--ctl)"></i>CTL</span>
+    <span><i style="background:var(--atl)"></i>ATL</span>
+    <span><i style="background:var(--grid)"></i>TSB (shaded)</span>
+  </div>
+  <div id="chartbox">
+    <svg id="chart" viewBox="0 0 720 240" preserveAspectRatio="none" hidden></svg>
+    <div id="tip"></div>
+  </div>
+  <div id="empty">Waiting for fitness data&#8230;</div>
+  <div id="range"></div>
+</div>
+<script>
+"use strict";
+// All API-derived strings go through textContent - workout/fitness payload
+// fields are user-influenced text and must render inert.
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+
+function el(name, attrs) {
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+function fmt(x) { return (x == null || isNaN(x)) ? "-" : (Math.round(x * 10) / 10).toString(); }
+
+function extractPayload(data) {
+  // Host pushes the tool result; the payload is the JSON text of content[0].
+  try {
+    const text = data && data.result && data.result.content && data.result.content[0]
+      && data.result.content[0].text;
+    if (typeof text === "string") return JSON.parse(text);
+  } catch (e) { /* fall through */ }
+  // Some hosts may deliver structuredContent or the payload directly.
+  if (data && data.result && data.result.structuredContent) return data.result.structuredContent;
+  if (data && data.daily_data) return data;
+  return null;
+}
+
+function render(p) {
+  const days = Array.isArray(p.daily_data) ? p.daily_data.filter(d => d && d.date) : [];
+  const cur = p.current || {};
+  $("v-ctl").textContent = fmt(cur.ctl);
+  $("v-atl").textContent = fmt(cur.atl);
+  $("v-tsb").textContent = fmt(cur.tsb);
+  $("v-status").textContent = (typeof cur.fitness_status === "string" && cur.fitness_status) ? cur.fitness_status : "-";
+  $("tiles").hidden = false;
+  $("range").textContent = (p.start_date && p.end_date) ? (p.start_date + " to " + p.end_date) : "";
+
+  if (days.length === 0) {
+    $("empty").textContent = "No daily fitness data in this range.";
+    return;
+  }
+  $("empty").hidden = true;
+  $("legend").hidden = false;
+  const svg = $("chart");
+  svg.hidden = false;
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const W = 720, H = 240, padL = 34, padR = 8, padT = 10, padB = 22;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const series = ["ctl", "atl", "tsb"];
+  let lo = 0, hi = 1;
+  for (const d of days) for (const s of series) {
+    const v = d[s]; if (typeof v === "number") { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  }
+  if (hi === lo) { hi = lo + 1; }
+  const x = (i) => days.length === 1 ? padL + iw / 2 : padL + (i / (days.length - 1)) * iw;
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * ih;
+
+  // gridlines + y labels
+  for (let g = 0; g <= 4; g++) {
+    const v = lo + (g / 4) * (hi - lo), gy = y(v);
+    svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: gy, y2: gy,
+      stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: 4, y: gy + 4, fill: "var(--muted)", "font-size": 10 });
+    t.textContent = fmt(v);
+    svg.appendChild(t);
+  }
+  // zero line for TSB context
+  if (lo < 0 && hi > 0) {
+    svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: y(0), y2: y(0),
+      stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3,3" }));
+  }
+  // TSB shaded area against the zero line
+  if (days.length > 1) {
+    let dPos = "M" + x(0) + "," + y(0);
+    for (let i = 0; i < days.length; i++) dPos += " L" + x(i) + "," + y(typeof days[i].tsb === "number" ? days[i].tsb : 0);
+    dPos += " L" + x(days.length - 1) + "," + y(0) + " Z";
+    svg.appendChild(el("path", { d: dPos, fill: "var(--tsb-pos)", stroke: "none" }));
+  }
+  // CTL / ATL lines (single point -> dot)
+  for (const [key, colour] of [["ctl", "var(--ctl)"], ["atl", "var(--atl)"]]) {
+    const pts = days.map((d, i) => [x(i), y(typeof d[key] === "number" ? d[key] : 0)]);
+    if (pts.length === 1) {
+      svg.appendChild(el("circle", { cx: pts[0][0], cy: pts[0][1], r: 3, fill: colour }));
+    } else {
+      svg.appendChild(el("path", {
+        d: "M" + pts.map(p2 => p2[0] + "," + p2[1]).join(" L"),
+        fill: "none", stroke: colour, "stroke-width": 2 }));
+    }
+  }
+  // x labels: first / middle / last dates
+  const idxs = days.length > 2 ? [0, Math.floor(days.length / 2), days.length - 1] : [0, days.length - 1];
+  for (const i of new Set(idxs)) {
+    const t = el("text", { x: x(i), y: H - 6, fill: "var(--muted)", "font-size": 10, "text-anchor": "middle" });
+    t.textContent = String(days[i].date).slice(5); // MM-DD
+    svg.appendChild(t);
+  }
+  // hover tooltip
+  const tip = $("tip"), box = $("chartbox");
+  svg.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect();
+    const fx = (ev.clientX - r.left) / r.width * W;
+    let i = Math.round((fx - padL) / (iw || 1) * (days.length - 1));
+    i = Math.max(0, Math.min(days.length - 1, isNaN(i) ? 0 : i));
+    const d = days[i];
+    tip.textContent = String(d.date) + "\nCTL " + fmt(d.ctl) + "  ATL " + fmt(d.atl)
+      + "\nTSB " + fmt(d.tsb) + "  TSS " + fmt(d.tss);
+    tip.style.display = "block";
+    const bx = box.getBoundingClientRect();
+    tip.style.left = Math.min(ev.clientX - bx.left + 12, bx.width - 130) + "px";
+    tip.style.top = (ev.clientY - bx.top + 10) + "px";
+  });
+  svg.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+}
+
+window.addEventListener("message", (event) => {
+  const payload = extractPayload(event.data);
+  if (payload) render(payload);
+});
+</script>
+</body>
+</html>
