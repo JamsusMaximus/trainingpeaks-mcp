@@ -1,0 +1,44 @@
+docs/mcp-2026-07-28-adoption-prd.md
+  s_b09b332d4c022e::t_d7fe4adf3479bd 1-2,4,6-8,10,12,15,20,22-24,26-27,32,34-36,38,53-55,171-173,184-186,192-195,202-204,209-211
+  s_b09b332d4c022e::t_b4371b2bcb299d 3,5,9,11,13-14,16-19,21,25,28-31,33,37,39-46,48-52,56-66,68-76,78-84,86-93,95,97,99-102,104-124,127-134,136-154,156-170,174-183,187-191,197-201,205-208,212-222
+  s_b09b332d4c022e::t_9511d7647973cb 94
+  s_b09b332d4c022e::t_4c68a6242877af 98
+  s_b09b332d4c022e::t_097b8abc8a93ea 47
+  s_b09b332d4c022e::t_3431769b6029de 125-126
+  s_b09b332d4c022e::t_a4b9929f0859d6 196
+  s_b09b332d4c022e::t_7d68b8804e9ff0 85
+  s_b09b332d4c022e::t_a548a8f6e7a7d6 103
+  s_b09b332d4c022e::t_6d0f18a13496b4 77
+  s_b09b332d4c022e::t_af51d8753d3be3 67
+  s_b09b332d4c022e::t_ce9866d7b5d87e 155
+  s_b09b332d4c022e::t_9bdc80f648e649 96
+  s_b09b332d4c022e::t_1e2f1028770e0c 135
+src/tp_mcp/__init__.py
+  s_b09b332d4c022e::t_383092d9f5cf66 3-8
+pyproject.toml
+  s_b09b332d4c022e::t_991807bba196fc 7
+  s_b09b332d4c022e::t_a29f6a4e0f12c1 29,33
+.github/workflows/ci.yml
+  s_b09b332d4c022e::t_9d600c64232efd 33-36
+  s_b09b332d4c022e::t_73a8b21a3aa94e 8-11
+docs/PROGRESS.md
+  s_b09b332d4c022e::t_2ab0767fde00c1 3-7
+uv.lock
+  s_b09b332d4c022e::t_89d9c694a37382 1243,1270,1272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5a3bd23ec263381609aa63904a63cea89741c6aa",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
