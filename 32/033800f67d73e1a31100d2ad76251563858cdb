@@ -1,0 +1,25 @@
+src/tp_mcp/apps/workout_structure.html
+  s_b09b332d4c022e::t_d0040e6cf99f11 1-185
+src/tp_mcp/apps/__init__.py
+  s_b09b332d4c022e::t_5ec68656659b1f 101-103
+README.md
+  s_b09b332d4c022e::t_52ab6933666a1e 185
+docs/mcp-2026-07-28-adoption-prd.md
+  s_b09b332d4c022e::t_3dc39e07f13d26 155-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "32033800f67d73e1a31100d2ad76251563858cdb",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
