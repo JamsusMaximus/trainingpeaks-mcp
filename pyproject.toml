@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tp-mcp"
-version = "3.1.0"
+version = "3.1.1"
 description = "TrainingPeaks MCP Server - AI assistant integration for TrainingPeaks"
 readme = "README.md"
 requires-python = ">=3.10"
