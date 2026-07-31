@@ -56,7 +56,7 @@
   <div class="legend" id="legend" hidden>
     <span><i style="background:var(--ctl)"></i>CTL</span>
     <span><i style="background:var(--atl)"></i>ATL</span>
-    <span><i style="background:var(--grid)"></i>TSB (shaded)</span>
+    <span><i style="background:var(--grid)"></i>TSB (shaded, right axis)</span>
   </div>
   <div id="chartbox">
     <svg id="chart" viewBox="0 0 720 240" preserveAspectRatio="none" hidden></svg>
@@ -113,41 +113,58 @@ function render(p) {
   svg.hidden = false;
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-  const W = 720, H = 240, padL = 34, padR = 8, padT = 10, padB = 22;
+  const W = 720, H = 240, padL = 34, padR = 34, padT = 10, padB = 22;
   const iw = W - padL - padR, ih = H - padT - padB;
-  const series = ["ctl", "atl", "tsb"];
-  let lo = 0, hi = 1;
-  for (const d of days) for (const s of series) {
-    const v = d[s]; if (typeof v === "number") { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-  }
-  if (hi === lo) { hi = lo + 1; }
-  const x = (i) => days.length === 1 ? padL + iw / 2 : padL + (i / (days.length - 1)) * iw;
-  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * ih;
 
-  // gridlines + y labels
+  // Left scale: CTL/ATL only. TSB gets its own right-hand scale so its
+  // negative dips don't compress the load lines (TrainingPeaks convention).
+  let hiL = 1;
+  for (const d of days) for (const k of ["ctl", "atl"]) {
+    const v = d[k]; if (typeof v === "number") hiL = Math.max(hiL, v);
+  }
+  hiL *= 1.08;
+  let loR = 0, hiR = 1;
+  for (const d of days) {
+    const v = d.tsb; if (typeof v === "number") { loR = Math.min(loR, v); hiR = Math.max(hiR, v); }
+  }
+  loR = Math.min(loR * 1.1, -1);
+  hiR = Math.max(hiR * 1.1, 1);
+  const x = (i) => days.length === 1 ? padL + iw / 2 : padL + (i / (days.length - 1)) * iw;
+  const yL = (v) => padT + (1 - v / hiL) * ih;
+  // TSB lives in a bottom band (~1/3 height) so its swings never drown the lines
+  const bandTop = padT + ih * 0.66, bandH = ih * 0.34;
+  const yR = (v) => bandTop + (1 - (v - loR) / (hiR - loR)) * bandH;
+
+  // gridlines + left labels (CTL/ATL scale)
   for (let g = 0; g <= 4; g++) {
-    const v = lo + (g / 4) * (hi - lo), gy = y(v);
+    const v = (g / 4) * hiL, gy = yL(v);
     svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: gy, y2: gy,
       stroke: "var(--grid)", "stroke-width": 1 }));
     const t = el("text", { x: 4, y: gy + 4, fill: "var(--muted)", "font-size": 10 });
     t.textContent = fmt(v);
     svg.appendChild(t);
   }
-  // zero line for TSB context
-  if (lo < 0 && hi > 0) {
-    svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: y(0), y2: y(0),
-      stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3,3" }));
+  // right labels (TSB scale): min / 0 / max
+  for (const v of [loR, 0, hiR]) {
+    const t = el("text", { x: W - padR + 5, y: yR(v) + 4, fill: "var(--muted)", "font-size": 10 });
+    t.textContent = fmt(v);
+    svg.appendChild(t);
   }
-  // TSB shaded area against the zero line
+  // TSB zero line (right scale)
+  svg.appendChild(el("line", { x1: padL, x2: W - padR, y1: yR(0), y2: yR(0),
+    stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3,3" }));
+  // TSB shaded area about its zero line
   if (days.length > 1) {
-    let dPos = "M" + x(0) + "," + y(0);
-    for (let i = 0; i < days.length; i++) dPos += " L" + x(i) + "," + y(typeof days[i].tsb === "number" ? days[i].tsb : 0);
-    dPos += " L" + x(days.length - 1) + "," + y(0) + " Z";
+    let dPos = "M" + x(0) + "," + yR(0);
+    for (let i = 0; i < days.length; i++) {
+      dPos += " L" + x(i) + "," + yR(typeof days[i].tsb === "number" ? days[i].tsb : 0);
+    }
+    dPos += " L" + x(days.length - 1) + "," + yR(0) + " Z";
     svg.appendChild(el("path", { d: dPos, fill: "var(--tsb-pos)", stroke: "none" }));
   }
-  // CTL / ATL lines (single point -> dot)
+  // CTL / ATL lines on the left scale (single point -> dot)
   for (const [key, colour] of [["ctl", "var(--ctl)"], ["atl", "var(--atl)"]]) {
-    const pts = days.map((d, i) => [x(i), y(typeof d[key] === "number" ? d[key] : 0)]);
+    const pts = days.map((d, i) => [x(i), yL(typeof d[key] === "number" ? d[key] : 0)]);
     if (pts.length === 1) {
       svg.appendChild(el("circle", { cx: pts[0][0], cy: pts[0][1], r: 3, fill: colour }));
     } else {
@@ -156,10 +173,11 @@ function render(p) {
         fill: "none", stroke: colour, "stroke-width": 2 }));
     }
   }
-  // x labels: first / middle / last dates
+  // x labels: first anchored start, middle centred, last anchored end (no clipping)
   const idxs = days.length > 2 ? [0, Math.floor(days.length / 2), days.length - 1] : [0, days.length - 1];
   for (const i of new Set(idxs)) {
-    const t = el("text", { x: x(i), y: H - 6, fill: "var(--muted)", "font-size": 10, "text-anchor": "middle" });
+    const anchor = i === 0 ? "start" : (i === days.length - 1 ? "end" : "middle");
+    const t = el("text", { x: x(i), y: H - 6, fill: "var(--muted)", "font-size": 10, "text-anchor": anchor });
     t.textContent = String(days[i].date).slice(5); // MM-DD
     svg.appendChild(t);
   }
