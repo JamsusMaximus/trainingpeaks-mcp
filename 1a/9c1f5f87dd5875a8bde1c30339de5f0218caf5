@@ -1,0 +1,27 @@
+src/tp_mcp/apps/workout_structure.html
+  s_b09b332d4c022e::t_a75f0ec76e9806 17-25,188-217,219-234,236-247
+src/tp_mcp/apps/pmc_chart.html
+  s_b09b332d4c022e::t_a75f0ec76e9806 19-29,184-213,215-230,232-243
+src/tp_mcp/apps/weekly_summary.html
+  s_b09b332d4c022e::t_a75f0ec76e9806 17-25,166-195,197-212,214-225
+pyproject.toml
+  s_b09b332d4c022e::t_7c7f83baea9d05 7
+uv.lock
+  s_b09b332d4c022e::t_523d0be15855e4 1269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1a9c1f5f87dd5875a8bde1c30339de5f0218caf5",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
