@@ -14,6 +14,15 @@
       --done: #60a5fa; --planned: #1e3a5f; --tile: #1c2127;
     }
   }
+  /* Host-driven theme (MCP Apps hostContext) overrides the media query */
+  :root[data-theme="dark"] {
+      --bg: #111418; --fg: #e5e7eb; --muted: #9ca3af; --grid: #2a2f36;
+      --done: #60a5fa; --planned: #1e3a5f; --tile: #1c2127;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1d21; --muted: #6b7280; --grid: #e5e7eb;
+    --done: #2563eb; --planned: #93c5fd; --tile: #f3f4f6;
+  }
   html, body { margin: 0; background: var(--bg); color: var(--fg);
                font: 13px/1.4 -apple-system, system-ui, sans-serif; }
   .wrap { padding: 12px 14px; }
@@ -154,10 +163,66 @@ function render(p) {
   });
 }
 
+const APP_NAME = "Weekly summary card";
+// ---- MCP Apps view protocol (inline implementation of the ext-apps wire
+// protocol - JSON-RPC 2.0 over postMessage; CSP forbids loading the SDK) ----
+let _rpcId = 0;
+const _pending = {};
+function _request(method, params) {
+  return new Promise((resolve) => {
+    const id = ++_rpcId;
+    _pending[id] = resolve;
+    window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, "*");
+  });
+}
+function _notify(method, params) {
+  window.parent.postMessage({ jsonrpc: "2.0", method: method, params: params }, "*");
+}
+function _applyHostContext(ctx) {
+  if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) {
+    document.documentElement.setAttribute("data-theme", ctx.theme);
+  }
+}
+function _reportSize() {
+  _notify("ui/notifications/size-changed", {
+    width: document.documentElement.scrollWidth,
+    height: document.documentElement.scrollHeight,
+  });
+}
+function _handleToolResult(result) { // params: standard CallToolResult
+  const payload = extractPayload({ result: result });
+  if (payload) { render(payload); requestAnimationFrame(_reportSize); }
+}
 window.addEventListener("message", (event) => {
-  const payload = extractPayload(event.data);
-  if (payload) render(payload);
+  const d = event.data;
+  if (!d || d.jsonrpc !== "2.0") {
+    const payload = extractPayload(d); // legacy raw-postMessage hosts
+    if (payload) { render(payload); requestAnimationFrame(_reportSize); }
+    return;
+  }
+  if (d.id != null && d.method == null) { // response to one of our requests
+    const resolve = _pending[d.id];
+    if (resolve) { delete _pending[d.id]; resolve(d.result); }
+    return;
+  }
+  if (d.method === "ui/notifications/tool-result") { _handleToolResult(d.params || {}); return; }
+  if (d.method === "ui/notifications/host-context-changed") { _applyHostContext(d.params || {}); return; }
+  if (d.method === "ui/resource-teardown" && d.id != null) {
+    window.parent.postMessage({ jsonrpc: "2.0", id: d.id, result: {} }, "*");
+  }
 });
+(async function _connect() {
+  const init = await _request("ui/initialize", {
+    protocolVersion: "2025-06-18",
+    appInfo: { name: APP_NAME, version: "1" },
+    appCapabilities: { availableDisplayModes: ["inline"] },
+  });
+  _applyHostContext(init && init.hostContext);
+  _notify("ui/notifications/initialized");
+})();
+if (window.ResizeObserver) {
+  new ResizeObserver(function () { _reportSize(); }).observe(document.body);
+}
 </script>
 </body>
 </html>
