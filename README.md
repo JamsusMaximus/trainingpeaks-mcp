@@ -384,6 +384,24 @@ This server is designed with defence-in-depth. Your TrainingPeaks session cookie
 
 > **Write access:** v2.0 adds full calendar management (create, update, delete workouts, events, notes, equipment, settings). All mutations go through Pydantic validation. The server cannot access billing or payment info.
 
+### Read-Only Mode
+
+For high-stakes accounts (e.g. a coach account holding many athletes), the server can be locked to read-only tools. Start it with the `--read-only` flag, or set `TP_MCP_READ_ONLY=1`:
+
+```json
+"trainingpeaks": {
+  "command": "tp-mcp",
+  "args": ["serve", "--read-only"]
+}
+```
+
+The guarantee is deterministic and enforced server-side at two layers - it does not depend on the AI's behaviour, prompts, or client settings:
+
+1. **Listing**: write tools are never included in `tools/list`, so the AI cannot see or select them.
+2. **Dispatch**: if a write tool is called anyway (stale client cache), the server rejects it with `Tool disabled: server is running in read-only mode.` before any TrainingPeaks API call is made.
+
+The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, plus `tp_auth_status`) - any tool not matching it, including tools added in future versions, is excluded by default. Note that `tp_refresh_auth` is also disabled in this mode; use `tp-mcp auth` in a terminal to re-authenticate.
+
 ### Cookie Storage
 
 | Platform | Primary Storage | Fallback |

@@ -1409,6 +1409,11 @@ for _tool in TOOLS:
 _READ_ONLY_PREFIXES = ("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_")
 _READ_ONLY_EXTRA = {"tp_auth_status"}
 
+
+def _is_read_only_tool(name: str) -> bool:
+    """Allowlist predicate for read-only mode: unmatched names are write tools."""
+    return name.startswith(_READ_ONLY_PREFIXES) or name in _READ_ONLY_EXTRA
+
 # Irrecoverable data removal. Everything else that writes is recoverable by a
 # follow-up call (update/re-add), so destructiveHint stays False there.
 _DESTRUCTIVE_TOOLS = {
@@ -1461,18 +1466,55 @@ def _derive_title(name: str) -> str:
 
 
 for _tool in TOOLS:
-    _read_only = _tool.name.startswith(_READ_ONLY_PREFIXES) or _tool.name in _READ_ONLY_EXTRA
     _tool.title = _TITLE_OVERRIDES.get(_tool.name, _derive_title(_tool.name))
     _tool.annotations = ToolAnnotations(
-        read_only_hint=_read_only,
+        read_only_hint=_is_read_only_tool(_tool.name),
         destructive_hint=_tool.name in _DESTRUCTIVE_TOOLS,
         idempotent_hint=_tool.name not in _NON_IDEMPOTENT_WRITES,
         open_world_hint=True,  # every tool talks to the external TrainingPeaks API
     )
 
 
+# ---------------------------------------------------------------------------
+# Read-only mode: when active, tools failing _is_read_only_tool are neither
+# listed nor dispatchable. Checked at request time (TOOLS is built at import).
+# ---------------------------------------------------------------------------
+
+_read_only_mode = False
+
+_READ_ONLY_ENV_VAR = "TP_MCP_READ_ONLY"
+
+
+def set_read_only_mode(enabled: bool) -> None:
+    """Enable/disable read-only mode (also enabled by TP_MCP_READ_ONLY)."""
+    global _read_only_mode
+    _read_only_mode = enabled
+
+
+def _read_only_env() -> bool:
+    """Parse TP_MCP_READ_ONLY strictly - a malformed value must fail startup
+    rather than silently start an unrestricted server."""
+    raw = os.environ.get(_READ_ONLY_ENV_VAR)
+    if raw is None:
+        return False
+    value = raw.strip().lower()
+    if value in ("1", "true", "yes"):
+        return True
+    if value in ("0", "false", "no"):
+        return False
+    raise ValueError(
+        f"Invalid {_READ_ONLY_ENV_VAR} value {raw!r}: use 1/true/yes or 0/false/no."
+    )
+
+
+def _read_only_active() -> bool:
+    return _read_only_mode or _read_only_env()
+
+
 async def list_tools() -> list[Tool]:
     """List available tools (plain function - tests call it directly)."""
+    if _read_only_active():
+        return [t for t in TOOLS if _is_read_only_tool(t.name)]
     return TOOLS
 
 
@@ -1931,6 +1973,16 @@ async def call_tool(name: str, arguments: dict[str, Any] | None = None) -> list[
     """
     logger.info("Tool call: %s", name)
 
+    # Read-only mode rejects non-allowlisted names before anything else runs
+    # (a stale client tool cache may still offer write tools).
+    if _read_only_active() and not _is_read_only_tool(name):
+        result = {
+            "isError": True,
+            "error_code": "READ_ONLY_MODE",
+            "message": "Tool disabled: server is running in read-only mode.",
+        }
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
     # A client may legally omit arguments entirely for no-arg tools.
     args = dict(arguments or {})
     # Extract athlete targeting for coach accounts and set context var
@@ -2038,6 +2090,9 @@ async def _validate_auth_on_startup() -> bool:
 async def run_server_async() -> None:
     """Run the MCP server (async)."""
     logger.info("Starting TrainingPeaks MCP Server")
+    if _read_only_active():
+        disabled = sum(1 for t in TOOLS if not _is_read_only_tool(t.name))
+        logger.info("READ-ONLY MODE: %d write tools disabled.", disabled)
     if os.environ.get("TP_MCP_SKIP_STARTUP_VALIDATION") != "1":
         await _validate_auth_on_startup()
 
@@ -2049,8 +2104,15 @@ async def run_server_async() -> None:
         )
 
 
-def run_server() -> int:
+def run_server(read_only: bool = False) -> int:
     """Run the MCP server (entry point)."""
+    try:
+        env_read_only = _read_only_env()
+    except ValueError as exc:
+        logger.error("%s", exc)
+        return 1
+    if read_only or env_read_only:
+        set_read_only_mode(True)
     try:
         asyncio.run(run_server_async())
         return 0
