@@ -1,0 +1,24 @@
+src/tp_mcp/apps/pmc_chart.html
+  s_b09b332d4c022e::t_ee8620e3fa324f 59,116,118-128,130-131,133,138,140,147-151,153-156,158-162,165,167,176,179-180
+  s_b09b332d4c022e::t_e8be37280dfbfe 134-136
+pyproject.toml
+  s_b09b332d4c022e::t_3ac7b19be9fa59 7
+uv.lock
+  s_b09b332d4c022e::t_88d34ff1ce5ed3 1269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "578b4b53c82808bea59e6a4656140be1dcf0bb8a",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
