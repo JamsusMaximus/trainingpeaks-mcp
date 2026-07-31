@@ -1,0 +1,19 @@
+src/tp_mcp/server.py
+  s_b09b332d4c022e::t_eddc46268ee7bf 318-321,343-346,399-402,411-414,514-517,526-530,643-646,797-800,890-894,920-923,945-948,990-993,1029-1033,1055-1058,1103-1106,1115-1118,1130-1133,1142-1145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "75fba5d3f2e0570fc30d5bc53f93310fecca08bf",
+  "prompts": {},
+  "sessions": {
+    "s_b09b332d4c022e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a876e0da-78a2-48a3-92e5-7cd98f949af8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
