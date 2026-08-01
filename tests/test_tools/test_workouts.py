@@ -124,6 +124,85 @@ class TestTpGetWorkout:
     """Tests for tp_get_workout tool."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        (
+            "details_response",
+            "expected_provenance",
+            "expected_device_count",
+            "expected_attachment_count",
+        ),
+        [
+            (APIResponse(success=True, data={}), True, 0, 0),
+            (
+                APIResponse(
+                    success=True,
+                    data={"workoutDeviceFileInfos": [{"fileId": 11}]},
+                ),
+                True,
+                1,
+                0,
+            ),
+            (
+                APIResponse(
+                    success=True,
+                    data={"attachmentFileInfos": [{"fileId": 12}]},
+                ),
+                True,
+                0,
+                1,
+            ),
+            (APIResponse(success=False, message="details failed"), False, 0, 0),
+            (APIResponse(success=True, data=[]), False, 0, 0),
+            (
+                APIResponse(
+                    success=True,
+                    data={"workoutDeviceFileInfos": {}},
+                ),
+                False,
+                0,
+                0,
+            ),
+            (
+                APIResponse(
+                    success=True,
+                    data={"attachmentFileInfos": ["bad"]},
+                ),
+                False,
+                0,
+                0,
+            ),
+        ],
+    )
+    async def test_get_workout_exposes_file_enumeration_provenance(
+        self,
+        mock_api_responses,
+        details_response,
+        expected_provenance,
+        expected_device_count,
+        expected_attachment_count,
+    ):
+        """Do not report normalized empty arrays as proven after bad details."""
+
+        workout_response = APIResponse(
+            success=True,
+            data=mock_api_responses["workout_detail"],
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(
+                side_effect=[workout_response, details_response]
+            )
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["file_enumeration_succeeded"] is expected_provenance
+        assert len(result["device_files"]) == expected_device_count
+        assert len(result["attachment_files"]) == expected_attachment_count
+
+    @pytest.mark.asyncio
     async def test_get_workout_success(self, mock_api_responses):
         """Test successful single workout retrieval."""
         workout_response = APIResponse(success=True, data=mock_api_responses["workout_detail"])

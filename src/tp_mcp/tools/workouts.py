@@ -52,6 +52,21 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
     return normalized
 
 
+def _validated_file_details(data: object) -> tuple[dict[str, Any], bool]:
+    """Return file details only when both optional arrays are well-formed."""
+    if not isinstance(data, dict):
+        return {}, False
+    for field in ("workoutDeviceFileInfos", "attachmentFileInfos"):
+        if field not in data:
+            continue
+        values = data[field]
+        if not isinstance(values, list):
+            return {}, False
+        if any(not isinstance(value, dict) for value in values):
+            return {}, False
+    return data, True
+
+
 def _prepare_structure_payload(
     structure: dict[str, Any] | str | None,
 ) -> StructurePayload:
@@ -312,11 +327,12 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         # Fetch /details endpoint for file infos (not included in main endpoint)
         details_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}/details"
         details_response = await client.get(details_endpoint)
-        details_raw = (
-            details_response.data
-            if details_response.success and isinstance(details_response.data, dict)
-            else {}
-        )
+        details_raw: dict[str, Any] = {}
+        file_enumeration_succeeded = False
+        if details_response.success:
+            details_raw, file_enumeration_succeeded = _validated_file_details(
+                details_response.data
+            )
 
         try:
             raw_data = dict(response.data) if isinstance(response.data, dict) else {}
@@ -357,6 +373,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "completed": workout.completed,
                 "structured_workout": structured_workout,
                 "workout_comments": workout_comments,
+                "file_enumeration_succeeded": file_enumeration_succeeded,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
