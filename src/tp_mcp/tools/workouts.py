@@ -53,29 +53,53 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
 
 
 def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | None]:
-    """Return file details, provenance, and a safe shape error code."""
+    """Return a narrow file projection, provenance, and safe shape code."""
     if not isinstance(data, dict):
         return {}, False, "DETAILS_NON_OBJECT_PAYLOAD"
 
-    saw_null_file_array = False
+    device_field = "workoutDeviceFileInfos"
+    attachment_field = "attachmentFileInfos"
+    fields = (device_field, attachment_field)
+    projection: dict[str, Any] = {}
+    missing_fields: list[str] = []
+    null_fields: list[str] = []
     saw_non_object_file_entry = False
-    for field in ("workoutDeviceFileInfos", "attachmentFileInfos"):
+
+    for field in fields:
         if field not in data:
+            missing_fields.append(field)
+            projection[field] = []
             continue
         values = data[field]
         if values is None:
-            saw_null_file_array = True
+            null_fields.append(field)
+            projection[field] = []
             continue
         if not isinstance(values, list):
             return {}, False, "DETAILS_NON_ARRAY_FILE_FIELD"
         if any(not isinstance(value, dict) for value in values):
             saw_non_object_file_entry = True
+        projection[field] = values
 
     if saw_non_object_file_entry:
         return {}, False, "DETAILS_NON_OBJECT_FILE_ENTRY"
-    if saw_null_file_array:
-        return {}, False, "DETAILS_NULL_FILE_ARRAY"
-    return data, True, None
+    if missing_fields:
+        if len(missing_fields) == 2:
+            code = "DETAILS_MISSING_BOTH_FILE_FIELDS"
+        elif missing_fields[0] == device_field:
+            code = "DETAILS_MISSING_DEVICE_FILE_FIELD"
+        else:
+            code = "DETAILS_MISSING_ATTACHMENT_FILE_FIELD"
+        return projection, False, code
+    if null_fields:
+        if len(null_fields) == 2:
+            code = "DETAILS_NULL_BOTH_FILE_ARRAYS"
+        elif null_fields[0] == device_field:
+            code = "DETAILS_NULL_DEVICE_FILE_ARRAY"
+        else:
+            code = "DETAILS_NULL_ATTACHMENT_FILE_ARRAY"
+        return projection, False, code
+    return projection, True, None
 
 
 def _prepare_structure_payload(
