@@ -53,7 +53,7 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
 
 
 def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | None]:
-    """Return a narrow file projection, provenance, and safe shape code."""
+    """Accept explicit nullable file arrays but reject missing or malformed fields."""
     if not isinstance(data, dict):
         return {}, False, "DETAILS_NON_OBJECT_PAYLOAD"
 
@@ -62,7 +62,6 @@ def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | N
     fields = (device_field, attachment_field)
     projection: dict[str, Any] = {}
     missing_fields: list[str] = []
-    null_fields: list[str] = []
     saw_non_object_file_entry = False
 
     for field in fields:
@@ -72,7 +71,6 @@ def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | N
             continue
         values = data[field]
         if values is None:
-            null_fields.append(field)
             projection[field] = []
             continue
         if not isinstance(values, list):
@@ -90,14 +88,6 @@ def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | N
             code = "DETAILS_MISSING_DEVICE_FILE_FIELD"
         else:
             code = "DETAILS_MISSING_ATTACHMENT_FILE_FIELD"
-        return projection, False, code
-    if null_fields:
-        if len(null_fields) == 2:
-            code = "DETAILS_NULL_BOTH_FILE_ARRAYS"
-        elif null_fields[0] == device_field:
-            code = "DETAILS_NULL_DEVICE_FILE_ARRAY"
-        else:
-            code = "DETAILS_NULL_ATTACHMENT_FILE_ARRAY"
         return projection, False, code
     return projection, True, None
 

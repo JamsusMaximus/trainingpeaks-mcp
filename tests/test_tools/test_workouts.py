@@ -188,22 +188,22 @@ class TestTpGetWorkout:
             ),
             (
                 APIResponse(success=True, data={"workoutDeviceFileInfos": None, "attachmentFileInfos": []}),
-                False,
-                "DETAILS_NULL_DEVICE_FILE_ARRAY",
+                True,
+                None,
                 0,
                 0,
             ),
             (
                 APIResponse(success=True, data={"workoutDeviceFileInfos": [], "attachmentFileInfos": None}),
-                False,
-                "DETAILS_NULL_ATTACHMENT_FILE_ARRAY",
+                True,
+                None,
                 0,
                 0,
             ),
             (
                 APIResponse(success=True, data={"workoutDeviceFileInfos": None, "attachmentFileInfos": None}),
-                False,
-                "DETAILS_NULL_BOTH_FILE_ARRAYS",
+                True,
+                None,
                 0,
                 0,
             ),
@@ -211,8 +211,8 @@ class TestTpGetWorkout:
                 APIResponse(
                     success=True, data={"workoutDeviceFileInfos": [{"fileId": 11}], "attachmentFileInfos": None}
                 ),
-                False,
-                "DETAILS_NULL_ATTACHMENT_FILE_ARRAY",
+                True,
+                None,
                 1,
                 0,
             ),
@@ -220,8 +220,8 @@ class TestTpGetWorkout:
                 APIResponse(
                     success=True, data={"workoutDeviceFileInfos": None, "attachmentFileInfos": [{"fileId": 12}]}
                 ),
-                False,
-                "DETAILS_NULL_DEVICE_FILE_ARRAY",
+                True,
+                None,
                 0,
                 1,
             ),
