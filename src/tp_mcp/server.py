@@ -109,6 +109,7 @@ from tp_mcp.tools import (
     tp_update_note,
     tp_update_nutrition,
     tp_update_speed_zones,
+    tp_update_strength_workout,
     tp_update_workout,
     tp_upload_workout_file,
     tp_validate_structure,
@@ -1325,6 +1326,51 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_update_strength_workout",
+        description=(
+            "Update an existing strength workout in place: replace or append blocks, "
+            "retitle, or mark it complete. Preserves everything else, including "
+            "Garmin-derived TSS and the attached FIT file — so this is the correct "
+            "way to fill in a device-synced workout that arrived with no structure. "
+            "Never delete-and-recreate for that: exercise detail is rebuildable, "
+            "HR-derived training load is not."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Strength workout ID."},
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Blocks in the same shape as tp_create_strength_workout. "
+                        "Omit to leave the existing structure untouched."
+                    ),
+                },
+                "title": {"type": "string", "description": "Optional new title."},
+                "instructions": {"type": "string", "description": "Optional new instructions."},
+                "mode": {
+                    "type": "string",
+                    "enum": ["replace", "append"],
+                    "description": "replace (default) swaps the blocks; append adds after them.",
+                },
+                "mark_complete": {
+                    "type": "boolean",
+                    "description": (
+                        "Mark every set complete and copy prescribed values into executed "
+                        "ones, so the workout reports real volume. Use when logging a "
+                        "session already performed."
+                    ),
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Report what would change without writing.",
+                },
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
         name="tp_delete_strength_workout",
         description="Delete a strength workout by ID.",
         input_schema={
@@ -1729,6 +1775,15 @@ async def _h_get_strength_workouts(args):
 @_handler("tp_get_strength_workout")
 async def _h_get_strength_workout(args):
     return await tp_get_strength_workout(workout_id=args["workout_id"])
+
+@_handler("tp_update_strength_workout")
+async def _h_update_strength(args):
+    return await tp_update_strength_workout(
+        workout_id=args["workout_id"], blocks=args.get("blocks"),
+        title=args.get("title"), instructions=args.get("instructions"),
+        mode=args.get("mode", "replace"),
+        mark_complete=bool(args.get("mark_complete", False)),
+        dry_run=bool(args.get("dry_run", False)))
 
 @_handler("tp_delete_strength_workout")
 async def _h_delete_strength(args):
