@@ -56,14 +56,25 @@ def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | N
     """Return file details, provenance, and a safe shape error code."""
     if not isinstance(data, dict):
         return {}, False, "DETAILS_NON_OBJECT_PAYLOAD"
+
+    saw_null_file_array = False
+    saw_non_object_file_entry = False
     for field in ("workoutDeviceFileInfos", "attachmentFileInfos"):
         if field not in data:
             continue
         values = data[field]
+        if values is None:
+            saw_null_file_array = True
+            continue
         if not isinstance(values, list):
-            return {}, False, "DETAILS_MALFORMED_FILE_ARRAY"
+            return {}, False, "DETAILS_NON_ARRAY_FILE_FIELD"
         if any(not isinstance(value, dict) for value in values):
-            return {}, False, "DETAILS_MALFORMED_FILE_ARRAY"
+            saw_non_object_file_entry = True
+
+    if saw_non_object_file_entry:
+        return {}, False, "DETAILS_NON_OBJECT_FILE_ENTRY"
+    if saw_null_file_array:
+        return {}, False, "DETAILS_NULL_FILE_ARRAY"
     return data, True, None
 
 
