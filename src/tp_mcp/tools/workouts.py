@@ -404,7 +404,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "elevation_gain": workout.elevation_gain,
                     "calories": workout.calories,
                 },
-                "completed": workout.completed,
+                "completed": workout.is_completed,
                 "structured_workout": structured_workout,
                 "workout_comments": workout_comments,
                 "file_enumeration_succeeded": file_enumeration_succeeded,

@@ -189,6 +189,25 @@ class WorkoutDetail(BaseModel):
         """
         return _sport_from_type_value(self.workout_type)
 
+    @property
+    def is_completed(self) -> bool:
+        """Derive completion from the raw flag and all actual metrics."""
+        actual_values = (
+            self.duration_actual,
+            self.tss_actual,
+            self.if_actual,
+            self.distance_actual,
+            self.avg_power,
+            self.normalized_power,
+            self.avg_hr,
+            self.avg_cadence,
+            self.elevation_gain,
+            self.calories,
+        )
+        return self.completed is True or any(
+            value is not None for value in actual_values
+        )
+
 
 class AnalysisTotal(BaseModel):
     """Single total metric from workout analysis."""
