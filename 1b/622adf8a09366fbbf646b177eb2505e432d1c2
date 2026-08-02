@@ -1,0 +1,34 @@
+src/tp_mcp/tools/__init__.py
+  s_6480e2a0e99846::t_d1a87356d49417 76
+  s_6480e2a0e99846::t_6df7328fa97f1d 188
+tests/test_server_functional.py
+  s_6480e2a0e99846::t_c5e1d239a9f6b1 120
+src/tp_mcp/tools/strength.py
+  s_6480e2a0e99846::t_ce003564e13f29 13-16,28-46
+  s_6480e2a0e99846::t_0f3b86fc60a01c 412-623
+  s_6480e2a0e99846::t_237c59b5df22e4 47
+README.md
+  s_6480e2a0e99846::t_1b2b7cdf77a831 140
+pyproject.toml
+  s_6480e2a0e99846::t_8fe7ad9ebc6613 7
+src/tp_mcp/server.py
+  s_6480e2a0e99846::t_99175cb47d383f 112,1328-1372,1779-1787
+tests/test_tools/test_strength.py
+  s_6480e2a0e99846::t_1c98c1cea7427b 21,422-623
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1b622adf8a09366fbbf646b177eb2505e432d1c2",
+  "prompts": {},
+  "sessions": {
+    "s_6480e2a0e99846": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6652814-22e0-4af7-b1da-0103681432f9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "James McAulay <hello@jamesmcaulay.co.uk>"
+    }
+  }
+}
