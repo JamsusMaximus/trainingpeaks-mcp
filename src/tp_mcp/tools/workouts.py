@@ -52,19 +52,19 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
     return normalized
 
 
-def _validated_file_details(data: object) -> tuple[dict[str, Any], bool]:
-    """Return file details only when both optional arrays are well-formed."""
+def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | None]:
+    """Return file details, provenance, and a safe shape error code."""
     if not isinstance(data, dict):
-        return {}, False
+        return {}, False, "DETAILS_NON_OBJECT_PAYLOAD"
     for field in ("workoutDeviceFileInfos", "attachmentFileInfos"):
         if field not in data:
             continue
         values = data[field]
         if not isinstance(values, list):
-            return {}, False
+            return {}, False, "DETAILS_MALFORMED_FILE_ARRAY"
         if any(not isinstance(value, dict) for value in values):
-            return {}, False
-    return data, True
+            return {}, False, "DETAILS_MALFORMED_FILE_ARRAY"
+    return data, True, None
 
 
 def _prepare_structure_payload(
@@ -329,8 +329,17 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         details_response = await client.get(details_endpoint)
         details_raw: dict[str, Any] = {}
         file_enumeration_succeeded = False
+        file_enumeration_error_code: str | None = (
+            f"DETAILS_{details_response.error_code.value}"
+            if details_response.error_code is not None
+            else "DETAILS_API_ERROR"
+        )
         if details_response.success:
-            details_raw, file_enumeration_succeeded = _validated_file_details(
+            (
+                details_raw,
+                file_enumeration_succeeded,
+                file_enumeration_error_code,
+            ) = _validated_file_details(
                 details_response.data
             )
 
@@ -374,6 +383,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "structured_workout": structured_workout,
                 "workout_comments": workout_comments,
                 "file_enumeration_succeeded": file_enumeration_succeeded,
+                "file_enumeration_error_code": file_enumeration_error_code,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }

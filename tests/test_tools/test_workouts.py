@@ -128,17 +128,19 @@ class TestTpGetWorkout:
         (
             "details_response",
             "expected_provenance",
+            "expected_error_code",
             "expected_device_count",
             "expected_attachment_count",
         ),
         [
-            (APIResponse(success=True, data={}), True, 0, 0),
+            (APIResponse(success=True, data={}), True, None, 0, 0),
             (
                 APIResponse(
                     success=True,
                     data={"workoutDeviceFileInfos": [{"fileId": 11}]},
                 ),
                 True,
+                None,
                 1,
                 0,
             ),
@@ -148,17 +150,38 @@ class TestTpGetWorkout:
                     data={"attachmentFileInfos": [{"fileId": 12}]},
                 ),
                 True,
+                None,
                 0,
                 1,
             ),
-            (APIResponse(success=False, message="details failed"), False, 0, 0),
-            (APIResponse(success=True, data=[]), False, 0, 0),
+            (
+                APIResponse(success=False, error_code=ErrorCode.NOT_FOUND),
+                False,
+                "DETAILS_NOT_FOUND",
+                0,
+                0,
+            ),
+            (
+                APIResponse(success=False, message="synthetic failure"),
+                False,
+                "DETAILS_API_ERROR",
+                0,
+                0,
+            ),
+            (
+                APIResponse(success=True, data=[]),
+                False,
+                "DETAILS_NON_OBJECT_PAYLOAD",
+                0,
+                0,
+            ),
             (
                 APIResponse(
                     success=True,
                     data={"workoutDeviceFileInfos": {}},
                 ),
                 False,
+                "DETAILS_MALFORMED_FILE_ARRAY",
                 0,
                 0,
             ),
@@ -168,6 +191,7 @@ class TestTpGetWorkout:
                     data={"attachmentFileInfos": ["bad"]},
                 ),
                 False,
+                "DETAILS_MALFORMED_FILE_ARRAY",
                 0,
                 0,
             ),
@@ -178,6 +202,7 @@ class TestTpGetWorkout:
         mock_api_responses,
         details_response,
         expected_provenance,
+        expected_error_code,
         expected_device_count,
         expected_attachment_count,
     ):
@@ -199,8 +224,37 @@ class TestTpGetWorkout:
             result = await tp_get_workout("1001")
 
         assert result["file_enumeration_succeeded"] is expected_provenance
+        assert result["file_enumeration_error_code"] == expected_error_code
         assert len(result["device_files"]) == expected_device_count
         assert len(result["attachment_files"]) == expected_attachment_count
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error_code", list(ErrorCode))
+    async def test_get_workout_prefixes_each_file_enumeration_error_code(
+        self,
+        mock_api_responses,
+        error_code,
+    ):
+        """Details API failures expose only the stable local error-code namespace."""
+
+        workout_response = APIResponse(
+            success=True,
+            data=mock_api_responses["workout_detail"],
+        )
+        details_response = APIResponse(success=False, error_code=error_code)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(
+                side_effect=[workout_response, details_response]
+            )
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["file_enumeration_succeeded"] is False
+        assert result["file_enumeration_error_code"] == f"DETAILS_{error_code.value}"
 
     @pytest.mark.asyncio
     async def test_get_workout_success(self, mock_api_responses):
