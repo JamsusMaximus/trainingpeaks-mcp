@@ -52,6 +52,46 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
     return normalized
 
 
+def _validated_file_details(data: object) -> tuple[dict[str, Any], bool, str | None]:
+    """Accept explicit nullable file arrays but reject missing or malformed fields."""
+    if not isinstance(data, dict):
+        return {}, False, "DETAILS_NON_OBJECT_PAYLOAD"
+
+    device_field = "workoutDeviceFileInfos"
+    attachment_field = "attachmentFileInfos"
+    fields = (device_field, attachment_field)
+    projection: dict[str, Any] = {}
+    missing_fields: list[str] = []
+    saw_non_object_file_entry = False
+
+    for field in fields:
+        if field not in data:
+            missing_fields.append(field)
+            projection[field] = []
+            continue
+        values = data[field]
+        if values is None:
+            projection[field] = []
+            continue
+        if not isinstance(values, list):
+            return {}, False, "DETAILS_NON_ARRAY_FILE_FIELD"
+        if any(not isinstance(value, dict) for value in values):
+            saw_non_object_file_entry = True
+        projection[field] = values
+
+    if saw_non_object_file_entry:
+        return {}, False, "DETAILS_NON_OBJECT_FILE_ENTRY"
+    if missing_fields:
+        if len(missing_fields) == 2:
+            code = "DETAILS_MISSING_BOTH_FILE_FIELDS"
+        elif missing_fields[0] == device_field:
+            code = "DETAILS_MISSING_DEVICE_FILE_FIELD"
+        else:
+            code = "DETAILS_MISSING_ATTACHMENT_FILE_FIELD"
+        return projection, False, code
+    return projection, True, None
+
+
 def _prepare_structure_payload(
     structure: dict[str, Any] | str | None,
 ) -> StructurePayload:
@@ -312,11 +352,21 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         # Fetch /details endpoint for file infos (not included in main endpoint)
         details_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}/details"
         details_response = await client.get(details_endpoint)
-        details_raw = (
-            details_response.data
-            if details_response.success and isinstance(details_response.data, dict)
-            else {}
+        details_raw: dict[str, Any] = {}
+        file_enumeration_succeeded = False
+        file_enumeration_error_code: str | None = (
+            f"DETAILS_{details_response.error_code.value}"
+            if details_response.error_code is not None
+            else "DETAILS_API_ERROR"
         )
+        if details_response.success:
+            (
+                details_raw,
+                file_enumeration_succeeded,
+                file_enumeration_error_code,
+            ) = _validated_file_details(
+                details_response.data
+            )
 
         try:
             raw_data = dict(response.data) if isinstance(response.data, dict) else {}
@@ -354,9 +404,11 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "elevation_gain": workout.elevation_gain,
                     "calories": workout.calories,
                 },
-                "completed": workout.completed,
+                "completed": workout.is_completed,
                 "structured_workout": structured_workout,
                 "workout_comments": workout_comments,
+                "file_enumeration_succeeded": file_enumeration_succeeded,
+                "file_enumeration_error_code": file_enumeration_error_code,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
             }
