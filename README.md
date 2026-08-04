@@ -377,6 +377,32 @@ Example with a planned start time:
 
 [Model Context Protocol](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external data sources. MCP servers expose tools that AI models can call to fetch real-time data, enabling assistants like Claude to access your Training Peaks account through natural language.
 
+### Upgrading
+
+No uninstall needed - your TrainingPeaks login and your Claude config both survive
+upgrades. The server lives in the folder you originally cloned, so upgrading is just
+pulling the latest code and reinstalling into the same virtualenv:
+
+```bash
+cd trainingpeaks-mcp   # wherever you cloned it
+git pull
+.venv/bin/pip install -e .   # Windows: .venv\Scripts\pip install -e .
+```
+
+Then fully quit and reopen Claude Desktop (or start a new Claude Code session) so it
+relaunches the server. Don't re-paste the setup prompt from Option A - that's for
+first-time installs.
+
+If you'd rather not touch a terminal, paste this into Claude Code instead:
+
+```
+Upgrade my TrainingPeaks MCP server: find where trainingpeaks-mcp is cloned, run git pull there, reinstall it with its .venv's pip install -e ., then tell me when to restart Claude Desktop.
+```
+
+> **Upgrading from 2.x to 3.x?** The reinstall step matters more than usual: 3.0.0
+> moved to a new major version of the underlying `mcp` library, so `git pull` alone
+> is not enough - the `pip install -e .` refreshes the dependency.
+
 ## Security
 
 **TL;DR: Your cookie is encrypted on disk, exchanged for short-lived OAuth tokens, never shown to Claude, and only ever sent to TrainingPeaks. The server has no network ports.**
