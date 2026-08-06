@@ -22,7 +22,11 @@ class TestTpAuthStatus:
             email="test@example.com",
         )
 
-        with patch("tp_mcp.tools.auth_status.get_credential", return_value=mock_cred):
+        with patch(
+            "tp_mcp.tools.auth_status.get_credential_async",
+            new_callable=AsyncMock,
+            return_value=mock_cred,
+        ):
             with patch(
                 "tp_mcp.tools.auth_status.validate_auth",
                 new_callable=AsyncMock,
@@ -44,7 +48,11 @@ class TestTpAuthStatus:
         """Test auth status with no stored credential."""
         mock_cred = CredentialResult(success=False, message="No credential")
 
-        with patch("tp_mcp.tools.auth_status.get_credential", return_value=mock_cred):
+        with patch(
+            "tp_mcp.tools.auth_status.get_credential_async",
+            new_callable=AsyncMock,
+            return_value=mock_cred,
+        ):
             result = await tp_auth_status()
 
         assert result["valid"] is False
@@ -60,7 +68,11 @@ class TestTpAuthStatus:
             message="Session expired",
         )
 
-        with patch("tp_mcp.tools.auth_status.get_credential", return_value=mock_cred):
+        with patch(
+            "tp_mcp.tools.auth_status.get_credential_async",
+            new_callable=AsyncMock,
+            return_value=mock_cred,
+        ):
             with patch(
                 "tp_mcp.tools.auth_status.validate_auth",
                 new_callable=AsyncMock,

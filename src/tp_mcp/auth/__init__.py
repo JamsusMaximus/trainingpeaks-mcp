@@ -5,6 +5,7 @@ from tp_mcp.auth.keyring import CredentialResult, is_keyring_available
 from tp_mcp.auth.storage import (
     clear_credential,
     get_credential,
+    get_credential_async,
     get_storage_backend,
     store_credential,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "EncryptedCredentialStore",
     "clear_credential",
     "get_credential",
+    "get_credential_async",
     "get_storage_backend",
     "is_keyring_available",
     "store_credential",

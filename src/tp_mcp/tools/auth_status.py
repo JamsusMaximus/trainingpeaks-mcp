@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from tp_mcp.auth import AuthStatus, get_credential, get_storage_backend, validate_auth
+from tp_mcp.auth import AuthStatus, get_credential_async, get_storage_backend, validate_auth
 
 
 async def tp_auth_status() -> dict[str, Any]:
@@ -11,7 +11,7 @@ async def tp_auth_status() -> dict[str, Any]:
     Returns:
         Dict with auth status, athlete_id if valid, and any action needed.
     """
-    cred = get_credential()
+    cred = await get_credential_async()
 
     if not cred.success or not cred.cookie:
         return {

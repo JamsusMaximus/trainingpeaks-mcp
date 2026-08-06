@@ -6,6 +6,7 @@ source for headless servers, containers, and CI, and takes precedence
 over both stored backends.
 """
 
+import asyncio
 import os
 
 from tp_mcp.auth.encrypted import (
@@ -100,6 +101,29 @@ def get_credential() -> CredentialResult:
 
     # Fall back to encrypted file
     return get_credential_encrypted()
+
+
+async def get_credential_async() -> CredentialResult:
+    """Retrieve the TrainingPeaks auth cookie without blocking the event loop.
+
+    get_credential() is synchronous, and its keyring path
+    (keyring.get_password) can trigger a native OS credential-store prompt
+    (e.g. the macOS Keychain "Always Allow" dialog). Called directly from
+    an async context -- as every caller in this codebase does -- that
+    blocks the entire asyncio event loop until the prompt is resolved,
+    which can hang indefinitely when the process runs headless (e.g.
+    spawned by an MCP host with no visible window to click through). None
+    of the other blocking calls in this path have this problem: httpx
+    requests all carry an explicit timeout, but this one has none.
+
+    Running the lookup in a worker thread keeps the event loop free, so
+    concurrent tool calls keep responding and any timeout/cancellation
+    logic wrapping this coroutine actually has a chance to fire.
+
+    Returns:
+        CredentialResult with cookie if found.
+    """
+    return await asyncio.to_thread(get_credential)
 
 
 def clear_credential() -> CredentialResult:
