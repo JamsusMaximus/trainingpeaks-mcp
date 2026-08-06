@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from tp_mcp.auth import get_credential
+from tp_mcp.auth import get_credential_async
 
 logger = logging.getLogger("tp-mcp")
 
@@ -222,7 +222,7 @@ class TPClient:
         await self._throttle()
         assert self._client is not None
 
-        cred = get_credential()
+        cred = await get_credential_async()
         if not cred.success or not cred.cookie:
             return APIResponse(
                 success=False,
@@ -701,7 +701,7 @@ class TPClient:
         result: dict[str, Any] = {"success": False, "step": "init", "details": {}}
 
         # Step 1: Check credential
-        cred = get_credential()
+        cred = await get_credential_async()
         if not cred.success or not cred.cookie:
             result["step"] = "credential_check"
             result["error"] = "No credential stored. Run 'tp-mcp auth' to authenticate."
