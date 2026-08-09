@@ -18,6 +18,7 @@ from tp_mcp.tools.strength import (
     tp_get_strength_workout,
     tp_get_strength_workouts,
     tp_search_exercises,
+    tp_update_strength_workout,
 )
 
 TEST_ATHLETE_ID = 123456
@@ -418,3 +419,205 @@ class TestListAndDetail:
                 mh.return_value.__aenter__.return_value = http
                 r = await tp_get_strength_workout(workout_id="999")
         assert r["error_code"] == "NOT_FOUND"
+
+
+# ── Update (in-place upsert) ─────────────────────────────────────────────────
+
+
+def _garmin_doc():
+    """A device-synced workout as the live API returns it: telemetry, no blocks.
+
+    Mirrors the real shape observed on a Garmin-synced session — the case the
+    update tool exists for.
+    """
+    return {
+        "id": "24373159",
+        "calendarId": TEST_ATHLETE_ID,
+        "workoutType": "StructuredStrength",
+        "title": "Strength",
+        "prescribedDate": "2026-08-02",
+        "instructions": None,
+        "blocks": [],
+        "snapshot": {"totalBlocks": 0, "completedBlocks": 0, "totalSets": 0,
+                     "completedSets": 0, "totalPrescriptions": 0,
+                     "completedPrescriptions": 0},
+        "completedTss": 27.0,
+        "completedTssSource": "HeartRateTss",
+        "completedIntensityFactor": 0.53,
+        "completionSource": "DeviceFile",
+        "executedDurationInSeconds": 3144,
+        "startDateTime": "2026-08-02T18:48:10",
+        "completedDateTime": "2026-08-02T19:40:34",
+        "files": [{"fileName": "garmin.FIT.gz", "isGarmin": True}],
+    }
+
+
+def _mock_get_then_post(doc, post_status=200, post_json=None):
+    """Mock the GET detail → POST save sequence, capturing the posted body."""
+    get_resp = MagicMock()
+    get_resp.status_code = 200
+    get_resp.json.return_value = {"data": doc}
+    get_resp.text = "{}"
+
+    post_resp = MagicMock()
+    post_resp.status_code = post_status
+    post_resp.json.return_value = post_json if post_json is not None else {
+        "data": {"id": doc["id"], "snapshot": {"totalBlocks": 1, "totalSets": 2,
+                                               "completedSets": 0}}}
+    post_resp.text = "{}"
+
+    http = AsyncMock()
+    http.get.return_value = get_resp
+    http.post.return_value = post_resp
+    return http
+
+
+def _posted(http):
+    return http.post.call_args.kwargs["json"]
+
+
+_BLOCKS = [{"type": "SingleExercise", "title": "Chest",
+            "exercises": [{"id": "1", "sets": [{"Reps": "10", "WeightKg": "40"},
+                                               {"Reps": "10", "WeightKg": "40"}]}]}]
+
+
+class TestUpdateStrength:
+    async def _run(self, http, **kwargs):
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                return await tp_update_strength_workout(**kwargs)
+
+    @pytest.mark.asyncio
+    async def test_replace_blocks_keeps_id(self):
+        http = _mock_get_then_post(_garmin_doc())
+        r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
+        assert r["workout_id"] == "24373159"
+        assert "warning" not in r
+        body = _posted(http)
+        assert body["id"] == "24373159"
+        assert len(body["blocks"]) == 1
+        assert body["snapshot"]["totalSets"] == 2
+
+    @pytest.mark.asyncio
+    async def test_preserves_garmin_telemetry(self):
+        """The whole point: an update must not strip device-derived data."""
+        http = _mock_get_then_post(_garmin_doc())
+        await self._run(http, workout_id="24373159", blocks=_BLOCKS)
+        body = _posted(http)
+        assert body["completedTss"] == 27.0
+        assert body["completedTssSource"] == "HeartRateTss"
+        assert body["completedIntensityFactor"] == 0.53
+        assert body["completionSource"] == "DeviceFile"
+        assert body["executedDurationInSeconds"] == 3144
+        assert body["files"] == [{"fileName": "garmin.FIT.gz", "isGarmin": True}]
+        # Required-by-server fields the 400 probe identified must be present.
+        assert body["calendarId"] == TEST_ATHLETE_ID
+        assert body["workoutType"] == "StructuredStrength"
+        assert body["prescribedDate"] == "2026-08-02"
+
+    @pytest.mark.asyncio
+    async def test_append_adds_to_existing(self):
+        doc = _garmin_doc()
+        doc["blocks"] = [{"id": "existing", "blockType": "WarmUp", "prescriptions": []}]
+        http = _mock_get_then_post(doc)
+        await self._run(http, workout_id="24373159", blocks=_BLOCKS, mode="append")
+        body = _posted(http)
+        assert len(body["blocks"]) == 2
+        assert body["blocks"][0]["id"] == "existing"
+
+    @pytest.mark.asyncio
+    async def test_mark_complete_mirrors_executed_values(self):
+        http = _mock_get_then_post(_garmin_doc())
+        await self._run(http, workout_id="24373159", blocks=_BLOCKS, mark_complete=True)
+        body = _posted(http)
+        assert body["snapshot"]["completedSets"] == 2
+        assert body["snapshot"]["completedBlocks"] == 1
+        for blk in body["blocks"]:
+            assert blk["isComplete"] is True
+            for p in blk["prescriptions"]:
+                for s in p["sets"]:
+                    assert s["isComplete"] is True
+                    for pv in s["parameterValues"]:
+                        assert pv["executedValue"] == pv["prescribedValue"]
+
+    @pytest.mark.asyncio
+    async def test_mark_complete_does_not_overwrite_existing_executed(self):
+        doc = _garmin_doc()
+        doc["blocks"] = [{
+            "id": "b", "blockType": "SingleExercise",
+            "prescriptions": [{"id": "p", "sets": [{
+                "id": "s",
+                "parameterValues": [{"parameter": "Reps", "prescribedValue": "10",
+                                     "executedValue": "7"}],
+            }]}],
+        }]
+        http = _mock_get_then_post(doc)
+        await self._run(http, workout_id="24373159", mark_complete=True)
+        pv = _posted(http)["blocks"][0]["prescriptions"][0]["sets"][0]["parameterValues"][0]
+        assert pv["executedValue"] == "7"
+
+    @pytest.mark.asyncio
+    async def test_dry_run_writes_nothing(self):
+        http = _mock_get_then_post(_garmin_doc())
+        r = await self._run(http, workout_id="24373159", blocks=_BLOCKS, dry_run=True)
+        assert r["dry_run"] is True
+        assert r["sets_before"] == 0
+        assert r["sets_after"] == 2
+        http.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_id_warns(self):
+        http = _mock_get_then_post(
+            _garmin_doc(), post_json={"data": {"id": "99999", "snapshot": {}}})
+        r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
+        assert "warning" in r
+        assert "99999" in r["warning"]
+
+    @pytest.mark.asyncio
+    async def test_title_and_instructions_only(self):
+        http = _mock_get_then_post(_garmin_doc())
+        r = await self._run(http, workout_id="24373159", title="Push Day",
+                            instructions="easy")
+        body = _posted(http)
+        assert body["title"] == "Push Day"
+        assert body["instructions"] == "easy"
+        assert body["blocks"] == []          # structure untouched
+        assert set(r["changed"]) == {"title", "instructions"}
+
+    @pytest.mark.asyncio
+    async def test_nothing_to_update_rejected(self):
+        r = await tp_update_strength_workout(workout_id="1")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_bad_mode_rejected(self):
+        r = await tp_update_strength_workout(workout_id="1", blocks=_BLOCKS, mode="merge")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_invalid_blocks_rejected_before_network(self):
+        bad = [{"type": "SingleExercise", "exercises": [{"id": "0", "sets": [{"Reps": "8"}]}]}]
+        r = await tp_update_strength_workout(workout_id="1", blocks=bad)
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_missing_workout_is_not_found(self):
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.json.return_value = {}
+        resp.text = "{}"
+        http = AsyncMock()
+        http.get.return_value = resp
+        r = await self._run(http, workout_id="404404", blocks=_BLOCKS)
+        assert r["error_code"] == "NOT_FOUND"
+        http.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_server_rejection_surfaces_field_errors(self):
+        http = _mock_get_then_post(_garmin_doc(), post_status=400,
+                                   post_json={"errors": {"blocks[0]": ["bad"]}})
+        r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
+        assert r["error_code"] == "API_ERROR"
+        assert "bad" in r["message"]

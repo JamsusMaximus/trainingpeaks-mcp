@@ -109,6 +109,7 @@ from tp_mcp.tools import (
     tp_update_note,
     tp_update_nutrition,
     tp_update_speed_zones,
+    tp_update_strength_workout,
     tp_update_workout,
     tp_upload_workout_file,
     tp_validate_structure,
@@ -315,7 +316,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_delete_workout",
-        description="Delete a workout.",
+        description=(
+            "Permanently delete a workout from the calendar - irreversible, applies to planned and completed "
+            "workouts alike. Workout ID from tp_get_workouts."
+        ),
         input_schema={
             "type": "object",
             "properties": {"workout_id": {"type": "string"}},
@@ -337,7 +341,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_reorder_workouts",
-        description="Reorder workouts on a given day.",
+        description=(
+            "Reorder the workouts displayed on a single day. Pass every workout ID for that day (from "
+            "tp_get_workouts) in the desired order. Changes display order only - dates and content untouched."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -390,7 +397,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workout_comments",
-        description="Get comments on a workout.",
+        description=(
+            "List the comment thread on a workout (athlete and coach comments with author and timestamp). Workout "
+            "ID from tp_get_workouts. For the private workout note use tp_get_workout_note."
+        ),
         input_schema={
             "type": "object",
             "properties": {"workout_id": {"type": "string"}},
@@ -399,7 +409,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_add_workout_comment",
-        description="Add a comment to a workout.",
+        description=(
+            "Append a comment to a workout's thread - visible to both athlete and coach. Repeating the call posts "
+            "a duplicate. For a private note use tp_set_workout_note instead."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -499,7 +512,10 @@ TOOLS = [
     # --- Analysis & Peaks ---
     Tool(
         name="tp_get_workout_prs",
-        description="Get PRs set during a specific workout.",
+        description=(
+            "List personal records set during one completed workout. Returns an empty list when none. For an "
+            "athlete's bests across a period use tp_get_peaks."
+        ),
         input_schema={
             "type": "object",
             "properties": {"workout_id": {"type": "string"}},
@@ -508,7 +524,11 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_peaks",
-        description="Get top performances by type. For comparing PRs over time.",
+        description=(
+            "Get an athlete's top performances for one sport and PR type over a period (days, default 90). Bike "
+            "pr_type: power1min/5min/20min; Run: speed5K/10K/Half. For PRs from a single workout use "
+            "tp_get_workout_prs."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -621,7 +641,10 @@ TOOLS = [
     # --- Athlete Settings ---
     Tool(
         name="tp_get_athlete_settings",
-        description="Get athlete settings: FTP, thresholds, zones, profile.",
+        description=(
+            "Get athlete account settings and profile fields (athlete type, linked coach, preferences, units). To "
+            "change training values use tp_update_ftp / tp_update_hr_zones / tp_update_speed_zones."
+        ),
         input_schema={"type": "object", "properties": {}, "required": []},
     ),
     Tool(
@@ -772,7 +795,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_create_equipment",
-        description="Add new equipment (bike or shoe).",
+        description=(
+            "Add a bike or shoes to the athlete's equipment list. type is 'bike' or 'shoe'; bike-only fields are "
+            "rejected on shoes. The API returns no ID on create - verify with tp_get_equipment afterwards."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -862,7 +888,11 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_event",
-        description="Update an event.",
+        description=(
+            "Update fields on an existing race/event (name, date, priority, distance, description, attached "
+            "workout legs). Only the provided fields change. Event ID from tp_get_events; events more than ~2 "
+            "years from today cannot be resolved for update."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -888,7 +918,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_delete_event",
-        description="Delete an event.",
+        description=(
+            "Permanently delete a race/event from the calendar - irreversible. Event ID from tp_get_events. "
+            "Calendar workouts are separate: delete those with tp_delete_workout."
+        ),
         input_schema={
             "type": "object",
             "properties": {"event_id": {"type": "string"}},
@@ -910,7 +943,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_delete_note",
-        description="Delete a calendar note.",
+        description=(
+            "Permanently delete a calendar note and its comment thread - irreversible. Note ID from "
+            "tp_list_notes."
+        ),
         input_schema={
             "type": "object",
             "properties": {"note_id": {"type": "string"}},
@@ -952,7 +988,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_add_note_comment",
-        description="Add a comment to a calendar note.",
+        description=(
+            "Append a comment to a calendar note's thread. Repeating the call posts a duplicate. Note ID from "
+            "tp_list_notes or tp_create_note."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -988,7 +1027,11 @@ TOOLS = [
     ),
     Tool(
         name="tp_create_availability",
-        description="Mark dates as unavailable or limited.",
+        description=(
+            "Mark a date range as unavailable for training (or limited to certain sports). limited=false means "
+            "fully unavailable; with limited=true, sport_types lists the sports that REMAIN available. Returns "
+            "availability_id, needed for tp_delete_availability."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -1010,7 +1053,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_delete_availability",
-        description="Remove an availability entry.",
+        description=(
+            "Remove an availability entry so those dates become plannable again. availability_id from "
+            "tp_get_availability or the create response."
+        ),
         input_schema={
             "type": "object",
             "properties": {"availability_id": {"type": "string"}},
@@ -1055,7 +1101,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_library_items",
-        description="List templates in a workout library.",
+        description=(
+            "List the workout templates in one library (slim listing). library_id from tp_get_libraries. For a "
+            "template's full interval structure use tp_get_library_item."
+        ),
         input_schema={
             "type": "object",
             "properties": {"library_id": {"type": "string"}},
@@ -1064,7 +1113,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_library_item",
-        description="Get full template details including structure.",
+        description=(
+            "Get one workout template in full, including its interval structure - use before "
+            "tp_schedule_library_workout or when reusing structure. IDs from tp_get_library_items."
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -1076,7 +1128,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_create_library",
-        description="Create a workout library folder.",
+        description=(
+            "Create an empty workout library (a folder for reusable templates). Returns library_id; add templates "
+            "with tp_create_library_item."
+        ),
         input_schema={
             "type": "object",
             "properties": {"name": {"type": "string"}},
@@ -1085,7 +1140,10 @@ TOOLS = [
     ),
     Tool(
         name="tp_delete_library",
-        description="Delete a library folder and all templates.",
+        description=(
+            "Permanently delete a library AND every template inside it - irreversible, and there is no per- "
+            "template delete. Schedule anything you want to keep first."
+        ),
         input_schema={
             "type": "object",
             "properties": {"library_id": {"type": "string"}},
@@ -1264,6 +1322,51 @@ TOOLS = [
         input_schema={
             "type": "object",
             "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_update_strength_workout",
+        description=(
+            "Update an existing strength workout in place: replace or append blocks, "
+            "retitle, or mark it complete. Preserves everything else, including "
+            "Garmin-derived TSS and the attached FIT file — so this is the correct "
+            "way to fill in a device-synced workout that arrived with no structure. "
+            "Never delete-and-recreate for that: exercise detail is rebuildable, "
+            "HR-derived training load is not."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "Strength workout ID."},
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Blocks in the same shape as tp_create_strength_workout. "
+                        "Omit to leave the existing structure untouched."
+                    ),
+                },
+                "title": {"type": "string", "description": "Optional new title."},
+                "instructions": {"type": "string", "description": "Optional new instructions."},
+                "mode": {
+                    "type": "string",
+                    "enum": ["replace", "append"],
+                    "description": "replace (default) swaps the blocks; append adds after them.",
+                },
+                "mark_complete": {
+                    "type": "boolean",
+                    "description": (
+                        "Mark every set complete and copy prescribed values into executed "
+                        "ones, so the workout reports real volume. Use when logging a "
+                        "session already performed."
+                    ),
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Report what would change without writing.",
+                },
+            },
             "required": ["workout_id"],
         },
     ),
@@ -1714,6 +1817,15 @@ async def _h_get_strength_workouts(args):
 @_handler("tp_get_strength_workout")
 async def _h_get_strength_workout(args):
     return await tp_get_strength_workout(workout_id=args["workout_id"])
+
+@_handler("tp_update_strength_workout")
+async def _h_update_strength(args):
+    return await tp_update_strength_workout(
+        workout_id=args["workout_id"], blocks=args.get("blocks"),
+        title=args.get("title"), instructions=args.get("instructions"),
+        mode=args.get("mode", "replace"),
+        mark_complete=bool(args.get("mark_complete", False)),
+        dry_run=bool(args.get("dry_run", False)))
 
 @_handler("tp_delete_strength_workout")
 async def _h_delete_strength(args):

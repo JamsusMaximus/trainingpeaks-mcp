@@ -10,6 +10,10 @@ exists server-side), so `tp_search_exercises` runs fully offline.
 
 Verified against the live API:
   • create  → POST   /rx/activity/v1/workouts/save        (returns numeric id)
+  • update  → POST   /rx/activity/v1/workouts/save        (SAME endpoint — it is an
+              UPSERT keyed on the numeric `id`; posting a document that carries an
+              existing id edits in place and returns that same id, with no duplicate
+              appearing on the calendar)
   • list    → GET    /rx/activity/v1/workouts/calendar/{calendarId}/{start}/{end}
               (bare JSON array of workout summaries — the ONLY discovery route;
               strength workouts never appear in the /fitness/v6 endpoints)
@@ -20,6 +24,26 @@ Verified against the live API:
     distinct from the exercise's library parameters and each set's values;
   • parameter metadata may be minimal (`{parameter, inputFormat}`);
   • Superset/Circuit blocks require an equal number of sets across exercises.
+
+Update semantics (probed 2026-08-02, live API):
+  • PARTIAL PAYLOADS ARE REJECTED. Posting `{id, blocks}` alone returns 400 with
+    `calendarId`, `workoutType` and `prescribedDate` all "required". An update
+    must therefore GET the full document, mutate it, and post the whole thing
+    back — which is also what makes updates non-destructive.
+  • A full-document round-trip preserves EVERYTHING the server owns. Verified on
+    a Garmin-synced workout: `completedTss`, `completedTssSource`,
+    `completedIntensityFactor`, `completionSource`, `startDateTime`,
+    `completedDateTime`, `executedDurationInSeconds` and the attached FIT `files`
+    all survived untouched; `lastUpdatedAt` was the only field the server changed.
+    This is why editing a device-synced workout must never be done as
+    delete-then-recreate: the exercise detail is reconstructible, the HR-derived
+    training load is not.
+  • Completion is flagged with `isComplete` (on blocks, prescriptions AND sets) —
+    NOT `completed`, which the server accepts with a 200 and silently ignores,
+    leaving `complianceState: "NoCompletion"`. Set `isComplete` at all three
+    levels plus each parameter's `executedValue`, and the server recomputes
+    compliance correctly (`Compliant` / 100%).
+  • Sets carry an undocumented `setOrigin` field; it round-trips harmlessly.
 
 This tool is intentionally unit-agnostic: it passes through whatever weight
 parameter the caller supplies (`WeightKg`, `WeightLb`, `WeightPercentage`, …).
@@ -383,6 +407,218 @@ async def tp_create_strength_workout(
             "total_blocks": snap.get("totalBlocks"),
             "total_sets": snap.get("totalSets"),
         }
+
+
+def _recount(blocks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Recompute the snapshot counters from the blocks themselves.
+
+    Counts actual `isComplete` flags rather than assuming, so the snapshot stays
+    honest when a partially-completed workout is edited or appended to.
+    """
+    total_sets = completed_sets = 0
+    total_pres = completed_pres = 0
+    completed_blocks = 0
+    for b in blocks:
+        block_pres = b.get("prescriptions") or []
+        total_pres += len(block_pres)
+        block_sets = 0
+        block_done = 0
+        for p in block_pres:
+            sets = p.get("sets") or []
+            done = sum(1 for s in sets if s.get("isComplete"))
+            total_sets += len(sets)
+            completed_sets += done
+            block_sets += len(sets)
+            block_done += done
+            if sets and done == len(sets):
+                completed_pres += 1
+        if block_sets and block_done == block_sets:
+            completed_blocks += 1
+    return {
+        "totalBlocks": len(blocks),
+        "completedBlocks": completed_blocks,
+        "totalSets": total_sets,
+        "completedSets": completed_sets,
+        "totalPrescriptions": total_pres,
+        "completedPrescriptions": completed_pres,
+    }
+
+
+def _mark_complete(blocks: list[dict[str, Any]]) -> None:
+    """Mark every block/prescription/set complete, mirroring prescribed→executed.
+
+    In-place. Used when logging a session that has already been performed, so
+    TrainingPeaks shows executed sets/reps/volume rather than an unstarted plan.
+    An existing `executedValue` is never overwritten — only blanks are filled.
+    """
+    for b in blocks:
+        b["isComplete"] = True
+        for p in b.get("prescriptions") or []:
+            for s in p.get("sets") or []:
+                s["isComplete"] = True
+                for pv in s.get("parameterValues") or []:
+                    if pv.get("executedValue") is None:
+                        pv["executedValue"] = pv.get("prescribedValue")
+
+
+async def tp_update_strength_workout(
+    workout_id: str,
+    blocks: list[dict[str, Any]] | None = None,
+    title: str | None = None,
+    instructions: str | None = None,
+    mode: str = "replace",
+    mark_complete: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Update an existing strength workout in place (blocks, title, instructions).
+
+    Fetches the full workout, applies the requested changes, and posts the whole
+    document back to the upsert endpoint. Everything not explicitly changed is
+    preserved — including Garmin-derived training load and the attached FIT file
+    — which makes this the correct way to fill in a device-synced workout that
+    arrived with an empty structure. Never delete-and-recreate for that: the
+    exercise detail can be rebuilt, the HR-derived TSS cannot.
+
+    Args:
+        workout_id: The strength workout ID (from tp_get_strength_workouts).
+        blocks: Optional replacement/additional blocks, same shape as
+            tp_create_strength_workout. Omit to leave the structure alone (e.g.
+            when only retitling, or only marking an existing plan complete).
+        title: Optional new title.
+        instructions: Optional new session instructions.
+        mode: "replace" (default) swaps the block list for `blocks`; "append"
+            adds them after the existing blocks.
+        mark_complete: Mark every set complete and copy prescribed values into
+            executed ones, so the workout reports real volume and compliance.
+            Use when logging a session already performed. Existing executed
+            values are left untouched.
+        dry_run: Validate and build the update, report what would change, but
+            send nothing.
+
+    Returns:
+        Dict with the workout_id, before/after block and set counts, the fields
+        changed, and (for dry runs) `dry_run: True` with nothing written.
+    """
+    wid = str(workout_id).strip()
+    if not wid:
+        return _err("VALIDATION_ERROR", "workout_id is required.")
+    if mode not in ("replace", "append"):
+        return _err("VALIDATION_ERROR", f"mode must be 'replace' or 'append', got {mode!r}.")
+    if blocks is not None:
+        if not isinstance(blocks, list):
+            return _err("VALIDATION_ERROR", "blocks must be a list.")
+        invalid = _validate_blocks(blocks)
+        if invalid:
+            return _err("VALIDATION_ERROR", invalid)
+    if blocks is None and title is None and instructions is None and not mark_complete:
+        return _err(
+            "VALIDATION_ERROR",
+            "Nothing to update: provide blocks, title, instructions or mark_complete.",
+        )
+
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/{wid}",
+                    headers=_headers(access),
+                )
+                if r.status_code != 200:
+                    return _map_status(r.status_code, r.text)
+                doc = r.json().get("data") or {}
+                if not doc:
+                    return _err("NOT_FOUND", "Strength workout not found.")
+
+                before = dict(doc.get("snapshot") or {})
+                changed: list[str] = []
+
+                if blocks is not None:
+                    catalogue = _catalogue()
+                    new_blocks = [
+                        {
+                            "id": _u(),
+                            "blockType": b.get("type", "SingleExercise"),
+                            "title": b.get("title"),
+                            "coachNotes": b.get("notes"),
+                            "prescriptions": [
+                                _build_prescription(ex, catalogue) for ex in b["exercises"]
+                            ],
+                        }
+                        for b in blocks
+                    ]
+                    if mode == "append":
+                        doc["blocks"] = (doc.get("blocks") or []) + new_blocks
+                    else:
+                        doc["blocks"] = new_blocks
+                    changed.append(f"blocks ({mode})")
+
+                if title is not None:
+                    doc["title"] = str(title).strip()
+                    changed.append("title")
+                if instructions is not None:
+                    doc["instructions"] = instructions
+                    changed.append("instructions")
+                if mark_complete:
+                    _mark_complete(doc.get("blocks") or [])
+                    changed.append("mark_complete")
+
+                doc["snapshot"] = _recount(doc.get("blocks") or [])
+
+                if dry_run:
+                    return {
+                        "workout_id": wid,
+                        "dry_run": True,
+                        "changed": changed,
+                        "sets_before": before.get("totalSets"),
+                        "sets_after": doc["snapshot"]["totalSets"],
+                        "blocks_before": before.get("totalBlocks"),
+                        "blocks_after": doc["snapshot"]["totalBlocks"],
+                    }
+
+                r = await h.post(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/save",
+                    headers=_headers(access),
+                    json=doc,
+                )
+        except httpx.TimeoutException:
+            return _err("NETWORK_ERROR", "Strength update timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error updating strength workout")
+            return _err("NETWORK_ERROR", "A network error occurred.")
+
+        if r.status_code != 200:
+            try:
+                errs = r.json().get("errors")
+                if errs:
+                    return _err("API_ERROR", f"Strength API rejected the update: {errs}")
+            except Exception:
+                pass
+            return _map_status(r.status_code, r.text)
+
+        data = r.json().get("data") or {}
+        snap = data.get("snapshot") or doc["snapshot"]
+        returned = str(data.get("id")) if data.get("id") is not None else wid
+        result = {
+            "workout_id": returned,
+            "title": doc.get("title"),
+            "changed": changed,
+            "blocks_before": before.get("totalBlocks"),
+            "blocks_after": snap.get("totalBlocks"),
+            "sets_before": before.get("totalSets"),
+            "sets_after": snap.get("totalSets"),
+            "completed_sets": snap.get("completedSets"),
+        }
+        # The upsert must edit in place; a different id means a duplicate was
+        # created and the caller needs to know immediately.
+        if returned != wid:
+            result["warning"] = (
+                f"Server returned id {returned}, expected {wid} — a duplicate may "
+                f"have been created. Check the calendar for that date."
+            )
+        return result
 
 
 async def tp_get_strength_summary(workout_id: str) -> dict[str, Any]:
