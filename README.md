@@ -387,7 +387,7 @@ This server is designed with defence-in-depth. Your TrainingPeaks session cookie
 
 ### Read-Only Mode
 
-For high-stakes accounts (e.g. a coach account holding many athletes), the server can be locked to read-only tools. Start it with the `--read-only` flag, or set `TP_MCP_READ_ONLY=1`:
+For high-stakes accounts (e.g. a coach account holding many athletes), the server can be locked to read-only tools. Start it with the `--read-only` flag:
 
 ```json
 "trainingpeaks": {
@@ -395,6 +395,20 @@ For high-stakes accounts (e.g. a coach account holding many athletes), the serve
   "args": ["serve", "--read-only"]
 }
 ```
+
+or with the `TP_MCP_READ_ONLY` environment variable:
+
+```json
+"trainingpeaks": {
+  "command": "tp-mcp",
+  "args": ["serve"],
+  "env": { "TP_MCP_READ_ONLY": "1" }
+}
+```
+
+`TP_MCP_READ_ONLY` accepts `1`/`true`/`yes` to enable and `0`/`false`/`no` to disable (case-insensitive). Any other value aborts startup with an error - a mistyped value will never silently start an unrestricted server.
+
+**Switching between read-only and read-write.** The mode is fixed when the server starts - there is no runtime toggle, by design. To switch, edit your client config (add or remove `--read-only`, or flip the env var) and restart the MCP server: in Claude Desktop, quit and reopen the app; in Claude Code, run `/mcp` and reconnect the server or start a new session. The flag and the env var are independent switches and either one enables read-only mode - to run read-write, make sure both are off (`TP_MCP_READ_ONLY` unset or `0`, no `--read-only` flag).
 
 The guarantee is deterministic and enforced server-side at two layers - it does not depend on the AI's behaviour, prompts, or client settings:
 
