@@ -132,6 +132,31 @@ class TestEnvVar:
         assert rc == 1
         assert "Invalid TP_MCP_READ_ONLY value" in caplog.text
 
+    async def test_invalid_value_at_dispatch_returns_structured_error(self, monkeypatch):
+        """A malformed value mutated into the env after a read-write start
+        surfaces as the standard isError payload, not an unhandled exception,
+        and no handler runs."""
+        handler = AsyncMock()
+        monkeypatch.setitem(server._TOOL_HANDLERS, "tp_get_profile", handler)
+        monkeypatch.setenv("TP_MCP_READ_ONLY", "banana")
+
+        result = _parse_result(await call_tool("tp_get_profile", {}))
+
+        assert result["isError"] is True
+        assert result["error_code"] == "INVALID_CONFIG"
+        assert "Invalid TP_MCP_READ_ONLY value" in result["message"]
+        handler.assert_not_awaited()
+
+    async def test_invalid_value_at_list_time_fails_closed(self, monkeypatch, caplog):
+        """tools/list has no isError channel; a malformed value fails closed
+        to the read-only surface."""
+        monkeypatch.setenv("TP_MCP_READ_ONLY", "banana")
+        with caplog.at_level(logging.ERROR, logger="tp-mcp"):
+            tools = await list_tools()
+        assert tools
+        assert all(_is_read_only_tool(t.name) for t in tools)
+        assert "Invalid TP_MCP_READ_ONLY value" in caplog.text
+
 
 class TestCliWiring:
     @pytest.fixture(autouse=True)

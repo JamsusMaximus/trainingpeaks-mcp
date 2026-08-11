@@ -1611,12 +1611,27 @@ def _read_only_env() -> bool:
 
 
 def _read_only_active() -> bool:
+    # run_server() resolves the env var once and latches it via
+    # set_read_only_mode(), so in production the short-circuit makes the live
+    # env read below reachable only when the server started read-write, where
+    # its only possible effect is to tighten (enable protection mid-flight,
+    # never disable it). It exists mainly so tests can set the variable and
+    # call list_tools()/call_tool() directly; runtime env mutation is not a
+    # supported control surface.
     return _read_only_mode or _read_only_env()
 
 
 async def list_tools() -> list[Tool]:
     """List available tools (plain function - tests call it directly)."""
-    if _read_only_active():
+    try:
+        read_only = _read_only_active()
+    except ValueError:
+        # tools/list has no isError channel, so a malformed env var (only
+        # reachable by in-process env mutation after a read-write start)
+        # fails closed to the read-only surface.
+        logger.exception("Invalid %s value; listing read-only tools only.", _READ_ONLY_ENV_VAR)
+        read_only = True
+    if read_only:
         return [t for t in TOOLS if _is_read_only_tool(t.name)]
     return TOOLS
 
@@ -2087,7 +2102,17 @@ async def call_tool(name: str, arguments: dict[str, Any] | None = None) -> list[
 
     # Read-only mode rejects non-allowlisted names before anything else runs
     # (a stale client tool cache may still offer write tools).
-    if _read_only_active() and not _is_read_only_tool(name):
+    try:
+        read_only = _read_only_active()
+    except ValueError as exc:
+        logger.exception("Invalid %s value at dispatch time", _READ_ONLY_ENV_VAR)
+        result = {
+            "isError": True,
+            "error_code": "INVALID_CONFIG",
+            "message": str(exc),
+        }
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+    if read_only and not _is_read_only_tool(name):
         result = {
             "isError": True,
             "error_code": "READ_ONLY_MODE",
