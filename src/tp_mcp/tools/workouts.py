@@ -312,11 +312,17 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         # Fetch /details endpoint for file infos (not included in main endpoint)
         details_endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{validated.workout_id}/details"
         details_response = await client.get(details_endpoint)
-        details_raw = (
-            details_response.data
-            if details_response.success and isinstance(details_response.data, dict)
-            else {}
-        )
+        # A failed /details request used to be indistinguishable from a workout that
+        # genuinely has no files: both produced empty lists. A caller could then read
+        # "no attachments" as proof and act on it (issue #158). Surface provenance
+        # instead — the lists keep their shape, so existing callers are unaffected.
+        details_ok = details_response.success and isinstance(details_response.data, dict)
+        details_raw = details_response.data if details_ok else {}
+        if not details_ok:
+            logger.warning(
+                "workout %s: /details request failed — file lists are unknown, not empty",
+                validated.workout_id,
+            )
 
         try:
             raw_data = dict(response.data) if isinstance(response.data, dict) else {}
@@ -359,6 +365,8 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "workout_comments": workout_comments,
                 "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
                 "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
+                # False → the lists above are UNKNOWN, not empty (see above).
+                "file_enumeration_succeeded": details_ok,
             }
 
         except Exception:

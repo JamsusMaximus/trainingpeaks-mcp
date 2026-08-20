@@ -189,6 +189,46 @@ class TestTpGetWorkout:
         assert result["structured_workout"] == structured_workout
 
     @pytest.mark.asyncio
+    async def test_file_enumeration_flag_true_on_success(self, mock_api_responses):
+        """A genuinely empty file list is reported as a SUCCESSFUL enumeration."""
+        workout_response = APIResponse(
+            success=True, data=dict(mock_api_responses["workout_detail"])
+        )
+        details_response = APIResponse(success=True, data={})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(side_effect=[workout_response, details_response])
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["file_enumeration_succeeded"] is True
+        assert result["device_files"] == []
+
+    @pytest.mark.asyncio
+    async def test_file_enumeration_flag_false_when_details_fails(self, mock_api_responses):
+        """A FAILED /details request must be distinguishable from "no files" (issue #158):
+        the lists stay empty for backward compatibility, but the flag says they are unknown."""
+        workout_response = APIResponse(
+            success=True, data=dict(mock_api_responses["workout_detail"])
+        )
+        details_response = APIResponse(success=False, data=None, message="upstream 500")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(side_effect=[workout_response, details_response])
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["file_enumeration_succeeded"] is False
+        assert result["device_files"] == []
+        assert result["attachment_files"] == []
+
+    @pytest.mark.asyncio
     async def test_get_workout_includes_workout_comments(self, mock_api_responses):
         """workoutComments from the v6 detail response are included in the result."""
         workout_data = dict(mock_api_responses["workout_detail"])
