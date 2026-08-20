@@ -51,6 +51,19 @@ _SUMMARY_PATH = "/workout-analysis/v2/analyze/summary"
 _CHARTS_PATH = "/workout-analysis/v2/analyze/charts"
 _LAPS_PATH = "/workout-analysis/v2/analyze/laps"
 
+# The charts endpoint caps a full-span response at ~1000 points. For longer
+# workouts that response is a shape-preserving visual downsample that is
+# NOT energy-preserving: on a 90-min ride it under-reports work by ~30% and
+# badly skews NP/VI computed from the saved time-series (verified live
+# 2026-08-20: full-span gave 915 pts / 567 kJ vs the workout's true 807 kJ).
+# Windowed requests (start/stopOffsetSeconds spans <= ~1000s) return true
+# 1s-resolution data, so when the full-span response comes back coarse we
+# refetch it in windows and stitch.
+_CHARTS_WINDOW_SECONDS = 900
+_CHARTS_MAX_WINDOWS = 48  # 12 hours; beyond that keep the downsample
+_CHARTS_COARSE_DT = 1.5  # avg sample spacing (s) that flags downsampling
+_CHARTS_MIN_SPAN_FOR_REFETCH = 120
+
 
 def _save_analysis_json(workout_id: int, data: dict[str, Any]) -> str:
     """Save full analysis data (including time-series) to a JSON file.
@@ -130,6 +143,94 @@ async def _post_analysis(
             "error_code": "API_ERROR",
             "message": "Failed to parse analysis response.",
         }
+
+
+def _stitch_windows(windows: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Merge windowed chart rows, deduping boundary samples by time."""
+    merged: list[dict[str, Any]] = []
+    last_time: float | None = None
+    for rows in windows:
+        for row in rows:
+            t = row.get("time")
+            if last_time is not None and t is not None and t <= last_time:
+                continue
+            merged.append(row)
+            if t is not None:
+                last_time = t
+    return merged
+
+
+async def _refetch_full_resolution(
+    http_client: httpx.AsyncClient,
+    headers: dict[str, str],
+    workout_id: int,
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Refetch chart data in windows when the full-span response is coarse.
+
+    Returns the stitched full-resolution rows, or the original rows when they
+    are already fine-grained, the span is trivial, the workout is too long,
+    or any window request fails (never worse than the downsample).
+    """
+    times = [r.get("time") for r in rows if r.get("time") is not None]
+    if len(times) < 2:
+        return rows
+    span = times[-1] - times[0]
+    if span < _CHARTS_MIN_SPAN_FOR_REFETCH:
+        return rows
+    if span / (len(times) - 1) <= _CHARTS_COARSE_DT:
+        return rows
+    if span / _CHARTS_WINDOW_SECONDS > _CHARTS_MAX_WINDOWS:
+        logger.warning(
+            "workout %s: span %ss too long for windowed refetch; keeping downsample",
+            workout_id,
+            span,
+        )
+        return rows
+
+    windows: list[list[dict[str, Any]]] = []
+    start, stop = int(times[0]), int(times[-1])
+    for window_start in range(start, stop + 1, _CHARTS_WINDOW_SECONDS):
+        window_stop = min(window_start + _CHARTS_WINDOW_SECONDS, stop)
+        try:
+            response = await http_client.post(
+                f"{ANALYSIS_API_BASE}{_CHARTS_PATH}",
+                headers=headers,
+                json={
+                    "workoutId": workout_id,
+                    "startOffsetSeconds": window_start,
+                    "stopOffsetSeconds": window_stop,
+                },
+            )
+        except httpx.RequestError:
+            logger.warning(
+                "workout %s: charts window %s-%ss errored; keeping downsample",
+                workout_id,
+                window_start,
+                window_stop,
+            )
+            return rows
+        if response.status_code != 200:
+            logger.warning(
+                "workout %s: charts window %s-%ss failed (HTTP %s); keeping downsample",
+                workout_id,
+                window_start,
+                window_stop,
+                response.status_code,
+            )
+            return rows
+        try:
+            window_rows = (response.json() or {}).get("data") or []
+        except Exception:
+            logger.warning(
+                "workout %s: charts window %s-%ss returned bad JSON; keeping downsample",
+                workout_id,
+                window_start,
+                window_stop,
+            )
+            return rows
+        windows.append(window_rows)
+    return _stitch_windows(windows)
 
 
 def _stop_timestamp(start_iso: str | None, elapsed_seconds: Any) -> str | None:
@@ -218,6 +319,12 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
                 else:
                     return charts_err
 
+            charts_rows = (charts or {}).get("data") or []
+            if charts_rows:
+                charts_rows = await _refetch_full_resolution(
+                    http_client, headers, wid, charts_rows
+                )
+
             laps, laps_err = await _post_analysis(http_client, _LAPS_PATH, headers, wid)
             if laps_err:
                 if laps_err.get("error_code") == "NOT_FOUND":
@@ -254,7 +361,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         for ident, meta in charts_metadata.items()
         if isinstance(meta, dict)
     ]
-    time_series = (charts or {}).get("data") or []
+    time_series = charts_rows if charts else []
 
     lap_column_meta = (laps or {}).get("columnMetadata") or {}
     lap_columns = [
