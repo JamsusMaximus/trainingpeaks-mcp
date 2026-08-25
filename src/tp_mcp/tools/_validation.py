@@ -161,6 +161,29 @@ class UpdateWorkoutInput(BaseModel):
         return self
 
 
+class CompleteWorkoutInput(BaseModel):
+    """Validates input for marking a workout completed.
+
+    All fields are actual (recorded) values, not planned ones. Every metric
+    is optional: omitting them all means "completed exactly as planned", and
+    the tool copies the planned values across.
+    """
+
+    workout_id: int = Field(gt=0)
+    duration_minutes: float | None = Field(default=None, gt=0, le=1440)
+    distance_km: float | None = Field(default=None, gt=0, le=1000)
+    tss: float | None = Field(default=None, ge=0, le=2000)
+    calories: int | None = Field(default=None, ge=0, le=100000)
+    rpe: int | None = Field(default=None, ge=0, le=10)
+    feeling: int | None = Field(default=None, ge=0, le=10)
+
+    @field_validator("workout_id", mode="before")
+    @classmethod
+    def coerce_id_string(cls, v: object) -> object:
+        if isinstance(v, str):
+            return int(v)
+        return v
+
 class SingleDateInput(BaseModel):
     """Validates a single date input."""
 

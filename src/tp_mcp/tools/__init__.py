@@ -85,6 +85,7 @@ from tp_mcp.tools.workout_files import (
 from tp_mcp.tools.workout_types import tp_get_workout_types
 from tp_mcp.tools.workouts import (
     tp_add_workout_comment,
+    tp_complete_workout,
     tp_copy_workout,
     tp_create_workout,
     tp_delete_workout,
@@ -104,6 +105,7 @@ __all__ = [
     "tp_add_note_comment",
     "tp_add_workout_comment",
     "tp_analyze_workout",
+    "tp_complete_workout",
     "tp_auth_status",
     "tp_copy_workout",
     "tp_create_availability",

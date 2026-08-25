@@ -23,7 +23,7 @@ Ask your AI assistant things like:
 - "Set my FTP to 310 and update my power zones"
 - "Add a calendar note for next Monday: rest day, travel"
 
-## Tools (84)
+## Tools (86)
 
 ### Workouts
 | Tool | Description |
@@ -37,6 +37,7 @@ Ask your AI assistant things like:
 | `tp_reorder_workouts` | Reorder workouts on a given day |
 | `tp_pair_workout` | Pair a completed workout with a planned workout (merges into one) |
 | `tp_unpair_workout` | Unpair a workout (splits into separate completed and planned workouts) |
+| `tp_complete_workout` | Mark a workout completed by recording actual values — no device file or pairing needed |
 | `tp_validate_structure` | Validate interval structure without creating a workout |
 | `tp_get_workout_comments` | Get comments on a workout |
 | `tp_add_workout_comment` | Add a comment to a workout |

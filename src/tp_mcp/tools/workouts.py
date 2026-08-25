@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
 from tp_mcp.tools._validation import (
+    CompleteWorkoutInput,
     CreateWorkoutInput,
     DateRangeInput,
     UpdateWorkoutInput,
@@ -723,6 +724,145 @@ async def tp_update_workout(
             "success": True,
             "workout_id": params.workout_id,
             "message": "Workout updated successfully.",
+        }
+
+
+async def tp_complete_workout(
+    workout_id: str,
+    duration_minutes: float | None = None,
+    distance_km: float | None = None,
+    tss: float | None = None,
+    calories: int | None = None,
+    rpe: int | None = None,
+    feeling: int | None = None,
+) -> dict[str, Any]:
+    """Mark a workout completed by recording actual values against it.
+
+    TrainingPeaks has no "completed" flag to set -- a workout counts as done
+    once it carries actual data. Writing ``totalTime`` is what flips it; the
+    server then derives compliance percentages and calories on its own.
+    This needs no device file and no pairing, so it works for sessions that
+    never produce one (mobility, breathing, strength).
+
+    With no metrics supplied the planned values are copied to their actual
+    counterparts -- "I did exactly what was prescribed". Planned TSS and
+    distance are copied too, so a completed session still contributes to
+    fitness (CTL/ATL) rather than landing as zero load. Pass any metric
+    explicitly to record something different from the plan.
+
+    Args:
+        workout_id: The workout ID.
+        duration_minutes: Actual duration. Defaults to the planned duration.
+        distance_km: Actual distance. Defaults to the planned distance.
+        tss: Actual TSS. Defaults to the planned TSS.
+        calories: Actual calories. Left to the server to compute if omitted.
+        rpe: Rate of perceived exertion, 0-10.
+        feeling: How the session felt, 0-10.
+
+    Returns:
+        Dict with the recorded actuals and server-derived compliance, or error.
+    """
+    try:
+        params = CompleteWorkoutInput(
+            workout_id=workout_id,
+            duration_minutes=duration_minutes,
+            distance_km=distance_km,
+            tss=tss,
+            calories=calories,
+            rpe=rpe,
+            feeling=feeling,
+        )
+    except (ValidationError, ValueError) as e:
+        msg = format_validation_error(e) if isinstance(e, ValidationError) else str(e)
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": msg,
+        }
+
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{params.workout_id}"
+        get_response = await client.get(endpoint)
+
+        if get_response.is_error:
+            return {
+                "isError": True,
+                "error_code": get_response.error_code.value if get_response.error_code else "API_ERROR",
+                "message": get_response.message,
+            }
+
+        if not isinstance(get_response.data, dict):
+            return {
+                "isError": True,
+                "error_code": "NOT_FOUND",
+                "message": f"Workout {params.workout_id} not found",
+            }
+
+        existing = get_response.data
+
+        # totalTime is what marks the workout complete; without it there is
+        # nothing to record and the workout would stay planned.
+        if params.duration_minutes is not None:
+            existing["totalTime"] = params.duration_minutes / 60.0
+        elif existing.get("totalTimePlanned") is not None:
+            existing["totalTime"] = existing["totalTimePlanned"]
+        else:
+            return {
+                "isError": True,
+                "error_code": "VALIDATION_ERROR",
+                "message": (
+                    f"Workout {params.workout_id} has no planned duration, so there is "
+                    "nothing to complete it with. Pass duration_minutes explicitly."
+                ),
+            }
+
+        if params.distance_km is not None:
+            existing["distance"] = _km_to_m(params.distance_km)
+        elif existing.get("distancePlanned") is not None:
+            existing["distance"] = existing["distancePlanned"]
+
+        if params.tss is not None:
+            existing["tssActual"] = params.tss
+        elif existing.get("tssPlanned") is not None:
+            existing["tssActual"] = existing["tssPlanned"]
+
+        if params.calories is not None:
+            existing["calories"] = params.calories
+        if params.rpe is not None:
+            existing["rpe"] = params.rpe
+        if params.feeling is not None:
+            existing["feeling"] = params.feeling
+
+        put_response = await client.put(endpoint, json=existing)
+
+        if put_response.is_error:
+            return {
+                "isError": True,
+                "error_code": put_response.error_code.value if put_response.error_code else "API_ERROR",
+                "message": put_response.message,
+            }
+
+        result = put_response.data if isinstance(put_response.data, dict) else {}
+        recorded_hours = result.get("totalTime", existing["totalTime"])
+
+        return {
+            "success": True,
+            "workout_id": params.workout_id,
+            "title": result.get("title", existing.get("title")),
+            "duration_minutes": round(recorded_hours * 60.0, 2) if recorded_hours is not None else None,
+            "distance_km": _m_to_km(result.get("distance", existing.get("distance"))),
+            "tss": result.get("tssActual", existing.get("tssActual")),
+            "calories": result.get("calories"),
+            "compliance_duration_percent": result.get("complianceDurationPercent"),
+            "message": "Workout marked completed.",
         }
 
 
