@@ -34,6 +34,7 @@ from tp_mcp.tools import (
     tp_analyze_workout,
     tp_apply_training_plan,
     tp_auth_status,
+    tp_complete_workout,
     tp_copy_workout,
     tp_create_availability,
     tp_create_equipment,
@@ -310,6 +311,41 @@ TOOLS = [
                     "type": "object",
                     "description": RAW_STRUCTURE_DESCRIPTION,
                 },
+            },
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_complete_workout",
+        description=(
+            "Mark a workout completed by recording actual values against it. "
+            "Needs no device file and no pairing, so it works for sessions that "
+            "never produce one (mobility, breathing, strength). With no metrics "
+            "given, the planned duration, distance and TSS are copied to actuals "
+            "-- 'I did exactly what was prescribed'."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "workout_id": {"type": "string", "description": "The workout ID."},
+                "duration_minutes": {
+                    "type": "number",
+                    "description": "Actual duration. Defaults to the planned duration.",
+                },
+                "distance_km": {
+                    "type": "number",
+                    "description": "Actual distance in km. Defaults to the planned distance.",
+                },
+                "tss": {
+                    "type": "number",
+                    "description": "Actual TSS. Defaults to the planned TSS.",
+                },
+                "calories": {
+                    "type": "integer",
+                    "description": "Actual calories. Server computes this if omitted.",
+                },
+                "rpe": {"type": "integer", "description": "Perceived exertion, 0-10."},
+                "feeling": {"type": "integer", "description": "How it felt, 0-10."},
             },
             "required": ["workout_id"],
         },
@@ -1672,6 +1708,16 @@ async def _h_update_workout(args):
         rpe=args.get("rpe"), structure=args.get("structure"),
         structured_workout=args.get("structured_workout"),
         is_hidden=args.get("is_hidden"),
+    )
+
+@_handler("tp_complete_workout")
+async def _h_complete_workout(args):
+    return await tp_complete_workout(
+        workout_id=args["workout_id"],
+        duration_minutes=args.get("duration_minutes"),
+        distance_km=args.get("distance_km"), tss=args.get("tss"),
+        calories=args.get("calories"), rpe=args.get("rpe"),
+        feeling=args.get("feeling"),
     )
 
 @_handler("tp_delete_workout")

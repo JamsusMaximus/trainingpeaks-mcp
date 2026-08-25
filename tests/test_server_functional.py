@@ -110,6 +110,7 @@ class TestListTools:
             "tp_delete_workout_file",
             "tp_pair_workout",
             "tp_unpair_workout",
+            "tp_complete_workout",
             "tp_set_workout_note",
             "tp_get_workout_note",
             "tp_search_exercises",
