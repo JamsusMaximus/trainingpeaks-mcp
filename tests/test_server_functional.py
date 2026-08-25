@@ -144,6 +144,19 @@ class TestListTools:
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
+    async def test_strength_tools_schema_advertise_start_time(self):
+        """start_time (prescribedStartTime) must be advertised, not just accepted by the function."""
+        tools = await list_tools()
+        for name in ("tp_create_strength_workout", "tp_update_strength_workout"):
+            t = next(t for t in tools if t.name == name)
+            props = t.input_schema["properties"]
+            assert "start_time" in props, name
+            assert props["start_time"]["type"] == "string"
+            assert "start_time" not in t.input_schema["required"]
+        create = next(t for t in tools if t.name == "tp_create_strength_workout")
+        assert "date only" in create.input_schema["properties"]["date"]["description"]
+
+    @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")
