@@ -7,6 +7,7 @@ import pytest
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.strength import (
     _build_payload,
+    _normalise_start_time,
     _fmt_set,
     _fmt_workout_detail,
     _input_format,
@@ -621,3 +622,76 @@ class TestUpdateStrength:
         r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
         assert r["error_code"] == "API_ERROR"
         assert "bad" in r["message"]
+
+
+# ── Start time (prescribedStartTime) ─────────────────────────────────────────
+
+
+class TestStartTime:
+    def test_normalise(self):
+        assert _normalise_start_time(None) is None
+        assert _normalise_start_time("") is None
+        assert _normalise_start_time("07:15") == "07:15:00"
+        assert _normalise_start_time("21:30:00") == "21:30:00"
+
+    def test_normalise_rejects_bad_values(self):
+        for bad in ("9:05", "7:15 am", "25:00", "07:60", "2026-08-25T07:15:00", "noon"):
+            with pytest.raises(ValueError):
+                _normalise_start_time(bad)
+
+    def test_payload_carries_start_time(self):
+        blocks = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "10"}]}]}]
+        p = _build_payload(1, "2027-01-06", "x", blocks, None, "07:15:00")
+        assert p["prescribedDate"] == "2027-01-06"
+        assert p["prescribedStartTime"] == "07:15:00"
+        assert _build_payload(1, "2027-01-06", "x", blocks, None)["prescribedStartTime"] is None
+
+    @pytest.mark.asyncio
+    async def test_create_with_start_time(self):
+        blocks = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "10"}]}]}]
+        http = _mock_http(200, {"data": {"id": "556", "snapshot": {"totalBlocks": 1, "totalSets": 1}}})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_create_strength_workout(
+                    date="2027-01-06", title="AM", blocks=blocks, start_time="07:15"
+                )
+        assert r["start_time"] == "07:15:00"
+        assert http.post.call_args.kwargs["json"]["prescribedStartTime"] == "07:15:00"
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_bad_start_time_before_network(self):
+        blocks = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "10"}]}]}]
+        r = await tp_create_strength_workout(
+            date="2027-01-06", title="AM", blocks=blocks, start_time="7:15 am"
+        )
+        assert r["error_code"] == "VALIDATION_ERROR"
+        assert "start_time" in r["message"]
+
+    @pytest.mark.asyncio
+    async def test_update_start_time_only(self):
+        http = _mock_get_then_post(_garmin_doc())
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_update_strength_workout(workout_id="24373159", start_time="21:30")
+        assert r["changed"] == ["start_time"]
+        body = _posted(http)
+        assert body["prescribedStartTime"] == "21:30:00"
+        assert body["prescribedDate"] == "2026-08-02"  # date untouched
+        assert body["completedTss"] == 27.0  # telemetry preserved
+
+    @pytest.mark.asyncio
+    async def test_update_clears_start_time_with_empty_string(self):
+        doc = _garmin_doc()
+        doc["prescribedStartTime"] = "07:15:00"
+        http = _mock_get_then_post(doc)
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_update_strength_workout(workout_id="24373159", start_time="")
+        assert r["changed"] == ["start_time"]
+        assert _posted(http)["prescribedStartTime"] is None
