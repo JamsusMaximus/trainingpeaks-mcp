@@ -7,9 +7,17 @@ and polyline generation.
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from tp_mcp.tools._validation import format_validation_error
 
@@ -22,24 +30,34 @@ INTENSITY_CLASSES = {"warmUp", "active", "rest", "coolDown", "other"}
 INTENSITY_METRICS = {"percentOfFtp", "percentOfThresholdHr", "percentOfThresholdPace"}
 
 
-class SimpleStep(BaseModel):
+class StrictStructureModel(BaseModel):
+    """Base model that rejects misspelled workout-structure fields."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class SimpleStep(StrictStructureModel):
     """A single workout step in the simplified input format."""
 
     name: str = Field(min_length=1, max_length=100)
-    type: str = Field(default="step")
+    type: Literal["step"] = Field(default="step")
     duration_seconds: int = Field(gt=0, le=86400)
     intensity_min: float = Field(ge=0, le=300)
     intensity_max: float = Field(ge=0, le=300)
-    intensityClass: str = Field(default="active")  # noqa: N815
+    intensity_class: str = Field(
+        default="active",
+        validation_alias=AliasChoices("intensity_class", "intensityClass"),
+        serialization_alias="intensityClass",
+    )
     cadence_min: float | None = Field(default=None, ge=0, le=300)
     cadence_max: float | None = Field(default=None, ge=0, le=300)
 
-    @field_validator("intensityClass")
+    @field_validator("intensity_class")
     @classmethod
     def check_intensity_class(cls, v: str) -> str:
         if v not in INTENSITY_CLASSES:
             valid = ", ".join(sorted(INTENSITY_CLASSES))
-            raise ValueError(f"Invalid intensityClass '{v}'. Valid: {valid}")
+            raise ValueError(f"Invalid intensity_class '{v}'. Valid: {valid}")
         return v
 
     @model_validator(mode="after")
@@ -55,27 +73,33 @@ class SimpleStep(BaseModel):
         return self
 
 
-class SimpleRepetitionBlock(BaseModel):
+class SimpleRepetitionBlock(StrictStructureModel):
     """A repetition block containing multiple steps repeated N times."""
 
-    type: str = Field(default="repetition")
+    type: Literal["repetition"] = Field(default="repetition")
     name: str = Field(default="Repeat")
     reps: int = Field(gt=0, le=100)
     steps: list[SimpleStep] = Field(min_length=1)
 
 
-class SimpleWorkoutStructure(BaseModel):
+class SimpleWorkoutStructure(StrictStructureModel):
     """Top-level simplified structure input from the LLM."""
 
-    primaryIntensityMetric: str = Field(default="percentOfFtp")  # noqa: N815
+    primary_intensity_metric: str = Field(
+        default="percentOfFtp",
+        validation_alias=AliasChoices(
+            "primary_intensity_metric", "primaryIntensityMetric"
+        ),
+        serialization_alias="primaryIntensityMetric",
+    )
     steps: list[SimpleStep | SimpleRepetitionBlock] = Field(min_length=1)
 
-    @field_validator("primaryIntensityMetric")
+    @field_validator("primary_intensity_metric")
     @classmethod
     def check_metric(cls, v: str) -> str:
         if v not in INTENSITY_METRICS:
             valid = ", ".join(sorted(INTENSITY_METRICS))
-            raise ValueError(f"Invalid primaryIntensityMetric '{v}'. Valid: {valid}")
+            raise ValueError(f"Invalid primary_intensity_metric '{v}'. Valid: {valid}")
         return v
 
 
@@ -98,7 +122,7 @@ def _build_step_wire(step: SimpleStep) -> dict[str, Any]:
         "type": "step",
         "length": {"value": step.duration_seconds, "unit": "second"},
         "targets": targets,
-        "intensityClass": step.intensityClass,
+        "intensityClass": step.intensity_class,
         "openDuration": False,
     }
 
@@ -109,6 +133,11 @@ def _compute_block_duration(block: SimpleStep | SimpleRepetitionBlock) -> int:
         inner_duration = sum(s.duration_seconds for s in block.steps)
         return inner_duration * block.reps
     return block.duration_seconds
+
+
+def compute_duration_seconds(structure: SimpleWorkoutStructure) -> int:
+    """Compute total structure duration independently of its intensity metric."""
+    return sum(_compute_block_duration(block) for block in structure.steps)
 
 
 def _polyline_bar(
@@ -137,7 +166,7 @@ def build_wire_structure(structure: SimpleWorkoutStructure) -> dict[str, Any]:
     cumulative_seconds = 0
 
     # First pass: compute total duration for polyline normalisation
-    total_duration = sum(_compute_block_duration(b) for b in structure.steps)
+    total_duration = compute_duration_seconds(structure)
 
     for block in structure.steps:
         block_duration = _compute_block_duration(block)
@@ -194,17 +223,20 @@ def build_wire_structure(structure: SimpleWorkoutStructure) -> dict[str, Any]:
         "structure": wire_blocks,
         "polyline": polyline,
         "primaryLengthMetric": "duration",
-        "primaryIntensityMetric": structure.primaryIntensityMetric,
+        "primaryIntensityMetric": structure.primary_intensity_metric,
         "primaryIntensityTargetOrRange": "range",
     }
 
 
 def compute_if_tss(structure: SimpleWorkoutStructure) -> tuple[float, float, int]:
-    """Compute IF and TSS from a workout structure.
+    """Compute power-based IF and TSS from an FTP workout structure.
 
     Uses NP-style time-weighted 4th-power average of midpoint intensities.
     IF = (weighted_sum / total_seconds) ^ 0.25 / 100
     TSS = (total_seconds * IF^2 * 100) / 3600
+
+    HR- and pace-based structures require different load models and are rejected
+    rather than returning a plausible-looking but incorrect estimate.
 
     Args:
         structure: The simplified workout structure.
@@ -212,6 +244,11 @@ def compute_if_tss(structure: SimpleWorkoutStructure) -> tuple[float, float, int
     Returns:
         Tuple of (IF, TSS, total_duration_seconds).
     """
+    if structure.primary_intensity_metric != "percentOfFtp":
+        raise ValueError(
+            "Automatic IF/TSS estimation supports only percentOfFtp structures"
+        )
+
     weighted_sum = 0.0
     total_seconds = 0
 
@@ -257,20 +294,7 @@ def parse_structure_input(structure_input: dict[str, Any] | str) -> SimpleWorkou
     else:
         data = structure_input
 
-    # Parse steps - distinguish between simple steps and repetition blocks
-    raw_steps = data.get("steps", [])
-    parsed_steps: list[SimpleStep | SimpleRepetitionBlock] = []
-
-    for raw_step in raw_steps:
-        if raw_step.get("type") == "repetition":
-            parsed_steps.append(SimpleRepetitionBlock.model_validate(raw_step))
-        else:
-            parsed_steps.append(SimpleStep.model_validate(raw_step))
-
-    return SimpleWorkoutStructure(
-        primaryIntensityMetric=data.get("primaryIntensityMetric", "percentOfFtp"),
-        steps=parsed_steps,
-    )
+    return SimpleWorkoutStructure.model_validate(data)
 
 
 async def tp_validate_structure(structure: str) -> dict[str, Any]:
@@ -292,7 +316,13 @@ async def tp_validate_structure(structure: str) -> dict[str, Any]:
             "message": msg,
         }
 
-    intensity_factor, tss, total_seconds = compute_if_tss(parsed)
+    total_seconds = compute_duration_seconds(parsed)
+    supports_load_estimate = parsed.primary_intensity_metric == "percentOfFtp"
+    if supports_load_estimate:
+        intensity_factor, tss, _ = compute_if_tss(parsed)
+    else:
+        intensity_factor = None
+        tss = None
 
     # Count blocks
     block_count = len(parsed.steps)
@@ -303,7 +333,7 @@ async def tp_validate_structure(structure: str) -> dict[str, Any]:
         else:
             step_count += 1
 
-    return {
+    result: dict[str, Any] = {
         "valid": True,
         "block_count": block_count,
         "total_steps": step_count,
@@ -311,5 +341,11 @@ async def tp_validate_structure(structure: str) -> dict[str, Any]:
         "total_duration_minutes": round(total_seconds / 60, 1),
         "estimated_if": intensity_factor,
         "estimated_tss": tss,
-        "intensity_metric": parsed.primaryIntensityMetric,
+        "intensity_metric": parsed.primary_intensity_metric,
     }
+    if not supports_load_estimate:
+        result["estimation_warning"] = (
+            "Automatic IF/TSS estimation is unavailable for HR- and pace-based "
+            "structures; provide tss_planned explicitly when needed."
+        )
+    return result

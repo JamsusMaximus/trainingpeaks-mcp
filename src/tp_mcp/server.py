@@ -130,29 +130,32 @@ logger = logging.getLogger("tp-mcp")
 
 STRUCTURE_DESCRIPTION = (
     "Interval structure as a JSON object or string."
-    ' Format: {"steps": [...], "primaryIntensityMetric":'
+    ' Format: {"steps": [...], "primary_intensity_metric":'
     ' "percentOfFtp"|"percentOfThresholdHr"|"percentOfThresholdPace"}.'
     " Each step is either a single interval or a repetition block."
     ' SINGLE STEP: {"name": "Endurance", "duration_seconds": 1200,'
     ' "intensity_min": 65, "intensity_max": 75,'
-    ' "intensityClass": "active"}.'
+    ' "intensity_class": "active"}.'
     ' REPETITION BLOCK: {"type": "repetition", "reps": 5, "steps": ['
     '{"name": "VO2max", "duration_seconds": 180,'
     ' "intensity_min": 106, "intensity_max": 120,'
-    ' "intensityClass": "active"},'
+    ' "intensity_class": "active"},'
     ' {"name": "Spin", "duration_seconds": 180,'
     ' "intensity_min": 40, "intensity_max": 50,'
-    ' "intensityClass": "rest"}]}.'
+    ' "intensity_class": "rest"}]}.'
     " FOR MULTIPLE SETS separated by longer recovery, alternate"
     " repetition blocks with single rest steps:"
     ' [{"type": "repetition", "reps": 4, "steps": [...]},'
     ' {"name": "Block Recovery", "duration_seconds": 600,'
     ' "intensity_min": 45, "intensity_max": 55,'
-    ' "intensityClass": "rest"},'
+    ' "intensity_class": "rest"},'
     ' {"type": "repetition", "reps": 4, "steps": [...]}].'
-    " intensityClass values: warmUp, active (work intervals),"
+    " intensity_class values: warmUp, active (work intervals),"
     " rest (all recovery), coolDown, other."
+    " Legacy camelCase aliases remain accepted. Unknown fields are rejected."
     " Intensity values are % of threshold (FTP/HR/pace)."
+    " IF/TSS are auto-computed only for percentOfFtp; provide tss_planned"
+    " explicitly for HR- or pace-based structures."
     " Optional per-step: cadence_min, cadence_max (rpm)."
 )
 RAW_STRUCTURE_DESCRIPTION = (
@@ -201,6 +204,8 @@ TOOLS = [
         name="tp_get_workouts",
         description=(
             "List workouts in date range. Query only days needed. Max 90 days. "
+            "Returns the TSS source model. Set include_structure only when the "
+            "full workout-builder tree is needed. "
             "Does NOT include strength-builder gym workouts — use "
             "tp_get_strength_workouts for those."
         ),
@@ -214,6 +219,14 @@ TOOLS = [
                     "enum": ["all", "planned", "completed"],
                     "description": "Filter: all, planned, or completed",
                     "default": "all",
+                },
+                "include_structure": {
+                    "type": "boolean",
+                    "description": (
+                        "Include full native workout-builder structures. This can "
+                        "substantially increase response size."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["start_date", "end_date"],
@@ -235,7 +248,8 @@ TOOLS = [
         description=(
             "Create a planned workout with optional simplified interval structure "
             "or native TrainingPeaks structured_workout payload. Duration is "
-            "auto-computed only from simplified structure when not provided."
+            "auto-computed from simplified structure when not provided; IF/TSS are "
+            "auto-computed only for percentOfFtp structures."
         ),
         input_schema={
             "type": "object",
@@ -1641,6 +1655,7 @@ async def _h_get_workouts(args):
     return await tp_get_workouts(
         start_date=args["start_date"], end_date=args["end_date"],
         workout_filter=args.get("type", "all"),
+        include_structure=args.get("include_structure", False),
     )
 
 @_handler("tp_get_workout")

@@ -63,6 +63,53 @@ class TestTpGetWorkouts:
         assert planned["tss"] == 40
 
     @pytest.mark.asyncio
+    async def test_get_workouts_includes_tss_source_and_optional_structure(
+        self, mock_api_responses,
+    ):
+        structured_workout = {
+            "structure": [],
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+        workout_data = dict(mock_api_responses["workouts"][0])
+        workout_data["tssSource"] = 1
+        workout_data["structure"] = json.dumps(structured_workout)
+        workouts_response = APIResponse(success=True, data=[workout_data])
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workouts_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            compact = await tp_get_workouts("2025-01-08", "2025-01-08")
+            expanded = await tp_get_workouts(
+                "2025-01-08", "2025-01-08", include_structure=True,
+            )
+
+        assert compact["workouts"][0]["tss_source"] == 1
+        assert "structured_workout" not in compact["workouts"][0]
+        assert expanded["workouts"][0]["structured_workout"] == structured_workout
+
+    @pytest.mark.asyncio
+    async def test_get_workouts_preserves_zero_actual_tss(self, mock_api_responses):
+        workout_data = dict(mock_api_responses["workouts"][0])
+        workout_data["tssActual"] = 0
+        workouts_response = APIResponse(success=True, data=[workout_data])
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workouts_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workouts("2025-01-08", "2025-01-08")
+
+        assert result["workouts"][0]["tss"] == 0
+
+    @pytest.mark.asyncio
     async def test_get_workouts_filter_completed(self, mock_api_responses):
         """Test filtering for completed workouts only."""
         workouts_response = APIResponse(success=True, data=mock_api_responses["workouts"])

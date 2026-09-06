@@ -285,7 +285,8 @@ Restart Claude Desktop. You're ready to go!
 
 ## Structured Workouts
 
-Create workouts with full interval structure. The server auto-computes duration, IF, and TSS from the structure:
+Create workouts with full interval structure. The server auto-computes duration
+for all simplified structures, and IF/TSS for `percentOfFtp` structures:
 
 ```json
 {
@@ -293,14 +294,14 @@ Create workouts with full interval structure. The server auto-computes duration,
   "sport": "Bike",
   "title": "Sweet Spot Intervals",
   "structure": {
-    "primaryIntensityMetric": "percentOfFtp",
+    "primary_intensity_metric": "percentOfFtp",
     "steps": [
-      {"name": "Warm Up", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensityClass": "warmUp"},
+      {"name": "Warm Up", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensity_class": "warmUp"},
       {"type": "repetition", "reps": 4, "steps": [
-        {"name": "Sweet Spot", "duration_seconds": 480, "intensity_min": 88, "intensity_max": 93, "intensityClass": "active"},
-        {"name": "Recovery", "duration_seconds": 120, "intensity_min": 50, "intensity_max": 60, "intensityClass": "rest"}
+        {"name": "Sweet Spot", "duration_seconds": 480, "intensity_min": 88, "intensity_max": 93, "intensity_class": "active"},
+        {"name": "Recovery", "duration_seconds": 120, "intensity_min": 50, "intensity_max": 60, "intensity_class": "rest"}
       ]},
-      {"name": "Cool Down", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensityClass": "coolDown"}
+      {"name": "Cool Down", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensity_class": "coolDown"}
     ]
   }
 }
@@ -316,20 +317,32 @@ You can use the same simplified `structure` object with `tp_update_workout`:
   "duration_minutes": 57,
   "tss_planned": 62.3,
   "structure": {
-    "primaryIntensityMetric": "percentOfThresholdHr",
+    "primary_intensity_metric": "percentOfThresholdHr",
     "steps": [
-      {"name": "Warm-up", "duration_seconds": 900, "intensity_min": 65, "intensity_max": 80, "intensityClass": "warmUp"},
+      {"name": "Warm-up", "duration_seconds": 900, "intensity_min": 65, "intensity_max": 80, "intensity_class": "warmUp"},
       {"type": "repetition", "name": "4x5min controlled tempo", "reps": 4, "steps": [
-        {"name": "Interval", "duration_seconds": 300, "intensity_min": 89, "intensity_max": 94, "intensityClass": "active"},
-        {"name": "Jog recovery", "duration_seconds": 180, "intensity_min": 65, "intensity_max": 83, "intensityClass": "rest"}
+        {"name": "Interval", "duration_seconds": 300, "intensity_min": 89, "intensity_max": 94, "intensity_class": "active"},
+        {"name": "Jog recovery", "duration_seconds": 180, "intensity_min": 65, "intensity_max": 83, "intensity_class": "rest"}
       ]},
-      {"name": "Cool-down", "duration_seconds": 600, "intensity_min": 65, "intensity_max": 80, "intensityClass": "coolDown"}
+      {"name": "Cool-down", "duration_seconds": 600, "intensity_min": 65, "intensity_max": 80, "intensity_class": "coolDown"}
     ]
   }
 }
 ```
 
 If `duration_minutes` and `tss_planned` are omitted, they are derived from the structure. If you pass them explicitly, they override the derived values.
+
+For `percentOfThresholdHr` and `percentOfThresholdPace`, duration is derived but
+IF/TSS are not: those metrics require different load models. Pass `tss_planned`
+explicitly when needed.
+
+Simplified structures prefer `primary_intensity_metric` and `intensity_class`.
+The legacy camelCase spellings remain accepted, but unknown fields are rejected
+to prevent misspelled fields from silently changing a workout.
+
+`tp_get_workouts` always returns `tss_source`, the TrainingPeaks TSS model ID.
+Pass `include_structure: true` only when the full native workout-builder tree is
+needed; it is omitted by default to keep date-range responses compact.
 
 For advanced round-trip use cases, `tp_create_workout` and `tp_update_workout` also accept a native `structured_workout` payload in TrainingPeaks builder format. When a workout already has a native structure, `tp_get_workout` returns it as `structured_workout`.
 

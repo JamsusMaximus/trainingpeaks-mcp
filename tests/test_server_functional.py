@@ -144,6 +144,16 @@ class TestListTools:
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
+    async def test_get_workouts_schema_includes_optional_structure(self):
+        tools = await list_tools()
+        get_workouts = next(t for t in tools if t.name == "tp_get_workouts")
+        props = get_workouts.input_schema["properties"]
+
+        assert props["include_structure"]["type"] == "boolean"
+        assert props["include_structure"]["default"] is False
+        assert "include_structure" not in get_workouts.input_schema["required"]
+
+    @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")

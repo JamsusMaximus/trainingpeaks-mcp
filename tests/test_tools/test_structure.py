@@ -18,7 +18,17 @@ from tp_mcp.tools.structure import (
 class TestBuildSimpleStep:
     """Test building single steps and verifying wire format."""
 
+    def test_snake_case_intensity_class(self):
+        step = SimpleStep(
+            name="Warm Up", duration_seconds=600,
+            intensity_min=40, intensity_max=55, intensity_class="warmUp",
+        )
+        wire = build_wire_structure(SimpleWorkoutStructure(steps=[step]))
+
+        assert wire["structure"][0]["steps"][0]["intensityClass"] == "warmUp"
+
     def test_warmup_step(self):
+        """The legacy camelCase alias remains accepted."""
         step = SimpleStep(
             name="Warm Up", duration_seconds=600,
             intensity_min=40, intensity_max=55, intensityClass="warmUp",
@@ -169,6 +179,21 @@ class TestComputeIFTSS:
         assert intensity_factor > 0.6
         assert tss > 0
 
+    def test_non_power_metric_is_not_estimated_with_power_model(self):
+        step = SimpleStep(
+            name="Tempo",
+            duration_seconds=1800,
+            intensity_min=85,
+            intensity_max=90,
+        )
+        structure = SimpleWorkoutStructure(
+            primary_intensity_metric="percentOfThresholdPace",
+            steps=[step],
+        )
+
+        with pytest.raises(ValueError, match="only percentOfFtp"):
+            compute_if_tss(structure)
+
     def test_empty_steps_returns_zero(self):
         """Edge case: if somehow total_seconds is 0."""
         # Cannot create empty structure due to min_length=1, so test directly
@@ -204,20 +229,98 @@ class TestValidation:
         with pytest.raises(Exception):
             SimpleWorkoutStructure(primaryIntensityMetric="invalidMetric", steps=[step])
 
+    @pytest.mark.parametrize(
+        ("payload", "unknown_field"),
+        [
+            (
+                {
+                    "steps": [
+                        {
+                            "name": "Main",
+                            "duration_seconds": 300,
+                            "intensity_min": 50,
+                            "intensity_max": 60,
+                        },
+                    ],
+                    "primary_intensity_metic": "percentOfFtp",
+                },
+                "primary_intensity_metic",
+            ),
+            (
+                {
+                    "steps": [
+                        {
+                            "name": "Main",
+                            "duration_seconds": 300,
+                            "intensity_min": 50,
+                            "intensity_max": 60,
+                            "intensity_clas": "warmUp",
+                        },
+                    ],
+                },
+                "intensity_clas",
+            ),
+            (
+                {
+                    "steps": [
+                        {
+                            "type": "repetition",
+                            "reps": 2,
+                            "stepz": [],
+                            "steps": [
+                                {
+                                    "name": "Main",
+                                    "duration_seconds": 300,
+                                    "intensity_min": 50,
+                                    "intensity_max": 60,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                "stepz",
+            ),
+        ],
+    )
+    def test_unknown_fields_are_rejected(self, payload, unknown_field):
+        with pytest.raises(Exception, match=unknown_field):
+            parse_structure_input(payload)
+
 
 class TestParseStructureInput:
     """Test parsing structure from dict and JSON string."""
 
     def test_parse_from_dict(self):
         data = {
-            "primaryIntensityMetric": "percentOfFtp",
+            "primary_intensity_metric": "percentOfFtp",
             "steps": [
-                {"name": "WU", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensityClass": "warmUp"},
+                {"name": "WU", "duration_seconds": 600, "intensity_min": 40, "intensity_max": 55, "intensity_class": "warmUp"},
             ],
         }
         parsed = parse_structure_input(data)
         assert len(parsed.steps) == 1
-        assert parsed.primaryIntensityMetric == "percentOfFtp"
+        assert parsed.primary_intensity_metric == "percentOfFtp"
+        assert parsed.steps[0].intensity_class == "warmUp"
+
+
+    def test_parse_legacy_camel_case_aliases(self):
+        data = {
+            "primaryIntensityMetric": "percentOfThresholdHr",
+            "steps": [
+                {
+                    "name": "WU",
+                    "duration_seconds": 600,
+                    "intensity_min": 60,
+                    "intensity_max": 70,
+                    "intensityClass": "warmUp",
+                },
+            ],
+        }
+
+        parsed = parse_structure_input(data)
+
+        assert parsed.primary_intensity_metric == "percentOfThresholdHr"
+        assert parsed.steps[0].intensity_class == "warmUp"
 
     def test_parse_from_json_string(self):
         data = {
@@ -286,3 +389,41 @@ class TestTpValidateStructure:
 
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_misspelled_intensity_class_returns_error(self):
+        result = await tp_validate_structure(json.dumps({
+            "steps": [
+                {
+                    "name": "WU",
+                    "duration_seconds": 600,
+                    "intensity_min": 40,
+                    "intensity_max": 55,
+                    "intensity_clas": "warmUp",
+                },
+            ],
+        }))
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "intensity_clas" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_non_power_metric_has_no_load_estimate(self):
+        result = await tp_validate_structure(json.dumps({
+            "primary_intensity_metric": "percentOfThresholdHr",
+            "steps": [
+                {
+                    "name": "Tempo",
+                    "duration_seconds": 1800,
+                    "intensity_min": 85,
+                    "intensity_max": 90,
+                },
+            ],
+        }))
+
+        assert result["valid"] is True
+        assert result["total_duration_seconds"] == 1800
+        assert result["estimated_if"] is None
+        assert result["estimated_tss"] is None
+        assert "provide tss_planned explicitly" in result["estimation_warning"]

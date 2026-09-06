@@ -95,8 +95,10 @@ class WorkoutSummary(BaseModel):
     duration_actual: int | float | None = Field(default=None, alias="totalTime")
     tss_planned: float | None = Field(default=None, alias="tssPlanned")
     tss_actual: float | None = Field(default=None, alias="tssActual")
+    tss_source: int | None = Field(default=None, alias="tssSource")
     distance_planned: float | None = Field(default=None, alias="distancePlanned")
     distance_actual: float | None = Field(default=None, alias="distance")
+    structure: dict[str, Any] | str | None = None
     completed: bool | None = Field(default=None)
     description: str | None = None
 

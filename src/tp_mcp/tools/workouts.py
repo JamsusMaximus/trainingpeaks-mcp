@@ -18,6 +18,7 @@ from tp_mcp.tools._validation import (
 )
 from tp_mcp.tools.structure import (
     build_wire_structure,
+    compute_duration_seconds,
     compute_if_tss,
     parse_structure_input,
 )
@@ -62,7 +63,12 @@ def _prepare_structure_payload(
     try:
         parsed_structure = parse_structure_input(structure)
         wire_structure = build_wire_structure(parsed_structure)
-        structure_if, structure_tss, total_seconds = compute_if_tss(parsed_structure)
+        total_seconds = compute_duration_seconds(parsed_structure)
+        if parsed_structure.primary_intensity_metric == "percentOfFtp":
+            structure_if, structure_tss, _ = compute_if_tss(parsed_structure)
+        else:
+            structure_if = None
+            structure_tss = None
         return StructurePayload(
             wire_structure=wire_structure,
             duration_minutes=total_seconds / 60.0,
@@ -170,6 +176,7 @@ async def tp_get_workouts(
     start_date: str,
     end_date: str,
     workout_filter: Literal["all", "planned", "completed"] = "all",
+    include_structure: bool = False,
 ) -> dict[str, Any]:
     """Get workouts for a date range.
 
@@ -177,6 +184,8 @@ async def tp_get_workouts(
         start_date: Start date in ISO format (YYYY-MM-DD).
         end_date: End date in ISO format (YYYY-MM-DD).
         workout_filter: Filter by status - "all", "planned", or "completed".
+        include_structure: Include native workout-builder structures. Defaults to
+            false because structures can make date-range responses very large.
 
     Returns:
         Dict with workouts list, count, and date_range.
@@ -229,9 +238,10 @@ async def tp_get_workouts(
             elif workout_filter == "completed":
                 workouts = [w for w in workouts if w.is_completed]
 
-            # Convert to dict format for response
-            workout_dicts = [
-                {
+            # Convert to compact dict format for response.
+            workout_dicts: list[dict[str, Any]] = []
+            for w in workouts:
+                workout_data: dict[str, Any] = {
                     "id": str(w.id),
                     "date": w.date.isoformat(),
                     "title": w.title,
@@ -241,13 +251,17 @@ async def tp_get_workouts(
                     "duration_actual": w.duration_actual,
                     "distance_planned_km": w.distance_planned / 1000 if w.distance_planned else None,
                     "distance_actual_km": w.distance_actual / 1000 if w.distance_actual else None,
-                    "tss": w.tss_actual or w.tss_planned,
+                    "tss": w.tss_actual if w.tss_actual is not None else w.tss_planned,
                     "tss_planned": w.tss_planned,
                     "tss_actual": w.tss_actual,
+                    "tss_source": w.tss_source,
                     "description": w.description,
                 }
-                for w in workouts
-            ]
+                if include_structure:
+                    workout_data["structured_workout"] = _decode_structured_workout(
+                        w.structure
+                    )
+                workout_dicts.append(workout_data)
 
             return {
                 "workouts": workout_dicts,
@@ -705,6 +719,10 @@ async def tp_update_workout(
                 existing["ifPlanned"] = effective_if
             else:
                 existing.pop("ifPlanned", None)
+            if structure_payload.tss is None:
+                existing.pop("tssSource", None)
+                if params.tss_planned is None:
+                    existing.pop("tssPlanned", None)
         elif raw_structure_payload is not None:
             existing["structure"] = raw_structure_payload
 

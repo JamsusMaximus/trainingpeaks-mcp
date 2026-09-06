@@ -84,6 +84,47 @@ class TestCreateWorkoutWithStructure:
         assert "polyline" in parsed
 
     @pytest.mark.asyncio
+    async def test_create_hr_structure_does_not_write_power_load_estimate(self):
+        structure = {
+            "primary_intensity_metric": "percentOfThresholdHr",
+            "steps": [
+                {
+                    "name": "Tempo",
+                    "duration_seconds": 1800,
+                    "intensity_min": 85,
+                    "intensity_max": 90,
+                },
+            ],
+        }
+        create_response = APIResponse(
+            success=True,
+            data={
+                "workoutId": 7001,
+                "title": "HR Structure",
+                "workoutDay": "2026-03-01T00:00:00",
+            },
+        )
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=create_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport="Run",
+                title="HR Structure",
+                structure=structure,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.post.call_args[1]["json"]
+        assert payload["totalTimePlanned"] == 0.5
+        assert "ifPlanned" not in payload
+        assert "tssPlanned" not in payload
+
+    @pytest.mark.asyncio
     async def test_create_with_explicit_duration_overrides_structure(self):
         """Explicit duration should override structure-computed duration."""
         structure = {
@@ -587,6 +628,47 @@ class TestUpdateWorkout:
         assert put_payload["ifPlanned"] == pytest.approx(0.771, abs=0.001)
         assert put_payload["ifPlanned"] < 1
         assert put_payload["tssPlanned"] > 1
+
+    @pytest.mark.asyncio
+    async def test_update_hr_structure_clears_stale_power_load_estimate(self):
+        existing = {
+            "workoutId": 1001,
+            "ifPlanned": 0.91,
+            "tssPlanned": 75,
+            "tssSource": 1,
+        }
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+        structure = {
+            "primary_intensity_metric": "percentOfThresholdHr",
+            "steps": [
+                {
+                    "name": "Tempo",
+                    "duration_seconds": 1800,
+                    "intensity_min": 85,
+                    "intensity_max": 90,
+                },
+            ],
+        }
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_update_workout(
+                workout_id="1001",
+                structure=structure,
+            )
+
+        assert result["success"] is True
+        payload = mock_instance.put.call_args[1]["json"]
+        assert payload["totalTimePlanned"] == 0.5
+        assert "ifPlanned" not in payload
+        assert "tssPlanned" not in payload
+        assert "tssSource" not in payload
 
     @pytest.mark.asyncio
     async def test_update_with_structure_explicit_duration_and_tss_override(self):

@@ -59,6 +59,8 @@ class TestWorkoutSummary:
             "totalTime": 3500,
             "tssPlanned": 80,
             "tssActual": 75,
+            "tssSource": 1,
+            "structure": {"structure": []},
             "completed": True,
         }
         workout = WorkoutSummary.model_validate(data)
@@ -70,6 +72,8 @@ class TestWorkoutSummary:
         assert workout.is_completed is True
         assert workout.workout_status == "completed"
         assert workout.sport == "Bike"  # resolved from workoutTypeValueId
+        assert workout.tss_source == 1
+        assert workout.structure == {"structure": []}
 
     def test_parse_planned_workout(self):
         """Test parsing planned workout summary."""
