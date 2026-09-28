@@ -224,6 +224,8 @@ class TestTpGetWorkout:
             "feeling": 3,
             "newComment": "Felt controlled.",
             "hasPrivateWorkoutNoteForCaller": True,
+            "coachComments": "Just roll through everything here.",
+            "athleteComments": "Legs felt heavy.",
         })
         workout_response = APIResponse(success=True, data=workout_data)
         details_response = APIResponse(success=True, data={})
@@ -240,6 +242,35 @@ class TestTpGetWorkout:
         assert result["feeling"] == 3
         assert result["new_comment"] == "Felt controlled."
         assert result["has_private_workout_note"] is True
+        assert result["coach_comment"] == "Just roll through everything here."
+        assert result["athlete_comment"] == "Legs felt heavy."
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("comment_fields, expected", [
+        ({}, None),
+        ({"coachComments": None, "athleteComments": None}, None),
+        ({"coachComments": "", "athleteComments": ""}, ""),
+    ])
+    async def test_get_workout_preserves_empty_activity_comments(
+        self, mock_api_responses, comment_fields, expected,
+    ):
+        """Activity-comment keys remain present even when no comment was entered."""
+        workout_data = dict(mock_api_responses["workout_detail"])
+        workout_data.update(comment_fields)
+        workout_response = APIResponse(success=True, data=workout_data)
+        details_response = APIResponse(success=True, data={})
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(side_effect=[workout_response, details_response])
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout("1001")
+
+        assert result["coach_comment"] == expected
+        assert result["athlete_comment"] == expected
+        assert result["workout_comments"] == []
 
     @pytest.mark.asyncio
     async def test_get_workout_not_found(self):
