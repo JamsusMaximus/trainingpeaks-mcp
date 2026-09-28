@@ -4,25 +4,7 @@ from datetime import date, timedelta
 from typing import Any, Literal
 
 from tp_mcp.client import TPClient
-
-
-async def _get_athlete_id(client: TPClient) -> int | None:
-    """Get athlete ID from profile."""
-    if client.athlete_id:
-        return client.athlete_id
-
-    response = await client.get("/users/v3/user")
-    if response.success and response.data:
-        user_data = response.data.get("user", response.data)
-        athlete_id = user_data.get("personId")
-        if not athlete_id:
-            athletes = user_data.get("athletes", [])
-            if athletes:
-                athlete_id = athletes[0].get("athleteId")
-        client.athlete_id = athlete_id
-        return athlete_id
-    return None
-
+from tp_mcp.tools._helpers import get_athlete_id
 
 # Valid PR types by sport
 BIKE_PR_TYPES = [
@@ -41,6 +23,7 @@ async def tp_get_peaks(
     sport: Literal["Bike", "Run"],
     pr_type: str,
     days: int = 3650,
+    athlete_id: int | None = None,
 ) -> dict[str, Any]:
     """Get personal records (peaks) for a sport and PR type.
 
@@ -62,7 +45,7 @@ async def tp_get_peaks(
         }
 
     async with TPClient() as client:
-        athlete_id = await _get_athlete_id(client)
+        athlete_id = await get_athlete_id(client, athlete_id)
         if not athlete_id:
             return {
                 "isError": True,
@@ -123,7 +106,7 @@ async def tp_get_peaks(
             }
 
 
-async def tp_get_workout_prs(workout_id: str) -> dict[str, Any]:
+async def tp_get_workout_prs(workout_id: str, athlete_id: int | None = None) -> dict[str, Any]:
     """Get personal records set during a specific workout.
 
     Args:
@@ -133,7 +116,7 @@ async def tp_get_workout_prs(workout_id: str) -> dict[str, Any]:
         Dict with personal records from that workout.
     """
     async with TPClient() as client:
-        athlete_id = await _get_athlete_id(client)
+        athlete_id = await get_athlete_id(client, athlete_id)
         if not athlete_id:
             return {
                 "isError": True,

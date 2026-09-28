@@ -4,34 +4,14 @@ from datetime import date
 from typing import Any, Literal
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
-
-
-async def _get_athlete_id(client: TPClient) -> int | None:
-    """Get athlete ID from profile."""
-    if client.athlete_id:
-        return client.athlete_id
-
-    response = await client.get("/users/v3/user")
-    if response.success and response.data:
-        # API returns nested structure: { user: { ... } }
-        user_data = response.data.get("user", response.data)
-
-        # Try personId first, then athletes array
-        athlete_id = user_data.get("personId")
-        if not athlete_id:
-            athletes = user_data.get("athletes", [])
-            if athletes:
-                athlete_id = athletes[0].get("athleteId")
-
-        client.athlete_id = athlete_id
-        return athlete_id
-    return None
+from tp_mcp.tools._helpers import get_athlete_id
 
 
 async def tp_get_workouts(
     start_date: str,
     end_date: str,
     workout_filter: Literal["all", "planned", "completed"] = "all",
+    athlete_id: int | None = None,
 ) -> dict[str, Any]:
     """Get workouts for a date range.
 
@@ -71,7 +51,7 @@ async def tp_get_workouts(
         }
 
     async with TPClient() as client:
-        athlete_id = await _get_athlete_id(client)
+        athlete_id = await get_athlete_id(client, athlete_id)
         if not athlete_id:
             return {
                 "isError": True,
@@ -139,7 +119,7 @@ async def tp_get_workouts(
             }
 
 
-async def tp_get_workout(workout_id: str) -> dict[str, Any]:
+async def tp_get_workout(workout_id: str, athlete_id: int | None = None) -> dict[str, Any]:
     """Get full details for a single workout.
 
     Args:
@@ -149,7 +129,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
         Dict with full workout details including structure.
     """
     async with TPClient() as client:
-        athlete_id = await _get_athlete_id(client)
+        athlete_id = await get_athlete_id(client, athlete_id)
         if not athlete_id:
             return {
                 "isError": True,
@@ -211,3 +191,98 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "error_code": "API_ERROR",
                 "message": f"Failed to parse workout: {e}",
             }
+
+
+# TrainingPeaks workoutTypeValueId per sport
+SPORT_TYPE_IDS = {
+    "swim": 1,
+    "bike": 2,
+    "run": 3,
+    "strength": 9,
+    "other": 100,
+}
+
+
+async def tp_create_workout(
+    workout_date: str,
+    sport: str,
+    title: str,
+    description: str | None = None,
+    duration_minutes: float | None = None,
+    distance_km: float | None = None,
+    tss: float | None = None,
+    start_time: str | None = None,
+    athlete_id: int | None = None,
+) -> dict[str, Any]:
+    """Create a planned workout on the athlete's calendar.
+
+    Args:
+        workout_date: Day in ISO format (YYYY-MM-DD).
+        sport: One of SPORT_TYPE_IDS keys.
+        title: Workout title.
+        description: Workout description shown to the athlete.
+        duration_minutes: Planned duration.
+        distance_km: Planned distance.
+        tss: Planned TSS.
+        start_time: Planned start time (HH:MM).
+
+    Returns:
+        Dict with the new workout id, date and title.
+    """
+    try:
+        day = date.fromisoformat(workout_date)
+    except ValueError as e:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Invalid date format: {e}. Use YYYY-MM-DD.",
+        }
+
+    if sport not in SPORT_TYPE_IDS:
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"Unknown sport '{sport}'. Use one of: {', '.join(SPORT_TYPE_IDS)}.",
+        }
+
+    async with TPClient() as client:
+        athlete_id = await get_athlete_id(client, athlete_id)
+        if not athlete_id:
+            return {
+                "isError": True,
+                "error_code": "AUTH_INVALID",
+                "message": "Could not get athlete ID. Re-authenticate.",
+            }
+
+        day_str = day.isoformat()
+        body: dict[str, Any] = {
+            "athleteId": athlete_id,
+            "workoutDay": f"{day_str}T00:00:00",
+            "workoutTypeValueId": SPORT_TYPE_IDS[sport],
+            "title": title,
+        }
+        if description:
+            body["description"] = description
+        if duration_minutes:
+            body["totalTimePlanned"] = duration_minutes / 60
+        if distance_km:
+            body["distancePlanned"] = distance_km * 1000
+        if tss:
+            body["tssPlanned"] = tss
+        if start_time:
+            body["startTimePlanned"] = f"{day_str}T{start_time}:00"
+
+        response = await client.post(f"/fitness/v6/athletes/{athlete_id}/workouts", json=body)
+
+        if response.is_error:
+            return {
+                "isError": True,
+                "error_code": response.error_code.value if response.error_code else "API_ERROR",
+                "message": response.message,
+            }
+
+        return {
+            "id": str((response.data or {}).get("workoutId")),
+            "date": day_str,
+            "title": title,
+        }

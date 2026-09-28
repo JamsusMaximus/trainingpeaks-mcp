@@ -16,6 +16,8 @@ from mcp.types import (
 from tp_mcp.auth import get_credential, validate_auth
 from tp_mcp.tools import (
     tp_auth_status,
+    tp_create_workout,
+    tp_get_athletes,
     tp_get_fitness,
     tp_get_peaks,
     tp_get_profile,
@@ -37,8 +39,25 @@ logger = logging.getLogger("tp-mcp")
 server = Server("trainingpeaks-mcp")
 
 
+# Reusable schema fragment for athlete_id parameter
+_ATHLETE_ID_PROP = {
+    "athlete_id": {
+        "type": "integer",
+        "description": "Athlete ID (for coach accounts). Get IDs from tp_get_athletes. Omit to use default.",
+    },
+}
+
 # Tool descriptions: concise but guide LLM to efficient usage
 TOOLS = [
+    Tool(
+        name="tp_get_athletes",
+        description="List athletes accessible to this account. Use first for coach accounts to get athlete IDs.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
     Tool(
         name="tp_auth_status",
         description="Check auth status. Use only when other tools return auth errors.",
@@ -53,7 +72,9 @@ TOOLS = [
         description="Get athlete profile. Rarely needed - other tools work without it.",
         inputSchema={
             "type": "object",
-            "properties": {},
+            "properties": {
+                **_ATHLETE_ID_PROP,
+            },
             "required": [],
         },
     ),
@@ -77,6 +98,7 @@ TOOLS = [
                     "description": "Filter: all, planned, or completed",
                     "default": "all",
                 },
+                **_ATHLETE_ID_PROP,
             },
             "required": ["start_date", "end_date"],
         },
@@ -91,8 +113,31 @@ TOOLS = [
                     "type": "string",
                     "description": "Workout ID from tp_get_workouts",
                 },
+                **_ATHLETE_ID_PROP,
             },
             "required": ["workout_id"],
+        },
+    ),
+    Tool(
+        name="tp_create_workout",
+        description="Create a planned workout on the calendar. One call per workout.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD"},
+                "sport": {
+                    "type": "string",
+                    "enum": ["swim", "bike", "run", "strength", "other"],
+                },
+                "title": {"type": "string"},
+                "description": {"type": "string", "description": "Instructions shown to the athlete"},
+                "duration_minutes": {"type": "number"},
+                "distance_km": {"type": "number"},
+                "tss": {"type": "number"},
+                "start_time": {"type": "string", "description": "HH:MM"},
+                **_ATHLETE_ID_PROP,
+            },
+            "required": ["date", "sport", "title"],
         },
     ),
     Tool(
@@ -105,6 +150,7 @@ TOOLS = [
                     "type": "string",
                     "description": "Workout ID from tp_get_workouts",
                 },
+                **_ATHLETE_ID_PROP,
             },
             "required": ["workout_id"],
         },
@@ -129,6 +175,7 @@ TOOLS = [
                     "description": "Lookback days. Default 3650 (all-time).",
                     "default": 3650,
                 },
+                **_ATHLETE_ID_PROP,
             },
             "required": ["sport", "pr_type"],
         },
@@ -152,6 +199,7 @@ TOOLS = [
                     "type": "string",
                     "description": "YYYY-MM-DD. For historical queries (e.g., 2022-03-01).",
                 },
+                **_ATHLETE_ID_PROP,
             },
             "required": [],
         },
@@ -188,28 +236,50 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     try:
         result: dict[str, Any]
+        athlete_id = arguments.get("athlete_id")
 
-        if name == "tp_auth_status":
+        if name == "tp_get_athletes":
+            result = await tp_get_athletes()
+
+        elif name == "tp_auth_status":
             result = await tp_auth_status()
 
         elif name == "tp_get_profile":
-            result = await tp_get_profile()
+            result = await tp_get_profile(
+                athlete_id=athlete_id,
+            )
 
         elif name == "tp_get_workouts":
             result = await tp_get_workouts(
                 start_date=arguments["start_date"],
                 end_date=arguments["end_date"],
                 workout_filter=arguments.get("type", "all"),
+                athlete_id=athlete_id,
             )
 
         elif name == "tp_get_workout":
             result = await tp_get_workout(
                 workout_id=arguments["workout_id"],
+                athlete_id=athlete_id,
+            )
+
+        elif name == "tp_create_workout":
+            result = await tp_create_workout(
+                workout_date=arguments["date"],
+                sport=arguments["sport"],
+                title=arguments["title"],
+                description=arguments.get("description"),
+                duration_minutes=arguments.get("duration_minutes"),
+                distance_km=arguments.get("distance_km"),
+                tss=arguments.get("tss"),
+                start_time=arguments.get("start_time"),
+                athlete_id=athlete_id,
             )
 
         elif name == "tp_get_workout_prs":
             result = await tp_get_workout_prs(
                 workout_id=arguments["workout_id"],
+                athlete_id=athlete_id,
             )
 
         elif name == "tp_get_peaks":
@@ -217,6 +287,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 sport=arguments["sport"],
                 pr_type=arguments["pr_type"],
                 days=arguments.get("days", 3650),
+                athlete_id=athlete_id,
             )
 
         elif name == "tp_get_fitness":
@@ -224,6 +295,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 days=arguments.get("days", 90),
                 start_date=arguments.get("start_date"),
                 end_date=arguments.get("end_date"),
+                athlete_id=athlete_id,
             )
 
         elif name == "tp_refresh_auth":

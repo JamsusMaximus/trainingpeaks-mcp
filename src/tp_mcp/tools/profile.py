@@ -5,7 +5,7 @@ from typing import Any
 from tp_mcp.client import TPClient
 
 
-async def tp_get_profile() -> dict[str, Any]:
+async def tp_get_profile(athlete_id: int | None = None) -> dict[str, Any]:
     """Get TrainingPeaks athlete profile.
 
     Returns:
@@ -32,12 +32,13 @@ async def tp_get_profile() -> dict[str, Any]:
             # API returns nested structure: { user: { ... } }
             user_data = response.data.get("user", response.data)
 
-            # Get athlete ID from athletes array or personId
-            athlete_id = user_data.get("personId")
+            # Use provided athlete_id or auto-detect from profile
             if not athlete_id:
-                athletes = user_data.get("athletes", [])
-                if athletes:
-                    athlete_id = athletes[0].get("athleteId")
+                athlete_id = user_data.get("personId")
+                if not athlete_id:
+                    athletes = user_data.get("athletes", [])
+                    if athletes:
+                        athlete_id = athletes[0].get("athleteId")
 
             # Check if premium
             is_premium = user_data.get("settings", {}).get("account", {}).get("isPremium", False)
