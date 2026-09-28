@@ -46,6 +46,11 @@ Ask your AI assistant things like:
 | `tp_download_workout_file` | Download a workout's device file |
 | `tp_delete_workout_file` | Delete an attached file from a workout |
 
+`tp_get_workout` includes `coach_comment` (pre-activity instructions) and
+`athlete_comment` (post-activity feedback), separate from the chat-style
+`workout_comments` list. The field names match `tp_update_workout`; absent or
+null comments are returned as `null`, and empty strings are preserved.
+
 ### Analysis & Performance
 | Tool | Description |
 |------|-------------|
