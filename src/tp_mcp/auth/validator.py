@@ -63,7 +63,7 @@ async def validate_auth(cookie: str) -> AuthResult:
 
             if response.status_code == 200:
                 data = response.json()
-                token_info = data.get("token", {})
+                token_info = data.get("token") or {}
                 access_token = token_info.get("access_token")
 
                 # Token endpoint only returns the token, not user info.
@@ -82,7 +82,7 @@ async def validate_auth(cookie: str) -> AuthResult:
                             },
                         )
                         if user_resp.status_code == 200:
-                            user_data = user_resp.json().get("user", {})
+                            user_data = user_resp.json().get("user") or {}
                             email = user_data.get("email")
                             user_id = user_data.get("userId")
                             # personId is the authenticated user's own ID.
@@ -92,6 +92,20 @@ async def validate_auth(cookie: str) -> AuthResult:
                             athlete_id = user_data.get("personId")
                     except httpx.RequestError:
                         pass  # User info is best-effort; auth is still valid
+
+                if not access_token:
+                    if data.get("success") is False:
+                        return AuthResult(
+                            status=AuthStatus.EXPIRED,
+                            message=(
+                                "Session rejected by TrainingPeaks (success: false) - "
+                                "re-authenticate with a fresh cookie"
+                            ),
+                        )
+                    return AuthResult(
+                        status=AuthStatus.INVALID,
+                        message="Token endpoint returned 200 without an access_token",
+                    )
 
                 return AuthResult(
                     status=AuthStatus.VALID,

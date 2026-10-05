@@ -133,3 +133,66 @@ class TestValidateAuth:
 
             assert result.is_valid is False
             assert result.status == AuthStatus.NETWORK_ERROR
+
+
+class TestValidateAuthRejectedSession:
+    """Token endpoint returns 200 but no usable token (#181)."""
+
+    @pytest.mark.asyncio
+    async def test_rejected_session_null_token(self):
+        """200 with {"success": false, "token": null} is EXPIRED, not a crash or VALID."""
+        token_response = MagicMock()
+        token_response.status_code = 200
+        token_response.json.return_value = {"success": False, "token": None}
+
+        with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get.side_effect = [token_response]
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await validate_auth("dead_cookie")
+
+            assert result.is_valid is False
+            assert result.status == AuthStatus.EXPIRED
+            assert result.athlete_id is None
+            assert mock_instance.get.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_missing_access_token_is_invalid(self):
+        """200 with no access_token and no success=false flag is INVALID."""
+        token_response = MagicMock()
+        token_response.status_code = 200
+        token_response.json.return_value = {"success": True, "token": {}}
+
+        with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get.side_effect = [token_response]
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await validate_auth("odd_cookie")
+
+            assert result.is_valid is False
+            assert result.status == AuthStatus.INVALID
+
+    @pytest.mark.asyncio
+    async def test_null_user_profile_stays_valid(self):
+        """A valid token with a null "user" payload does not crash (best-effort profile)."""
+        token_response = MagicMock()
+        token_response.status_code = 200
+        token_response.json.return_value = {
+            "success": True,
+            "token": {"access_token": "test_token", "expires_in": 3600},
+        }
+        user_response = MagicMock()
+        user_response.status_code = 200
+        user_response.json.return_value = {"user": None}
+
+        with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get.side_effect = [token_response, user_response]
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await validate_auth("valid_cookie")
+
+            assert result.status == AuthStatus.VALID
+            assert result.athlete_id is None
