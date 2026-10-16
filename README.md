@@ -415,7 +415,7 @@ The guarantee is deterministic and enforced server-side at two layers - it does 
 1. **Listing**: write tools are never included in `tools/list`, so the AI cannot see or select them.
 2. **Dispatch**: if a write tool is called anyway (stale client cache), the server rejects it with `Tool disabled: server is running in read-only mode.` before any TrainingPeaks API call is made.
 
-The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, plus `tp_auth_status`) - any tool not matching it, including tools added in future versions, is excluded by default. Note that `tp_refresh_auth` is also disabled in this mode; use `tp-mcp auth` in a terminal to re-authenticate.
+The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, plus `tp_auth_status` and `tp_refresh_auth`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too).
 
 ### Cookie Storage
 
@@ -493,6 +493,26 @@ doesn't fit the conventions, add it to the exception sets next to that block
 (`_DESTRUCTIVE_TOOLS`, `_NON_IDEMPOTENT_WRITES`, `_READ_ONLY_EXTRA`,
 `_TITLE_OVERRIDES`). `tests/test_tool_metadata.py` fails with instructions if
 a tool is misclassified, and the README tool tables above should gain a row.
+
+### Tool plugins
+
+A separately installed package can contribute tools without changing this
+repository. Declare an entry point in the `tp_mcp.plugins` group:
+
+```toml
+[project.entry-points."tp_mcp.plugins"]
+my_plugin = "my_package.tp_tools:tools"
+```
+
+`tools()` takes no arguments and returns an iterable of `(Tool, handler)`
+pairs, where `Tool` is `mcp.types.Tool` and `handler` is
+`async def handler(args: dict) -> dict`, the same contract as the built-in
+handlers. Plugin tools are loaded when the server module imports and go
+through the same treatment as built-ins: they get the `athlete` parameter,
+a derived title and annotations, and the read-only allowlist applies to
+them by name — a plugin cannot opt out of `--read-only`. A tool whose name
+collides with an existing one is skipped and logged, as is a plugin that
+fails to import; neither stops the server.
 
 ## Licence
 

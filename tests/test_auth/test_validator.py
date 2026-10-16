@@ -113,6 +113,27 @@ class TestValidateAuth:
             assert result.status == AuthStatus.INVALID
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [{"token": None}, {"success": True}, {"token": {}}])
+    async def test_null_token_reports_invalid_instead_of_crashing(self, body):
+        """A revoked cookie answers 200 with "token": null. That must come back
+        as INVALID with a message, never as an AttributeError."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = body
+
+        with patch("tp_mcp.auth.validator.httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.get.return_value = mock_response
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await validate_auth("revoked_cookie")
+
+            assert result.is_valid is False
+            assert result.status == AuthStatus.INVALID
+            assert "re-authenticate" in result.message.lower()
+            mock_instance.get.assert_awaited_once()  # no user lookup without a token
+
+    @pytest.mark.asyncio
     async def test_empty_cookie(self):
         """Test validation with empty cookie."""
         result = await validate_auth("")

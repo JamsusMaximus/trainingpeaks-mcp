@@ -165,6 +165,73 @@ class TestEnsureAthleteId:
         client.get.assert_not_called()
 
 
+class TestAthleteNameResolution:
+    """Coach roster targeting by name: exact on the letters, blind to stray
+    whitespace, and never a guess when two athletes match."""
+
+    ROSTER = {
+        "user": {
+            "personId": 1,
+            "email": "coach@example.com",
+            "athletes": [
+                {"athleteId": 2405594, "firstName": "Hannes ", "lastName": " Kotze", "coachedBy": 1},
+                {"athleteId": 1536862, "firstName": "Donovan", "lastName": "Le Cok", "coachedBy": 1},
+                {"athleteId": 2052598, "firstName": "Tobias", "lastName": "Lillelund", "coachedBy": 1},
+                {"athleteId": 7, "firstName": "Hannes", "lastName": "Other", "coachedBy": 1},
+            ],
+        }
+    }
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        TPClient._cached_athlete_id = None
+        TPClient._cached_user_data = None
+        yield
+        TPClient._cached_athlete_id = None
+        TPClient._cached_user_data = None
+
+    def _client(self):
+        client = TPClient()
+        client.get = AsyncMock(return_value=APIResponse(success=True, data=self.ROSTER))
+        return client
+
+    async def _resolve(self, target):
+        from tp_mcp.client.context import athlete_override
+
+        token = athlete_override.set(target)
+        try:
+            return await self._client().ensure_athlete_id()
+        finally:
+            athlete_override.reset(token)
+
+    @pytest.mark.parametrize(
+        "target",
+        ["Hannes  Kotze", "Hannes Kotze", "hannes kotze", "  Hannes   Kotze  ", "Kotze", " kotze "],
+    )
+    async def test_roster_whitespace_does_not_block_a_match(self, target):
+        """The live roster carries 'Hannes  Kotze' (double space); a trailing
+        space on firstName made 'Hannes Kotze' and 'Hannes' miss (2026-10-16)."""
+        assert await self._resolve(target) == 2405594
+
+    async def test_full_name_with_multiword_surname(self):
+        assert await self._resolve("Donovan Le Cok") == 1536862
+        assert await self._resolve("le cok") == 1536862
+
+    async def test_ambiguous_first_name_raises_not_picks(self):
+        with pytest.raises(ValueError, match="Ambiguous athlete name 'Hannes' matches 2 athletes"):
+            await self._resolve("Hannes")
+
+    async def test_unknown_name_returns_none(self):
+        assert await self._resolve("Nobody Known") is None
+
+    async def test_blank_name_matches_nothing(self):
+        """Whitespace-only input must not match an athlete whose fields are empty."""
+        assert await self._resolve("   ") is None
+
+    async def test_numeric_id_still_resolves_directly(self):
+        assert await self._resolve("2052598") == 2052598
+
+
 class TestSharedTokenCache:
     """Tests for shared TokenCache across TPClient instances."""
 

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from importlib.metadata import entry_points
 from typing import Any
 
 from mcp.server import Server, ServerRequestContext
@@ -544,7 +545,13 @@ TOOLS = [
         description="Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file.",
         input_schema={
             "type": "object",
-            "properties": {"workout_id": {"type": "string"}},
+            "properties": {
+                "workout_id": {"type": "string"},
+                "output_path": {
+                    "type": "string",
+                    "description": "Directory or full path for the time-series JSON file",
+                },
+            },
             "required": ["workout_id"],
         },
     ),
@@ -1474,6 +1481,58 @@ TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Third-party tool plugins
+#
+# Any installed package can contribute tools through the "tp_mcp.plugins"
+# entry-point group. Each entry point names a zero-argument callable returning
+# an iterable of (Tool, handler) pairs, where handler is `async def h(args:
+# dict) -> dict`, the same contract as the built-in handlers below. Plugin
+# tools are appended to TOOLS *before* the athlete injection and metadata
+# derivation loops run, so they get the `athlete` parameter, a title,
+# annotations and the read-only predicate exactly like built-ins. A plugin
+# whose name matches the write conventions is excluded under --read-only
+# like any other write tool; there is no way to opt out of that predicate.
+# ---------------------------------------------------------------------------
+_PLUGIN_GROUP = "tp_mcp.plugins"
+
+
+def _load_plugins() -> list[tuple[Tool, Any]]:
+    """Collect (Tool, handler) pairs from every tp_mcp.plugins entry point.
+
+    A plugin that fails to import or returns malformed pairs is logged and
+    skipped; it never stops the server. A tool name that collides with a
+    built-in or an earlier plugin is skipped, so a plugin can never replace
+    an existing tool.
+    """
+    found: list[tuple[Tool, Any]] = []
+    taken = {t.name for t in TOOLS}
+    for ep in entry_points(group=_PLUGIN_GROUP):
+        try:
+            pairs = list(ep.load()())
+        except Exception:
+            logger.exception("Plugin %s failed to load; skipped", ep.name)
+            continue
+        for pair in pairs:
+            try:
+                tool, handler = pair
+                if not isinstance(tool, Tool) or not callable(handler):
+                    raise TypeError("expected (Tool, async handler)")
+            except (TypeError, ValueError):
+                logger.error("Plugin %s returned a malformed entry %r; skipped", ep.name, pair)
+                continue
+            if tool.name in taken:
+                logger.error("Plugin %s: tool %s collides with an existing tool; skipped", ep.name, tool.name)
+                continue
+            taken.add(tool.name)
+            found.append((tool, handler))
+        logger.info("Plugin %s registered %d tool(s)", ep.name, len(found))
+    return found
+
+
+_PLUGIN_TOOLS = _load_plugins()
+TOOLS.extend(_tool for _tool, _ in _PLUGIN_TOOLS)
+
+# ---------------------------------------------------------------------------
 # Coach account support: inject 'athlete' parameter into all applicable tools
 # ---------------------------------------------------------------------------
 _ATHLETE_EXEMPT_TOOLS = {
@@ -1510,7 +1569,10 @@ for _tool in TOOLS:
 # ---------------------------------------------------------------------------
 
 _READ_ONLY_PREFIXES = ("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_")
-_READ_ONLY_EXTRA = {"tp_auth_status"}
+# tp_refresh_auth writes only the local credential store (keyring / encrypted
+# file), never TrainingPeaks. Without it a read-only server whose cookie has
+# expired has no in-chat recovery path.
+_READ_ONLY_EXTRA = {"tp_auth_status", "tp_refresh_auth"}
 
 
 def _is_read_only_tool(name: str) -> bool:
@@ -1805,7 +1867,9 @@ async def _h_get_peaks(args):
     return await tp_get_peaks(sport=args["sport"], pr_type=args["pr_type"], days=args.get("days", 3650))
 
 @_handler("tp_analyze_workout")
-async def _h_analyze(args): return await tp_analyze_workout(workout_id=args["workout_id"])
+async def _h_analyze(args):
+    return await tp_analyze_workout(workout_id=args["workout_id"],
+                                    output_path=args.get("output_path"))
 
 # --- Structured strength / gym ---
 @_handler("tp_search_exercises")
@@ -2087,6 +2151,11 @@ async def _h_schedule_lib(args):
         athletes=args.get("athletes"),
     )
 
+
+# Plugin handlers join the dispatch table after the built-ins; collisions were
+# already rejected in _load_plugins, so nothing here can shadow a built-in.
+for _tool, _fn in _PLUGIN_TOOLS:
+    _TOOL_HANDLERS[_tool.name] = _fn
 
 _TOOLS_BY_NAME = {_tool.name: _tool for _tool in TOOLS}
 

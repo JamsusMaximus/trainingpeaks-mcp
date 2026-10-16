@@ -125,7 +125,12 @@ class TestListTools:
             "tp_apply_training_plan",
         }
         assert v2_tools.issubset(names)
-        assert len(names) == len(core_tools) + len(v2_tools)
+        # Built-ins only: an installed tp_mcp.plugins package adds tools of
+        # its own, which this count must not depend on.
+        from tp_mcp.server import _PLUGIN_TOOLS
+
+        builtin = names - {t.name for t, _ in _PLUGIN_TOOLS}
+        assert len(builtin) == len(core_tools) + len(v2_tools)
 
     @pytest.mark.asyncio
     async def test_create_workout_schema_includes_new_fields(self):

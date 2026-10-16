@@ -106,6 +106,50 @@ class TestDispatch:
         handler.assert_awaited_once()
 
 
+class TestRefreshAuthAllowed:
+    """tp_refresh_auth writes the local credential store, never TrainingPeaks,
+    and is the only in-chat recovery path once the cookie expires."""
+
+    async def test_refresh_auth_is_listed_in_read_only_mode(self):
+        set_read_only_mode(True)
+        assert "tp_refresh_auth" in {t.name for t in await list_tools()}
+
+    async def test_refresh_auth_dispatches_in_read_only_mode(self, monkeypatch):
+        handler = AsyncMock(return_value={"success": True})
+        monkeypatch.setitem(server._TOOL_HANDLERS, "tp_refresh_auth", handler)
+        set_read_only_mode(True)
+
+        result = _parse_result(await call_tool("tp_refresh_auth", {"browser": "chrome"}))
+
+        assert result == {"success": True}
+        handler.assert_awaited_once_with({"browser": "chrome"})
+
+    def test_refresh_auth_metadata_says_read_only(self):
+        tool = next(t for t in TOOLS if t.name == "tp_refresh_auth")
+        assert tool.annotations.read_only_hint is True
+        assert tool.annotations.destructive_hint is False
+
+
+class TestStartupValidationNonFatal:
+    """_validate_auth_on_startup only logs; a missing or dead credential must
+    never stop the server (the user can recover in-chat via tp_refresh_auth)."""
+
+    async def test_no_credential_returns_false(self, monkeypatch, caplog):
+        monkeypatch.setattr(server, "get_credential", lambda: MagicMock(success=False, cookie=None))
+        with caplog.at_level(logging.WARNING, logger="tp-mcp"):
+            assert await server._validate_auth_on_startup() is False
+        assert "No credential stored" in caplog.text
+
+    async def test_invalid_credential_returns_false(self, monkeypatch, caplog):
+        monkeypatch.setattr(server, "get_credential", lambda: MagicMock(success=True, cookie="dead"))
+        monkeypatch.setattr(
+            server, "validate_auth", AsyncMock(return_value=MagicMock(is_valid=False, message="revoked"))
+        )
+        with caplog.at_level(logging.WARNING, logger="tp-mcp"):
+            assert await server._validate_auth_on_startup() is False
+        assert "Authentication invalid: revoked" in caplog.text
+
+
 class TestEnvVar:
     @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "YES"])
     async def test_truthy_values_enable(self, monkeypatch, value):

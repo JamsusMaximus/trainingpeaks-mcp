@@ -63,8 +63,17 @@ async def validate_auth(cookie: str) -> AuthResult:
 
             if response.status_code == 200:
                 data = response.json()
-                token_info = data.get("token", {})
+                # A revoked cookie answers 200 with "token": null. .get(key, {})
+                # returns that None, so this crashed exactly where it should
+                # have reported the revocation.
+                token_info = data.get("token") or {}
                 access_token = token_info.get("access_token")
+                if not access_token:
+                    return AuthResult(
+                        status=AuthStatus.INVALID,
+                        message="TrainingPeaks returned no access token for this session "
+                        "cookie (revoked or malformed). Please re-authenticate.",
+                    )
 
                 # Token endpoint only returns the token, not user info.
                 # Fetch user profile with the access token.
@@ -72,26 +81,25 @@ async def validate_auth(cookie: str) -> AuthResult:
                 athlete_id = None
                 user_id = None
 
-                if access_token:
-                    try:
-                        user_resp = await client.get(
-                            f"{TP_API_BASE}/users/v3/user",
-                            headers={
-                                "Authorization": f"Bearer {access_token}",
-                                "Accept": "application/json",
-                            },
-                        )
-                        if user_resp.status_code == 200:
-                            user_data = user_resp.json().get("user", {})
-                            email = user_data.get("email")
-                            user_id = user_data.get("userId")
-                            # personId is the authenticated user's own ID.
-                            # Don't read athletes[0]: on a coach account that
-                            # list is the coached roster, so athletes[0] is
-                            # another athlete, not the coach (#75).
-                            athlete_id = user_data.get("personId")
-                    except httpx.RequestError:
-                        pass  # User info is best-effort; auth is still valid
+                try:
+                    user_resp = await client.get(
+                        f"{TP_API_BASE}/users/v3/user",
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                            "Accept": "application/json",
+                        },
+                    )
+                    if user_resp.status_code == 200:
+                        user_data = user_resp.json().get("user", {})
+                        email = user_data.get("email")
+                        user_id = user_data.get("userId")
+                        # personId is the authenticated user's own ID.
+                        # Don't read athletes[0]: on a coach account that
+                        # list is the coached roster, so athletes[0] is
+                        # another athlete, not the coach (#75).
+                        athlete_id = user_data.get("personId")
+                except httpx.RequestError:
+                    pass  # User info is best-effort; auth is still valid
 
                 return AuthResult(
                     status=AuthStatus.VALID,

@@ -2,13 +2,14 @@
 
 import base64
 import gzip
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from tp_mcp.client import TPClient
 
-FILE_DATA_DIR = Path(tempfile.gettempdir()) / "tp-mcp" / "files"
+# Stable default under the user's home — see the note on ANALYSIS_DATA_DIR in
+# analyze.py; tempfile.gettempdir() varies with the launching process's TMPDIR.
+FILE_DATA_DIR = Path.home() / ".tp-mcp" / "files"
 
 
 def _is_numeric_id(value: str, *, allow_negative: bool = False) -> bool:
