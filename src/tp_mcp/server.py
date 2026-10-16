@@ -1568,7 +1568,11 @@ for _tool in TOOLS:
 # every tool.
 # ---------------------------------------------------------------------------
 
-_READ_ONLY_PREFIXES = ("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_")
+# tp_render_* writes a file on the local disk (a report for a browser), like
+# tp_download_*, and never writes TrainingPeaks.
+_READ_ONLY_PREFIXES = (
+    "tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_", "tp_render_"
+)
 # tp_refresh_auth writes only the local credential store (keyring / encrypted
 # file), never TrainingPeaks. Without it a read-only server whose cookie has
 # expired has no in-chat recovery path.

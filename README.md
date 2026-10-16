@@ -191,6 +191,27 @@ out. The tools' text output is unaffected either way.)*
 
 ## Setup Options
 
+### One-click install (macOS)
+
+`scripts/install-macos.command` sets up the whole stack for Claude Desktop with no typing:
+
+1. Finds Python 3.10+. If there is none, it downloads Apple-notarised Python from python.org (checksum-verified) and opens its installer, so you click Continue / Agree / Install and type your Mac password.
+2. Downloads this repository at a fixed release tag into `~/claude-tools/trainingpeaks-mcp`. It uses `curl`, so neither git nor Xcode tools are needed. A previous install is moved aside, never deleted.
+3. Creates `.venv` and runs `pip install -e ".[browser]"`.
+4. Installs any tp-mcp plugin wheel (`*.whl`) placed beside the script (see [Tool plugins](#tool-plugins)).
+5. Adds the `trainingpeaks` server, with `--read-only`, to `claude_desktop_config.json`. Other servers and settings are kept, a dated `.bak` is written first, and a damaged file is left untouched.
+6. Runs `tp-mcp auth --from-browser chrome`. At the Keychain prompt, type your Mac password and click **Always Allow**.
+7. Restarts Claude Desktop.
+
+It prints one SUCCESS or FAILURE line and logs everything to `~/claude-tools/install-<date>.log`. `scripts/uninstall-macos.command` reverses it. It removes the config entry, offers `tp-mcp auth-clear`, and moves the install to the Trash. It keeps `~/.tp-mcp` unless you confirm.
+
+**Distributing it:** send it inside a `.zip`, because messaging apps and mail can drop the execute bit. A file received this way is quarantined, so the first double-click is blocked by Gatekeeper:
+
+- On **macOS 15 and later**, click **Done**, open **System Settings → Privacy & Security**, click **Open Anyway** next to the blocked file, authenticate, double-click it again, then click **Open Anyway**.
+- On **macOS 14 and earlier**, Control-click the file → **Open** → **Open**.
+
+Maintainer overrides: `TP_MCP_TAG` (release to install), `TP_MCP_TARBALL` (install from a local `.tar.gz`), `TP_INSTALL_SKIP_AUTH=1`, `TP_INSTALL_SKIP_APP=1`, `TP_INSTALL_NO_PAUSE=1`, `TP_INSTALL_NO_PYTHON_DOWNLOAD=1`.
+
 ### Option A: Auto-Setup with Claude Code
 
 If you have [Claude Code](https://claude.ai/code), paste this prompt:
@@ -415,7 +436,7 @@ The guarantee is deterministic and enforced server-side at two layers - it does 
 1. **Listing**: write tools are never included in `tools/list`, so the AI cannot see or select them.
 2. **Dispatch**: if a write tool is called anyway (stale client cache), the server rejects it with `Tool disabled: server is running in read-only mode.` before any TrainingPeaks API call is made.
 
-The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, plus `tp_auth_status` and `tp_refresh_auth`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too).
+The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, `tp_render_*`, plus `tp_auth_status` and `tp_refresh_auth`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too). `tp_render_*` tools, like `tp_download_*`, write a file on your own disk (a page for your browser) and nothing to TrainingPeaks.
 
 ### Cookie Storage
 

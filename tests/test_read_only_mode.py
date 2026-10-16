@@ -130,6 +130,16 @@ class TestRefreshAuthAllowed:
         assert tool.annotations.destructive_hint is False
 
 
+class TestRenderPrefixAllowed:
+    """tp_render_* writes a local file for a browser, like tp_download_*, and
+    never writes TrainingPeaks; a plugin's render tool is admitted by name."""
+
+    def test_render_prefix_is_read_only(self):
+        assert server._is_read_only_tool("tp_render_week")
+        assert not server._is_read_only_tool("tp_rendered_week")  # prefix, not substring
+        assert not server._is_read_only_tool("tp_update_render")
+
+
 class TestStartupValidationNonFatal:
     """_validate_auth_on_startup only logs; a missing or dead credential must
     never stop the server (the user can recover in-chat via tp_refresh_auth)."""
