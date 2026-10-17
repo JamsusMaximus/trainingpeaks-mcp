@@ -4,7 +4,8 @@
 # Double-click this file in Finder. It:
 #   1. removes the "trainingpeaks" server from Claude Desktop's config
 #      (a dated backup of the file is kept; other servers are untouched);
-#   2. offers to clear the stored TrainingPeaks sign-in from the Keychain;
+#   2. offers to clear the stored TrainingPeaks sign-in from the Keychain
+#      (and the installer's note of which account it was);
 #   3. moves ~/claude-tools/trainingpeaks-mcp (and any earlier installs the
 #      installer moved aside, trainingpeaks-mcp.old-*) to the Trash;
 #   4. asks before moving ~/.tp-mcp (downloaded data) to the Trash; the
@@ -107,6 +108,8 @@ STEP="clearing the TrainingPeaks sign-in"
 if [ -x "$INSTALL_DIR/.venv/bin/tp-mcp" ]; then
     if ask "Also remove the stored TrainingPeaks sign-in from this Mac?"; then
         "$INSTALL_DIR/.venv/bin/tp-mcp" auth-clear 2>&1 | tee -a "$LOG"
+        # The installer's note of which account was signed in (an email only).
+        rm -f "$TOOLS_DIR/.trainingpeaks-account"
     else
         say "TrainingPeaks sign-in kept."
     fi

@@ -11,17 +11,27 @@
 #   4. installs any tp-mcp plugin wheel (*.whl) placed beside this script;
 #   5. adds the "trainingpeaks" server, locked read-only, to Claude Desktop's
 #      config, keeping every other server and setting;
-#   6. signs in to TrainingPeaks from Chrome (Keychain prompt: type your Mac
+#   6. checks the stored TrainingPeaks sign-in; only when there is no working
+#      one does it sign in from Chrome (Keychain prompt: type your Mac
 #      password, click Always Allow);
 #   7. restarts Claude Desktop.
 # Everything is logged to ~/claude-tools/install-<date>.log.
 #
 # Safe to run again: it updates in place. An existing install is moved aside
-# (~/claude-tools/trainingpeaks-mcp.old-<date>), never deleted. Your
-# TrainingPeaks credential and ~/.tp-mcp data are not touched.
+# (~/claude-tools/trainingpeaks-mcp.old-<date>), never deleted. ~/.tp-mcp
+# (downloaded data, reports) is never read or changed.
+#
+# The TrainingPeaks sign-in lives in the macOS Keychain (with an encrypted
+# copy in ~/.config/trainingpeaks-mcp), not in ~/.tp-mcp. A sign-in that still
+# works is kept exactly as it is: Chrome is not read and the Keychain is not
+# written. A sign-in from Chrome replaces an expired one only if it is the same
+# account as before, or after you answer y when shown both. The account last
+# signed in is noted in ~/claude-tools/.trainingpeaks-account (an email
+# address, no credential) so that comparison works once the old one expires.
 #
 # Overrides (for testing and maintainers; a coach never needs these):
 #   TP_MCP_TAG=<tag>           release tag to install (default below)
+#   TP_INSTALL_PYTHON=<path>   use this Python 3.10+ instead of searching
 #   TP_MCP_TARBALL=<file>      install from a local .tar.gz instead of GitHub
 #   TP_INSTALL_SKIP_AUTH=1     skip the TrainingPeaks sign-in step
 #   TP_INSTALL_SKIP_APP=1      do not quit / reopen Claude Desktop
@@ -88,6 +98,10 @@ py_ok() {
 
 find_python() {
     local c
+    if [ -n "${TP_INSTALL_PYTHON:-}" ]; then
+        py_ok "$TP_INSTALL_PYTHON" && { echo "$TP_INSTALL_PYTHON"; return 0; }
+        return 1
+    fi
     # python.org installs first (newest version first), then Homebrew.
     for c in $(ls -d /Library/Frameworks/Python.framework/Versions/3.* 2>/dev/null | sort -t. -k3 -n -r); do
         if [ -x "$c/bin/python3" ] && py_ok "$c/bin/python3"; then
@@ -218,39 +232,178 @@ fi
 say "Claude Desktop settings: $RESULT (read-only lock on)."
 
 # ---------------------------------------------------------------- 6. TrainingPeaks sign-in
+# A sign-in that still works is kept as it is: Chrome is not read and the
+# Keychain is not written. Chrome is read only when there is no working
+# sign-in, and an expired sign-in is replaced by a different account only
+# after the coach answers y (see the header).
+ACCOUNT_FILE="$TOOLS_DIR/.trainingpeaks-account"
 AUTH_NOTE=""
-if [ -z "${TP_INSTALL_SKIP_AUTH:-}" ]; then
-    STEP="signing in to TrainingPeaks"
-    echo
-    echo "------------------------------------------------------------"
-    echo "Next: sign in to TrainingPeaks."
-    echo "Make sure Google Chrome is open and logged into"
-    echo "app.trainingpeaks.com with your COACH account."
-    echo
-    echo "A Keychain window will ask about \"Chrome Safe Storage\"."
-    echo "Type your Mac login password and click  Always Allow."
-    echo "------------------------------------------------------------"
-    pause "Chrome logged in? Press any key to continue."
-    RC=0
-    AUTH_OUT="$(trap - ERR; "$TPMCP" auth --from-browser chrome 2>&1)" || RC=$?
-    echo "$AUTH_OUT" >>"$LOG"
-    if [ $RC -ne 0 ]; then
-        say "$AUTH_OUT"
-        STEP="signing in to TrainingPeaks (log into app.trainingpeaks.com in Chrome, then run this installer again)"
-        finish_fail
+END_WARN=""
+
+# auth_status: run `tp-mcp auth-status`, which only reads the stored sign-in.
+# Sets AUTH_STATE (valid | none | invalid), AUTH_EMAIL and AUTH_REASON.
+auth_status() {
+    local out rc=0
+    out="$(trap - ERR; "$TPMCP" auth-status 2>&1)" || rc=$?
+    echo "$out" >>"$LOG"
+    AUTH_EMAIL="$(echo "$out" | sed -n 's/^ *Email: *//p' | tail -n 1)"
+    AUTH_REASON="$(echo "$out" | sed -n 's/^Authentication invalid: *//p' | tail -n 1)"
+    if [ $rc -eq 0 ]; then
+        AUTH_STATE=valid
+    elif grep -q '^Not authenticated' <<<"$out"; then
+        AUTH_STATE=none
+    else
+        AUTH_STATE=invalid
     fi
-    EMAIL="$(echo "$AUTH_OUT" | sed -n 's/.*Email: *//p' | tail -n 1)"
-    [ -z "$EMAIL" ] && EMAIL="$(echo "$AUTH_OUT" | sed -n 's/.*authenticated as: *//p' | tail -n 1)"
-    echo
-    echo "############################################################"
-    echo "  Signed in to TrainingPeaks as:  ${EMAIL:-unknown}"
-    echo "  This must be your COACH account. If it is not, log into"
-    echo "  the right account in Chrome and run this installer again."
-    echo "############################################################"
-    echo "Signed in as: ${EMAIL:-unknown}" >>"$LOG"
-    AUTH_NOTE=" Signed in as ${EMAIL:-unknown}."
-else
+}
+
+remember_account() {  # remember_account <email>: an address only, never a credential
+    if [ -n "$1" ] && [ "$1" != "unknown" ]; then echo "$1" > "$ACCOUNT_FILE"; fi
+}
+
+if [ -n "${TP_INSTALL_SKIP_AUTH:-}" ]; then
     say "TrainingPeaks sign-in skipped (TP_INSTALL_SKIP_AUTH)."
+else
+    STEP="checking the TrainingPeaks sign-in"
+    echo
+    say "Checking the TrainingPeaks sign-in already on this Mac..."
+    echo "(If a Keychain window asks about \"trainingpeaks-mcp\", type your Mac"
+    echo " login password and click  Always Allow.)"
+    auth_status
+    if [ "$AUTH_STATE" = valid ]; then
+        remember_account "$AUTH_EMAIL"
+        say "Existing TrainingPeaks sign-in kept (${AUTH_EMAIL:-account not shown}). Chrome was not read."
+        AUTH_NOTE=" Existing TrainingPeaks sign-in kept: ${AUTH_EMAIL:-unknown}."
+    else
+        SIGNIN_ARGS=("$WORK/signin-email")
+        if [ "$AUTH_STATE" = invalid ]; then
+            say "The TrainingPeaks sign-in on this Mac no longer works (${AUTH_REASON:-no reason given})."
+            if [ -s "$ACCOUNT_FILE" ]; then
+                SIGNIN_ARGS+=(--previous "$(head -n 1 "$ACCOUNT_FILE")")
+            else
+                SIGNIN_ARGS+=(--previous-unknown)
+            fi
+        else
+            say "No TrainingPeaks sign-in on this Mac yet."
+        fi
+        STEP="signing in to TrainingPeaks"
+        echo
+        echo "------------------------------------------------------------"
+        echo "Next: sign in to TrainingPeaks."
+        echo "Make sure Google Chrome is open and logged into"
+        echo "app.trainingpeaks.com with your COACH account."
+        echo
+        echo "A Keychain window will ask about \"Chrome Safe Storage\"."
+        echo "Type your Mac login password and click  Always Allow."
+        echo "------------------------------------------------------------"
+        pause "Chrome logged in? Press any key to continue."
+
+        # Written here rather than shipped in the release, so this installer
+        # works with any connector tag. Run with the connector's own Python.
+        cat > "$WORK/signin_from_chrome.py" <<'SIGNIN_PY'
+"""Sign in to TrainingPeaks from Chrome for install-macos.command.
+
+    python signin_from_chrome.py <result-file> [--previous EMAIL | --previous-unknown]
+
+--previous / --previous-unknown mean an expired sign-in is stored. If Chrome's
+account is not that one (or it is unknown), both are shown and the sign-in is
+replaced only on an answer of y.
+
+Exit 0: signed in and stored; the account email is written to <result-file>.
+Exit 1: the Chrome sign-in did not work; nothing was stored.
+Exit 3: the answer was not y; nothing was stored.
+"""
+import os
+import sys
+
+from tp_mcp.auth import store_credential, validate_auth_sync
+from tp_mcp.auth.browser import extract_tp_cookie
+
+
+def ask(question):
+    if os.environ.get("TP_INSTALL_NO_PAUSE"):
+        print(f"{question} [y/N] n (no questions in this run)")
+        return False
+    try:
+        return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
+
+
+def main(argv):
+    result_file, rest = argv[0], argv[1:]
+    previous = rest[1] if rest[:1] == ["--previous"] else None
+    previous_unknown = rest[:1] == ["--previous-unknown"]
+
+    got = extract_tp_cookie("chrome")
+    if not got.success or not got.cookie:
+        print(f"Could not read the TrainingPeaks sign-in from Chrome: {got.message}")
+        return 1
+    check = validate_auth_sync(got.cookie)
+    if not check.is_valid:
+        print(f"Chrome's TrainingPeaks sign-in did not work: {check.message}")
+        return 1
+    email = check.email or "unknown"
+
+    same = previous is not None and email.lower() == previous.strip().lower()
+    if previous_unknown or (previous is not None and not same):
+        print()
+        if previous_unknown:
+            print("This Mac has an expired TrainingPeaks sign-in, and which account it was is not recorded.")
+        else:
+            print("Chrome is signed into a DIFFERENT TrainingPeaks account than this Mac used before.")
+        print(f"  Previous sign-in (expired):  {previous or 'unknown'}")
+        print(f"  Chrome is signed in as:      {email}")
+        if not ask(f"Replace the previous sign-in with {email}?"):
+            print("The previous sign-in was kept; nothing was changed.")
+            return 3
+
+    stored = store_credential(got.cookie)
+    if not stored.success:
+        print(f"Could not save the sign-in: {stored.message}")
+        return 1
+    with open(result_file, "w") as fh:
+        fh.write(email + "\n")
+    print(f"Email: {email}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+SIGNIN_PY
+        RC=0
+        (trap - ERR; "$VPY" -u "$WORK/signin_from_chrome.py" "${SIGNIN_ARGS[@]}" 2>&1 | tee -a "$LOG") || RC=$?
+
+        if [ $RC -eq 0 ]; then
+            EMAIL="$(head -n 1 "$WORK/signin-email")"
+            remember_account "$EMAIL"
+            echo
+            echo "############################################################"
+            echo "  Signed in to TrainingPeaks as:  $EMAIL"
+            echo "  This must be your COACH account. If it is not, log into"
+            echo "  the right account in Chrome and run this installer again."
+            echo "############################################################"
+            echo "Signed in as: $EMAIL" >>"$LOG"
+            AUTH_NOTE=" Signed in as $EMAIL."
+        elif [ $RC -eq 3 ]; then
+            END_WARN="its TrainingPeaks sign-in has expired and was not replaced. Log into app.trainingpeaks.com in Chrome with YOUR coach account, then double-click this installer again."
+        else
+            # The first check may have hit a passing problem; if the existing
+            # sign-in works now, the connector is fine and this is no failure.
+            auth_status
+            if [ "$AUTH_STATE" = valid ]; then
+                remember_account "$AUTH_EMAIL"
+                say ""
+                say "Signing in from Chrome did not work (see above), but the existing"
+                say "TrainingPeaks sign-in (${AUTH_EMAIL:-unknown}) works, so it was kept."
+                say "The connector works with the existing sign-in."
+                AUTH_NOTE=" Existing TrainingPeaks sign-in kept: ${AUTH_EMAIL:-unknown}."
+            else
+                STEP="signing in to TrainingPeaks (log into app.trainingpeaks.com in Chrome with your COACH account, then run this installer again)"
+                finish_fail
+            fi
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------- 7. Restart Claude Desktop
@@ -269,8 +422,14 @@ fi
 trap - ERR
 echo
 echo "============================================================"
-echo "SUCCESS: the TrainingPeaks connector is installed.${AUTH_NOTE}"
-echo "Open a NEW chat in Claude Desktop and ask: \"Run tp_auth_status\"."
+if [ -n "$END_WARN" ]; then
+    echo "INSTALLED, NOT SIGNED IN: the connector is installed, but"
+    echo "$END_WARN"
+    echo "INSTALLED, NOT SIGNED IN" >>"$LOG"
+else
+    echo "SUCCESS: the TrainingPeaks connector is installed.${AUTH_NOTE}"
+    echo "Open a NEW chat in Claude Desktop and ask: \"Run tp_auth_status\"."
+    echo "SUCCESS" >>"$LOG"
+fi
 echo "============================================================"
-echo "SUCCESS" >>"$LOG"
 pause "Press any key to close this window."

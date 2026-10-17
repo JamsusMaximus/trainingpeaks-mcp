@@ -200,10 +200,10 @@ out. The tools' text output is unaffected either way.)*
 3. Creates `.venv` and runs `pip install -e ".[browser]"`.
 4. Installs any tp-mcp plugin wheel (`*.whl`) placed beside the script (see [Tool plugins](#tool-plugins)).
 5. Adds the `trainingpeaks` server, with `--read-only`, to `claude_desktop_config.json`. Other servers and settings are kept, a dated `.bak` is written first, and a damaged file is left untouched.
-6. Runs `tp-mcp auth --from-browser chrome`. At the Keychain prompt, type your Mac password and click **Always Allow**.
+6. Runs `tp-mcp auth-status`. A working sign-in is kept as it is: Chrome is not read and the Keychain is not written. Only when there is no working sign-in does it sign in from Chrome (at the Keychain prompt, type your Mac password and click **Always Allow**). An expired sign-in is replaced by a *different* account only after you answer `y` to a prompt showing both emails. The last account's email is noted in `~/claude-tools/.trainingpeaks-account` for that comparison. If the Chrome sign-in fails but the existing one works, it reports that and carries on.
 7. Restarts Claude Desktop.
 
-It prints one SUCCESS or FAILURE line and logs everything to `~/claude-tools/install-<date>.log`. `scripts/uninstall-macos.command` reverses it. It removes the config entry, offers `tp-mcp auth-clear`, and moves the install to the Trash. It keeps `~/.tp-mcp` unless you confirm.
+It never reads or changes `~/.tp-mcp`. The credential lives in the Keychain (plus an encrypted copy in `~/.config/trainingpeaks-mcp`). It prints one SUCCESS, FAILURE or INSTALLED, NOT SIGNED IN line and logs everything to `~/claude-tools/install-<date>.log`. `scripts/uninstall-macos.command` reverses it. It removes the config entry, offers `tp-mcp auth-clear`, and moves the install to the Trash. It keeps `~/.tp-mcp` unless you confirm.
 
 **Distributing it:** send it inside a `.zip`, because messaging apps and mail can drop the execute bit. A file received this way is quarantined, so the first double-click is blocked by Gatekeeper:
 
