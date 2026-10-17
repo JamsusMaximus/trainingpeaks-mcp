@@ -69,8 +69,20 @@ say() { echo "$*" | tee -a "$LOG"; }
 quiet() { "$@" >>"$LOG" 2>&1; }
 
 STEP="starting"
+DONE=""   # set once the final message (success or failure) has been shown
+WORK=""
+
 finish_fail() {
+    # set -E hands this trap to every $(...) and ( ... ) subshell. There its
+    # banner would be captured as the command's output (only the key-press
+    # prompt, on stderr, would show), and a failure there is either expected
+    # (e.g. ls finding no python.org Python) or reported again by the main
+    # script when the subshell's status comes back. So just leave the subshell.
+    if [ "${BASH_SUBSHELL:-0}" -gt 0 ]; then
+        exit 1
+    fi
     trap - ERR
+    DONE=1
     echo >>"$LOG"
     echo "FAILED during: $STEP" >>"$LOG"
     echo
@@ -84,6 +96,25 @@ finish_fail() {
     exit 1
 }
 trap finish_fail ERR
+
+# Any exit that did not show a final message (an error the ERR trap does not
+# see, such as an unset variable) still tells the coach what happened.
+on_exit() {
+    local rc=$?
+    if [ -n "$WORK" ]; then rm -rf "$WORK"; fi
+    if [ -z "$DONE" ] && [ "${BASH_SUBSHELL:-0}" -eq 0 ]; then
+        echo "STOPPED UNEXPECTEDLY (exit $rc) during: $STEP" >>"$LOG"
+        echo
+        echo "============================================================"
+        echo "FAILURE: the install stopped unexpectedly while $STEP."
+        echo "Nothing was sent anywhere. Please send this file to your"
+        echo "technical support person:"
+        echo "    $LOG"
+        echo "============================================================"
+        pause "Press any key to close this window."
+    fi
+}
+trap on_exit EXIT
 
 say "TrainingPeaks connector installer ($TAG) - $(date)"
 say "macOS $(sw_vers -productVersion 2>/dev/null || echo unknown), $(uname -m)"
@@ -103,7 +134,7 @@ find_python() {
         return 1
     fi
     # python.org installs first (newest version first), then Homebrew.
-    for c in $(ls -d /Library/Frameworks/Python.framework/Versions/3.* 2>/dev/null | sort -t. -k3 -n -r); do
+    for c in $(ls -d /Library/Frameworks/Python.framework/Versions/3.* 2>/dev/null | sort -t. -k3 -n -r || true); do
         if [ -x "$c/bin/python3" ] && py_ok "$c/bin/python3"; then
             echo "$c/bin/python3"; return 0
         fi
@@ -165,9 +196,7 @@ say "Python: $PY ($("$PY" --version 2>&1))"
 
 # ---------------------------------------------------------------- 2. Connector source
 STEP="downloading the connector ($TAG)"
-WORK="$(mktemp -d "$TOOLS_DIR/.download-XXXXXX")"
-cleanup() { rm -rf "$WORK"; }
-trap cleanup EXIT
+WORK="$(mktemp -d "$TOOLS_DIR/.download-XXXXXX")"   # removed by on_exit
 
 if [ -n "${TP_MCP_TARBALL:-}" ]; then
     say "Using local source: $TP_MCP_TARBALL"
@@ -420,6 +449,7 @@ if [ -z "${TP_INSTALL_SKIP_APP:-}" ]; then
 fi
 
 trap - ERR
+DONE=1
 echo
 echo "============================================================"
 if [ -n "$END_WARN" ]; then
