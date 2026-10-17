@@ -256,3 +256,20 @@ class TestStartupLog:
 
         expected = sum(1 for t in TOOLS if not _is_read_only_tool(t.name))
         assert f"READ-ONLY MODE: {expected} write tools disabled." in caplog.text
+
+
+class TestPluginNamesAdmittedByExactName:
+    """v3.2.2: the tp-analysis plugin's tp_refresh_manifest / tp_review_manifest
+    read the coach's libraries and write only the local template overlay under
+    ~/.tp-mcp/manifest/, never TrainingPeaks. They match no read prefix, and the
+    plugin predicate has no opt-in of its own, so they are admitted by exact
+    name like tp_refresh_auth. The set is deliberately exact: no tp_refresh_
+    prefix, which would admit any future write tool by accident."""
+
+    def test_manifest_tools_are_read_only(self):
+        assert _is_read_only_tool("tp_refresh_manifest")
+        assert _is_read_only_tool("tp_review_manifest")
+
+    def test_no_refresh_prefix_was_admitted(self):
+        assert not _is_read_only_tool("tp_refresh_anything_else")
+        assert not _is_read_only_tool("tp_review_anything_else")

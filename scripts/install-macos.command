@@ -40,7 +40,7 @@
 
 set -Eeuo pipefail
 
-TAG="${TP_MCP_TAG:-v3.2.1-ro1}"
+TAG="${TP_MCP_TAG:-v3.2.2-ro1}"
 REPO_TARBALL_URL="https://github.com/lukehardiman/trainingpeaks-mcp/archive/refs/tags/${TAG}.tar.gz"
 PY_VERSION="3.13.16"
 PY_PKG_URL="https://www.python.org/ftp/python/${PY_VERSION}/python-${PY_VERSION}-macos11.pkg"

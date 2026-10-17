@@ -1576,7 +1576,12 @@ _READ_ONLY_PREFIXES = (
 # tp_refresh_auth writes only the local credential store (keyring / encrypted
 # file), never TrainingPeaks. Without it a read-only server whose cookie has
 # expired has no in-chat recovery path.
-_READ_ONLY_EXTRA = {"tp_auth_status", "tp_refresh_auth"}
+# tp_refresh_manifest / tp_review_manifest (the tp-analysis plugin, 0.11.0) read
+# the coach's libraries and write only the local template overlay under
+# ~/.tp-mcp/manifest/, never TrainingPeaks -- the same class as tp_render_*.
+# Admitted by exact name (v3.2.2); the plugin predicate has no other opt-in.
+_READ_ONLY_EXTRA = {"tp_auth_status", "tp_refresh_auth",
+                    "tp_refresh_manifest", "tp_review_manifest"}
 
 
 def _is_read_only_tool(name: str) -> bool:
