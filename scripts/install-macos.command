@@ -458,7 +458,7 @@ if [ -n "$END_WARN" ]; then
     echo "INSTALLED, NOT SIGNED IN" >>"$LOG"
 else
     echo "SUCCESS: the TrainingPeaks connector is installed.${AUTH_NOTE}"
-    echo "Open a NEW chat in Claude Desktop and ask: \"Run tp_auth_status\"."
+    echo "Open a NEW chat in Claude Desktop and ask: \"Am I signed in to TrainingPeaks?\""
     echo "SUCCESS" >>"$LOG"
 fi
 echo "============================================================"

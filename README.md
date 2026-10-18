@@ -210,7 +210,7 @@ It never reads or changes `~/.tp-mcp`. The credential lives in the Keychain (plu
 - On **macOS 15 and later**, click **Done**, open **System Settings → Privacy & Security**, click **Open Anyway** next to the blocked file, authenticate, double-click it again, then click **Open Anyway**.
 - On **macOS 14 and earlier**, Control-click the file → **Open** → **Open**.
 
-Maintainer overrides: `TP_MCP_TAG` (release to install), `TP_MCP_TARBALL` (install from a local `.tar.gz`), `TP_INSTALL_SKIP_AUTH=1`, `TP_INSTALL_SKIP_APP=1`, `TP_INSTALL_NO_PAUSE=1`, `TP_INSTALL_NO_PYTHON_DOWNLOAD=1`.
+Maintainer overrides: `TP_MCP_TAG` (release to install), `TP_INSTALL_PYTHON` (use this Python 3.10+ instead of searching), `TP_MCP_TARBALL` (install from a local `.tar.gz`), `TP_INSTALL_SKIP_AUTH=1`, `TP_INSTALL_SKIP_APP=1`, `TP_INSTALL_NO_PAUSE=1`, `TP_INSTALL_NO_PYTHON_DOWNLOAD=1`.
 
 ### Option A: Auto-Setup with Claude Code
 
@@ -436,7 +436,7 @@ The guarantee is deterministic and enforced server-side at two layers - it does 
 1. **Listing**: write tools are never included in `tools/list`, so the AI cannot see or select them.
 2. **Dispatch**: if a write tool is called anyway (stale client cache), the server rejects it with `Tool disabled: server is running in read-only mode.` before any TrainingPeaks API call is made.
 
-The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, `tp_render_*`, plus `tp_auth_status` and `tp_refresh_auth`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too). `tp_render_*` tools, like `tp_download_*`, write a file on your own disk (a page for your browser) and nothing to TrainingPeaks.
+The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, `tp_render_*`, plus `tp_auth_status`, `tp_refresh_auth`, and by exact name `tp_refresh_manifest` and `tp_review_manifest`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too). `tp_render_*` tools, like `tp_download_*`, write a file on your own disk (a page for your browser) and nothing to TrainingPeaks. `tp_refresh_manifest` and `tp_review_manifest` are the tp-analysis plugin's template-list tools: they read TrainingPeaks and write only a local file. They are admitted by exact name, so no other `tp_refresh_*` or `tp_review_*` tool is.
 
 ### Cookie Storage
 
