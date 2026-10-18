@@ -154,15 +154,18 @@ def cmd_auth_clear() -> int:
     return 0
 
 
-def cmd_serve() -> int:
+def cmd_serve(read_only: bool = False) -> int:
     """Start the MCP server.
+
+    Args:
+        read_only: Only expose read-only tools; reject write tool calls.
 
     Returns:
         Exit code.
     """
     from tp_mcp.server import run_server
 
-    return run_server()
+    return run_server(read_only=read_only)
 
 
 def cmd_config() -> int:
@@ -211,6 +214,8 @@ def cmd_help() -> int:
     print("  auth-clear            Clear stored cookie")
     print("  config                Output Claude Desktop config snippet")
     print("  serve                 Start the MCP server")
+    print("    --read-only         Expose only read-only tools; write calls are rejected")
+    print("                        (also enabled by TP_MCP_READ_ONLY=1)")
     print("  help                  Show this help message")
     print()
     print("Examples:")
@@ -232,6 +237,17 @@ def main() -> int:
 
     command = sys.argv[1].lower()
 
+    # Handle serve command with optional --read-only flag; anything else after
+    # 'serve' is rejected (fail closed - a mistyped flag must not start an
+    # unrestricted server).
+    if command == "serve":
+        serve_args = sys.argv[2:]
+        if serve_args not in ([], ["--read-only"]):
+            print(f"Error: invalid arguments for serve: {' '.join(serve_args)}", file=sys.stderr)
+            print("Usage: tp-mcp serve [--read-only]", file=sys.stderr)
+            return 1
+        return cmd_serve(read_only=serve_args == ["--read-only"])
+
     # Handle auth command with optional --from-browser flag
     if command == "auth":
         from_browser = None
@@ -249,7 +265,6 @@ def main() -> int:
         "auth-status": cmd_auth_status,
         "auth-clear": cmd_auth_clear,
         "config": cmd_config,
-        "serve": cmd_serve,
         "help": cmd_help,
         "--help": cmd_help,
         "-h": cmd_help,

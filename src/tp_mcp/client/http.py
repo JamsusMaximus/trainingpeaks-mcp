@@ -644,14 +644,21 @@ class TPClient:
                         athlete_id = target_id
                         break
             except ValueError:
-                # Search by name (case-insensitive), detecting ambiguity
-                search = athlete.lower()
+                # Search by name (case-insensitive, whitespace-normalised),
+                # detecting ambiguity. Roster entries carry stray spaces
+                # ("Hannes  Kotze", a trailing space on a first name) that no
+                # one types; collapsing runs of whitespace on both sides keeps
+                # the match exact on the letters without guessing.
+                def _norm(s: str | None) -> str:
+                    return " ".join((s or "").split()).lower()
+
+                search = _norm(athlete)
                 matches = []
                 for a in athletes:
-                    first = (a.get("firstName") or "").lower()
-                    last = (a.get("lastName") or "").lower()
-                    full = f"{first} {last}"
-                    if search in (first, last, full):
+                    first = _norm(a.get("firstName"))
+                    last = _norm(a.get("lastName"))
+                    full = f"{first} {last}".strip()
+                    if search and search in (first, last, full):
                         matches.append(a)
 
                 if len(matches) == 1:
@@ -669,7 +676,11 @@ class TPClient:
         elif athletes:
             # Default: find the coach's own athlete entry
             for a in athletes:
-                if a.get("coachedBy") == person_id and a.get("email", "").lower() == user_data.get("email", "").lower():
+                # .get(key, "") still returns None when the key exists with a
+                # null value; a roster athlete with no email crashed here (fired
+                # live on the seed roster, 2026-08-23).
+                own_email = (user_data.get("email") or "").lower()
+                if a.get("coachedBy") == person_id and (a.get("email") or "").lower() == own_email:
                     athlete_id = a.get("athleteId")
                     break
             # Fallback: match by last name

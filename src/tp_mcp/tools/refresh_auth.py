@@ -53,7 +53,7 @@ async def tp_refresh_auth(browser: str = "auto") -> dict[str, Any]:
                 "success": False,
                 "message": "Browser extraction not available",
                 "details": "The browser-cookie3 package is not installed.",
-                "action_needed": "Run: pip install tp-mcp[browser]",
+                "action_needed": "Run: pip install -e '.[browser]' (in the connector folder)",
             }
 
         return {

@@ -191,6 +191,27 @@ out. The tools' text output is unaffected either way.)*
 
 ## Setup Options
 
+### One-click install (macOS)
+
+`scripts/install-macos.command` sets up the whole stack for Claude Desktop with no typing:
+
+1. Finds Python 3.10+. If there is none, it downloads Apple-notarised Python from python.org (checksum-verified) and opens its installer, so you click Continue / Agree / Install and type your Mac password.
+2. Downloads this repository at a fixed release tag into `~/claude-tools/trainingpeaks-mcp`. It uses `curl`, so neither git nor Xcode tools are needed. A previous install is moved aside, never deleted.
+3. Creates `.venv` and runs `pip install -e ".[browser]"`.
+4. Installs any tp-mcp plugin wheel (`*.whl`) placed beside the script (see [Tool plugins](#tool-plugins)).
+5. Adds the `trainingpeaks` server, with `--read-only`, to `claude_desktop_config.json`. Other servers and settings are kept, a dated `.bak` is written first, and a damaged file is left untouched.
+6. Runs `tp-mcp auth-status`. A working sign-in is kept as it is: Chrome is not read and the Keychain is not written. Only when there is no working sign-in does it sign in from Chrome (at the Keychain prompt, type your Mac password and click **Always Allow**). An expired sign-in is replaced by a *different* account only after you answer `y` to a prompt showing both emails. The last account's email is noted in `~/claude-tools/.trainingpeaks-account` for that comparison. If the Chrome sign-in fails but the existing one works, it reports that and carries on.
+7. Restarts Claude Desktop.
+
+It never reads or changes `~/.tp-mcp`. The credential lives in the Keychain (plus an encrypted copy in `~/.config/trainingpeaks-mcp`). It prints one SUCCESS, FAILURE or INSTALLED, NOT SIGNED IN line and logs everything to `~/claude-tools/install-<date>.log`. `scripts/uninstall-macos.command` reverses it. It removes the config entry, offers `tp-mcp auth-clear`, and moves the install to the Trash. It keeps `~/.tp-mcp` unless you confirm.
+
+**Distributing it:** send it inside a `.zip`, because messaging apps and mail can drop the execute bit. A file received this way is quarantined, so the first double-click is blocked by Gatekeeper:
+
+- On **macOS 15 and later**, click **Done**, open **System Settings → Privacy & Security**, click **Open Anyway** next to the blocked file, authenticate, double-click it again, then click **Open Anyway**.
+- On **macOS 14 and earlier**, Control-click the file → **Open** → **Open**.
+
+Maintainer overrides: `TP_MCP_TAG` (release to install), `TP_INSTALL_PYTHON` (use this Python 3.10+ instead of searching), `TP_MCP_TARBALL` (install from a local `.tar.gz`), `TP_INSTALL_SKIP_AUTH=1`, `TP_INSTALL_SKIP_APP=1`, `TP_INSTALL_NO_PAUSE=1`, `TP_INSTALL_NO_PYTHON_DOWNLOAD=1`.
+
 ### Option A: Auto-Setup with Claude Code
 
 If you have [Claude Code](https://claude.ai/code), paste this prompt:
@@ -385,6 +406,38 @@ This server is designed with defence-in-depth. Your TrainingPeaks session cookie
 
 > **Write access:** v2.0 adds full calendar management (create, update, delete workouts, events, notes, equipment, settings). All mutations go through Pydantic validation. The server cannot access billing or payment info.
 
+### Read-Only Mode
+
+For high-stakes accounts (e.g. a coach account holding many athletes), the server can be locked to read-only tools. Start it with the `--read-only` flag:
+
+```json
+"trainingpeaks": {
+  "command": "tp-mcp",
+  "args": ["serve", "--read-only"]
+}
+```
+
+or with the `TP_MCP_READ_ONLY` environment variable:
+
+```json
+"trainingpeaks": {
+  "command": "tp-mcp",
+  "args": ["serve"],
+  "env": { "TP_MCP_READ_ONLY": "1" }
+}
+```
+
+`TP_MCP_READ_ONLY` accepts `1`/`true`/`yes` to enable and `0`/`false`/`no` to disable (case-insensitive). Any other value aborts startup with an error - a mistyped value will never silently start an unrestricted server.
+
+**Switching between read-only and read-write.** The mode is fixed when the server starts - there is no runtime toggle, by design. To switch, edit your client config (add or remove `--read-only`, or flip the env var) and restart the MCP server: in Claude Desktop, quit and reopen the app; in Claude Code, run `/mcp` and reconnect the server or start a new session. The flag and the env var are independent switches and either one enables read-only mode - to run read-write, make sure both are off (`TP_MCP_READ_ONLY` unset or `0`, no `--read-only` flag).
+
+The guarantee is deterministic and enforced server-side at two layers - it does not depend on the AI's behaviour, prompts, or client settings:
+
+1. **Listing**: write tools are never included in `tools/list`, so the AI cannot see or select them.
+2. **Dispatch**: if a write tool is called anyway (stale client cache), the server rejects it with `Tool disabled: server is running in read-only mode.` before any TrainingPeaks API call is made.
+
+The read-only set is an **allowlist** (`tp_get_*`, `tp_list_*`, `tp_download_*`, `tp_search_*`, `tp_validate_*`, `tp_analyze_*`, `tp_render_*`, plus `tp_auth_status`, `tp_refresh_auth`, and by exact name `tp_refresh_manifest` and `tp_review_manifest`) - any tool not matching it, including tools added in future versions or by plugins, is excluded by default. `tp_refresh_auth` is allowed because it only rewrites the local credential store from your browser's cookie; it never writes to TrainingPeaks. It gives a read-only server an in-chat recovery path when the session cookie expires (`tp-mcp auth` in a terminal still works too). `tp_render_*` tools, like `tp_download_*`, write a file on your own disk (a page for your browser) and nothing to TrainingPeaks. `tp_refresh_manifest` and `tp_review_manifest` are the tp-analysis plugin's template-list tools: they read TrainingPeaks and write only a local file. They are admitted by exact name, so no other `tp_refresh_*` or `tp_review_*` tool is.
+
 ### Cookie Storage
 
 | Platform | Primary Storage | Fallback |
@@ -461,6 +514,26 @@ doesn't fit the conventions, add it to the exception sets next to that block
 (`_DESTRUCTIVE_TOOLS`, `_NON_IDEMPOTENT_WRITES`, `_READ_ONLY_EXTRA`,
 `_TITLE_OVERRIDES`). `tests/test_tool_metadata.py` fails with instructions if
 a tool is misclassified, and the README tool tables above should gain a row.
+
+### Tool plugins
+
+A separately installed package can contribute tools without changing this
+repository. Declare an entry point in the `tp_mcp.plugins` group:
+
+```toml
+[project.entry-points."tp_mcp.plugins"]
+my_plugin = "my_package.tp_tools:tools"
+```
+
+`tools()` takes no arguments and returns an iterable of `(Tool, handler)`
+pairs, where `Tool` is `mcp.types.Tool` and `handler` is
+`async def handler(args: dict) -> dict`, the same contract as the built-in
+handlers. Plugin tools are loaded when the server module imports and go
+through the same treatment as built-ins: they get the `athlete` parameter,
+a derived title and annotations, and the read-only allowlist applies to
+them by name — a plugin cannot opt out of `--read-only`. A tool whose name
+collides with an existing one is skipped and logged, as is a plugin that
+fails to import; neither stops the server.
 
 ## Licence
 

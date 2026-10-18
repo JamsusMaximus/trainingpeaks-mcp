@@ -30,7 +30,6 @@ file — legitimately lack per-second/lap data while still having totals).
 
 import json
 import logging
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -45,21 +44,37 @@ logger = logging.getLogger("tp-mcp")
 
 ANALYSIS_API_BASE = "https://api.peakswaresb.com"
 ANALYSIS_TIMEOUT = 60.0
-ANALYSIS_DATA_DIR = Path(tempfile.gettempdir()) / "tp-mcp" / "analysis"
+# Stable default under the user's home, NOT tempfile.gettempdir(): gettempdir()
+# honours TMPDIR, so the same code wrote to /tmp/tp-mcp under the MCP server and
+# /var/folders/... from a shell — and macOS temp dirs sit outside the Filesystem
+# MCP's allowed directories, making the output unreadable to the caller.
+ANALYSIS_DATA_DIR = Path.home() / ".tp-mcp" / "analysis"
 
 _SUMMARY_PATH = "/workout-analysis/v2/analyze/summary"
 _CHARTS_PATH = "/workout-analysis/v2/analyze/charts"
 _LAPS_PATH = "/workout-analysis/v2/analyze/laps"
 
 
-def _save_analysis_json(workout_id: int, data: dict[str, Any]) -> str:
+def _save_analysis_json(workout_id: int, data: dict[str, Any],
+                        output_path: str | None = None) -> str:
     """Save full analysis data (including time-series) to a JSON file.
+
+    Args:
+        output_path: Optional directory or full file path (mirrors
+            tp_download_workout_file). Defaults to ANALYSIS_DATA_DIR.
 
     Returns:
         Absolute path to the saved file.
     """
+    default_name = f"workout_{workout_id}.json"
+    if output_path:
+        target = Path(output_path).expanduser()
+        filepath = target / default_name if (target.is_dir() or not target.suffix) else target
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath.write_text(json.dumps(data, indent=2))
+        return str(filepath.resolve())
     ANALYSIS_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    filepath = ANALYSIS_DATA_DIR / f"workout_{workout_id}.json"
+    filepath = ANALYSIS_DATA_DIR / default_name
     filepath.write_text(json.dumps(data, indent=2))
     return str(filepath)
 
@@ -146,13 +161,15 @@ def _stop_timestamp(start_iso: str | None, elapsed_seconds: Any) -> str | None:
     return (start_dt + timedelta(seconds=float(elapsed_seconds))).isoformat()
 
 
-async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
+async def tp_analyze_workout(workout_id: str,
+                             output_path: str | None = None) -> dict[str, Any]:
     """Get detailed workout analysis including metrics, zones, and lap data.
 
     Full time-series data is saved to a JSON file for further analysis.
 
     Args:
         workout_id: The workout ID (from tp_get_workouts).
+        output_path: Optional directory or full path for the JSON file.
 
     Returns:
         Dict with totals, data channels, lap data, and path to full data file.
@@ -286,7 +303,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         }
 
     # Save full raw data (including time-series) to file
-    data_file = _save_analysis_json(wid, raw_data)
+    data_file = _save_analysis_json(wid, raw_data, output_path)
 
     # Return summary inline, point to file for full data
     totals_out = {t.name: {"value": t.value, "unit": t.unit} for t in analysis.totals}

@@ -11,6 +11,13 @@ TEST_ATHLETE_ID = 123456
 TEST_EMAIL = "test@example.com"
 
 
+@pytest.fixture(autouse=True)
+def _default_read_write_mode(monkeypatch):
+    """Pin tests to default (read-write) mode regardless of the shell's
+    TP_MCP_READ_ONLY; read-only tests opt in explicitly."""
+    monkeypatch.delenv("TP_MCP_READ_ONLY", raising=False)
+
+
 @pytest.fixture
 def mock_keyring():
     """Mock keyring for testing credential storage."""

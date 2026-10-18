@@ -51,7 +51,7 @@ def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
     except ImportError:
         return BrowserCookieResult(
             success=False,
-            message="browser-cookie3 not installed. Run: pip install tp-mcp[browser]",
+            message="browser-cookie3 not installed. Run: pip install -e '.[browser]' (in the connector folder)",
         )
 
     # Map browser names to browser_cookie3 functions

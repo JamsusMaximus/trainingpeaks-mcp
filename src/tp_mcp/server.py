@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from importlib.metadata import entry_points
 from typing import Any
 
 from mcp.server import Server, ServerRequestContext
@@ -544,7 +545,13 @@ TOOLS = [
         description="Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file.",
         input_schema={
             "type": "object",
-            "properties": {"workout_id": {"type": "string"}},
+            "properties": {
+                "workout_id": {"type": "string"},
+                "output_path": {
+                    "type": "string",
+                    "description": "Directory or full path for the time-series JSON file",
+                },
+            },
             "required": ["workout_id"],
         },
     ),
@@ -1474,6 +1481,58 @@ TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Third-party tool plugins
+#
+# Any installed package can contribute tools through the "tp_mcp.plugins"
+# entry-point group. Each entry point names a zero-argument callable returning
+# an iterable of (Tool, handler) pairs, where handler is `async def h(args:
+# dict) -> dict`, the same contract as the built-in handlers below. Plugin
+# tools are appended to TOOLS *before* the athlete injection and metadata
+# derivation loops run, so they get the `athlete` parameter, a title,
+# annotations and the read-only predicate exactly like built-ins. A plugin
+# whose name matches the write conventions is excluded under --read-only
+# like any other write tool; there is no way to opt out of that predicate.
+# ---------------------------------------------------------------------------
+_PLUGIN_GROUP = "tp_mcp.plugins"
+
+
+def _load_plugins() -> list[tuple[Tool, Any]]:
+    """Collect (Tool, handler) pairs from every tp_mcp.plugins entry point.
+
+    A plugin that fails to import or returns malformed pairs is logged and
+    skipped; it never stops the server. A tool name that collides with a
+    built-in or an earlier plugin is skipped, so a plugin can never replace
+    an existing tool.
+    """
+    found: list[tuple[Tool, Any]] = []
+    taken = {t.name for t in TOOLS}
+    for ep in entry_points(group=_PLUGIN_GROUP):
+        try:
+            pairs = list(ep.load()())
+        except Exception:
+            logger.exception("Plugin %s failed to load; skipped", ep.name)
+            continue
+        for pair in pairs:
+            try:
+                tool, handler = pair
+                if not isinstance(tool, Tool) or not callable(handler):
+                    raise TypeError("expected (Tool, async handler)")
+            except (TypeError, ValueError):
+                logger.error("Plugin %s returned a malformed entry %r; skipped", ep.name, pair)
+                continue
+            if tool.name in taken:
+                logger.error("Plugin %s: tool %s collides with an existing tool; skipped", ep.name, tool.name)
+                continue
+            taken.add(tool.name)
+            found.append((tool, handler))
+        logger.info("Plugin %s registered %d tool(s)", ep.name, len(found))
+    return found
+
+
+_PLUGIN_TOOLS = _load_plugins()
+TOOLS.extend(_tool for _tool, _ in _PLUGIN_TOOLS)
+
+# ---------------------------------------------------------------------------
 # Coach account support: inject 'athlete' parameter into all applicable tools
 # ---------------------------------------------------------------------------
 _ATHLETE_EXEMPT_TOOLS = {
@@ -1509,8 +1568,25 @@ for _tool in TOOLS:
 # every tool.
 # ---------------------------------------------------------------------------
 
-_READ_ONLY_PREFIXES = ("tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_")
-_READ_ONLY_EXTRA = {"tp_auth_status"}
+# tp_render_* writes a file on the local disk (a report for a browser), like
+# tp_download_*, and never writes TrainingPeaks.
+_READ_ONLY_PREFIXES = (
+    "tp_get_", "tp_list_", "tp_download_", "tp_search_", "tp_validate_", "tp_analyze_", "tp_render_"
+)
+# tp_refresh_auth writes only the local credential store (keyring / encrypted
+# file), never TrainingPeaks. Without it a read-only server whose cookie has
+# expired has no in-chat recovery path.
+# tp_refresh_manifest / tp_review_manifest (the tp-analysis plugin, 0.11.0) read
+# the coach's libraries and write only the local template overlay under
+# ~/.tp-mcp/manifest/, never TrainingPeaks -- the same class as tp_render_*.
+# Admitted by exact name (v3.2.2); the plugin predicate has no other opt-in.
+_READ_ONLY_EXTRA = {"tp_auth_status", "tp_refresh_auth",
+                    "tp_refresh_manifest", "tp_review_manifest"}
+
+
+def _is_read_only_tool(name: str) -> bool:
+    """Allowlist predicate for read-only mode: unmatched names are write tools."""
+    return name.startswith(_READ_ONLY_PREFIXES) or name in _READ_ONLY_EXTRA
 
 # Irrecoverable data removal. Everything else that writes is recoverable by a
 # follow-up call (update/re-add), so destructiveHint stays False there.
@@ -1564,18 +1640,70 @@ def _derive_title(name: str) -> str:
 
 
 for _tool in TOOLS:
-    _read_only = _tool.name.startswith(_READ_ONLY_PREFIXES) or _tool.name in _READ_ONLY_EXTRA
     _tool.title = _TITLE_OVERRIDES.get(_tool.name, _derive_title(_tool.name))
     _tool.annotations = ToolAnnotations(
-        read_only_hint=_read_only,
+        read_only_hint=_is_read_only_tool(_tool.name),
         destructive_hint=_tool.name in _DESTRUCTIVE_TOOLS,
         idempotent_hint=_tool.name not in _NON_IDEMPOTENT_WRITES,
         open_world_hint=True,  # every tool talks to the external TrainingPeaks API
     )
 
 
+# ---------------------------------------------------------------------------
+# Read-only mode: when active, tools failing _is_read_only_tool are neither
+# listed nor dispatchable. Checked at request time (TOOLS is built at import).
+# ---------------------------------------------------------------------------
+
+_read_only_mode = False
+
+_READ_ONLY_ENV_VAR = "TP_MCP_READ_ONLY"
+
+
+def set_read_only_mode(enabled: bool) -> None:
+    """Enable/disable read-only mode (also enabled by TP_MCP_READ_ONLY)."""
+    global _read_only_mode
+    _read_only_mode = enabled
+
+
+def _read_only_env() -> bool:
+    """Parse TP_MCP_READ_ONLY strictly - a malformed value must fail startup
+    rather than silently start an unrestricted server."""
+    raw = os.environ.get(_READ_ONLY_ENV_VAR)
+    if raw is None:
+        return False
+    value = raw.strip().lower()
+    if value in ("1", "true", "yes"):
+        return True
+    if value in ("0", "false", "no"):
+        return False
+    raise ValueError(
+        f"Invalid {_READ_ONLY_ENV_VAR} value {raw!r}: use 1/true/yes or 0/false/no."
+    )
+
+
+def _read_only_active() -> bool:
+    # run_server() resolves the env var once and latches it via
+    # set_read_only_mode(), so in production the short-circuit makes the live
+    # env read below reachable only when the server started read-write, where
+    # its only possible effect is to tighten (enable protection mid-flight,
+    # never disable it). It exists mainly so tests can set the variable and
+    # call list_tools()/call_tool() directly; runtime env mutation is not a
+    # supported control surface.
+    return _read_only_mode or _read_only_env()
+
+
 async def list_tools() -> list[Tool]:
     """List available tools (plain function - tests call it directly)."""
+    try:
+        read_only = _read_only_active()
+    except ValueError:
+        # tools/list has no isError channel, so a malformed env var (only
+        # reachable by in-process env mutation after a read-write start)
+        # fails closed to the read-only surface.
+        logger.exception("Invalid %s value; listing read-only tools only.", _READ_ONLY_ENV_VAR)
+        read_only = True
+    if read_only:
+        return [t for t in TOOLS if _is_read_only_tool(t.name)]
     return TOOLS
 
 
@@ -1748,7 +1876,9 @@ async def _h_get_peaks(args):
     return await tp_get_peaks(sport=args["sport"], pr_type=args["pr_type"], days=args.get("days", 3650))
 
 @_handler("tp_analyze_workout")
-async def _h_analyze(args): return await tp_analyze_workout(workout_id=args["workout_id"])
+async def _h_analyze(args):
+    return await tp_analyze_workout(workout_id=args["workout_id"],
+                                    output_path=args.get("output_path"))
 
 # --- Structured strength / gym ---
 @_handler("tp_search_exercises")
@@ -2031,6 +2161,11 @@ async def _h_schedule_lib(args):
     )
 
 
+# Plugin handlers join the dispatch table after the built-ins; collisions were
+# already rejected in _load_plugins, so nothing here can shadow a built-in.
+for _tool, _fn in _PLUGIN_TOOLS:
+    _TOOL_HANDLERS[_tool.name] = _fn
+
 _TOOLS_BY_NAME = {_tool.name: _tool for _tool in TOOLS}
 
 
@@ -2042,6 +2177,26 @@ async def call_tool(name: str, arguments: dict[str, Any] | None = None) -> list[
     errors readable for the model instead of surfacing as internal errors.
     """
     logger.info("Tool call: %s", name)
+
+    # Read-only mode rejects non-allowlisted names before anything else runs
+    # (a stale client tool cache may still offer write tools).
+    try:
+        read_only = _read_only_active()
+    except ValueError as exc:
+        logger.exception("Invalid %s value at dispatch time", _READ_ONLY_ENV_VAR)
+        result = {
+            "isError": True,
+            "error_code": "INVALID_CONFIG",
+            "message": str(exc),
+        }
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+    if read_only and not _is_read_only_tool(name):
+        result = {
+            "isError": True,
+            "error_code": "READ_ONLY_MODE",
+            "message": "Tool disabled: server is running in read-only mode.",
+        }
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     # A client may legally omit arguments entirely for no-arg tools.
     args = dict(arguments or {})
@@ -2150,6 +2305,9 @@ async def _validate_auth_on_startup() -> bool:
 async def run_server_async() -> None:
     """Run the MCP server (async)."""
     logger.info("Starting TrainingPeaks MCP Server")
+    if _read_only_active():
+        disabled = sum(1 for t in TOOLS if not _is_read_only_tool(t.name))
+        logger.info("READ-ONLY MODE: %d write tools disabled.", disabled)
     if os.environ.get("TP_MCP_SKIP_STARTUP_VALIDATION") != "1":
         await _validate_auth_on_startup()
 
@@ -2161,8 +2319,15 @@ async def run_server_async() -> None:
         )
 
 
-def run_server() -> int:
+def run_server(read_only: bool = False) -> int:
     """Run the MCP server (entry point)."""
+    try:
+        env_read_only = _read_only_env()
+    except ValueError as exc:
+        logger.error("%s", exc)
+        return 1
+    if read_only or env_read_only:
+        set_read_only_mode(True)
     try:
         asyncio.run(run_server_async())
         return 0
