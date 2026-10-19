@@ -63,7 +63,13 @@ async def validate_auth(cookie: str) -> AuthResult:
 
             if response.status_code == 200:
                 data = response.json()
-                token_info = data.get("token", {})
+                # An expired cookie still gets 200, with {"success": false, "token": null}.
+                token_info = data.get("token")
+                if not token_info:
+                    return AuthResult(
+                        status=AuthStatus.EXPIRED,
+                        message="Session expired. Please re-authenticate.",
+                    )
                 access_token = token_info.get("access_token")
 
                 # Token endpoint only returns the token, not user info.
