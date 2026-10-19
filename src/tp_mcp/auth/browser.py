@@ -7,7 +7,9 @@ SECURITY NOTES:
 - Only return cookie value in BrowserCookieResult.cookie field, never in message
 """
 
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -34,6 +36,32 @@ class BrowserCookieResult:
 
 
 SUPPORTED_BROWSERS = ["chrome", "firefox", "safari", "edge", "chromium", "brave", "opera"]
+
+# browser_cookie3 only reads the "Default" profile of Chromium browsers.
+# These roots let us also scan "Profile 1", "Profile 2", ...
+_HOME = Path.home()
+CHROMIUM_PROFILE_ROOTS = {
+    "darwin": {
+        "chrome": _HOME / "Library/Application Support/Google/Chrome",
+        "edge": _HOME / "Library/Application Support/Microsoft Edge",
+        "chromium": _HOME / "Library/Application Support/Chromium",
+        "brave": _HOME / "Library/Application Support/BraveSoftware/Brave-Browser",
+    },
+    "linux": {
+        "chrome": _HOME / ".config/google-chrome",
+        "edge": _HOME / ".config/microsoft-edge",
+        "chromium": _HOME / ".config/chromium",
+        "brave": _HOME / ".config/BraveSoftware/Brave-Browser",
+    },
+}
+
+
+def _extra_profile_cookie_files(browser: str) -> list[str]:
+    """Return cookie files of non-default Chromium profiles for a browser."""
+    root = CHROMIUM_PROFILE_ROOTS.get(sys.platform, {}).get(browser)
+    if not root or not root.is_dir():
+        return []
+    return [str(p) for p in sorted(root.glob("Profile */Cookies")) if p.is_file()]
 
 
 def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
@@ -72,15 +100,17 @@ def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
             return BrowserCookieResult(success=False, message=f"Unknown browser: {name}")
 
         try:
-            cj = func(domain_name=".trainingpeaks.com")
-            for cookie in cj:
-                if cookie.name == "Production_tpAuth" and cookie.value:
-                    return BrowserCookieResult(
-                        success=True,
-                        cookie=cookie.value,
-                        browser=name,
-                        message=f"Found cookie in {name}",
-                    )
+            # None = browser_cookie3's default profile; then any extra Chromium profiles
+            for cookie_file in [None, *_extra_profile_cookie_files(name)]:
+                cj = func(cookie_file=cookie_file, domain_name=".trainingpeaks.com")
+                for cookie in cj:
+                    if cookie.name == "Production_tpAuth" and cookie.value:
+                        return BrowserCookieResult(
+                            success=True,
+                            cookie=cookie.value,
+                            browser=name,
+                            message=f"Found cookie in {name}",
+                        )
             return BrowserCookieResult(success=False, message=f"No TrainingPeaks cookie in {name}")
         except PermissionError:
             return BrowserCookieResult(
