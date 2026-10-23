@@ -55,6 +55,7 @@ from tp_mcp.tools.plans import (
     tp_get_training_plan_workouts,
     tp_list_training_plans,
 )
+from tp_mcp.tools.power_balance import tp_analyze_power_balance
 from tp_mcp.tools.profile import tp_get_profile, tp_list_athletes
 from tp_mcp.tools.refresh_auth import tp_refresh_auth
 from tp_mcp.tools.settings import (
@@ -103,6 +104,7 @@ from tp_mcp.tools.zone_methods import tp_get_zone_methods
 __all__ = [
     "tp_add_note_comment",
     "tp_add_workout_comment",
+    "tp_analyze_power_balance",
     "tp_analyze_workout",
     "tp_auth_status",
     "tp_copy_workout",

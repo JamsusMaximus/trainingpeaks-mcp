@@ -123,6 +123,7 @@ class TestListTools:
             "tp_get_training_plan",
             "tp_get_training_plan_workouts",
             "tp_apply_training_plan",
+            "tp_analyze_power_balance",
         }
         assert v2_tools.issubset(names)
         assert len(names) == len(core_tools) + len(v2_tools)
