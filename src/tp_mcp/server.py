@@ -31,6 +31,7 @@ from tp_mcp.tools import (
     tp_add_athletes_to_group,
     tp_add_note_comment,
     tp_add_workout_comment,
+    tp_analyze_power_balance,
     tp_analyze_workout,
     tp_apply_training_plan,
     tp_auth_status,
@@ -510,6 +511,30 @@ TOOLS = [
         },
     ),
     # --- Analysis & Peaks ---
+    Tool(
+        name="tp_analyze_power_balance",
+        description=(
+            "Analyze left/right power balance by total-power bucket from downloaded .fit.gz files (offline; needs a "
+            "dual-sided power meter). Workflow: tp_get_workouts -> tp_get_workout (device_files) -> "
+            "tp_download_workout_file -> pass saved_to paths here. Multiple paths are combined."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "saved_to paths from tp_download_workout_file.",
+                },
+                "bucket_size": {"type": "integer", "description": "Watts per bucket (default 50)."},
+                "sample_seconds": {
+                    "type": "integer",
+                    "description": "Seconds per data point; adds durations to output.",
+                },
+            },
+            "required": ["file_paths"],
+        },
+    ),
     Tool(
         name="tp_get_workout_prs",
         description=(
@@ -1483,6 +1508,8 @@ _ATHLETE_EXEMPT_TOOLS = {
     "tp_get_zone_methods",
     # Offline exercise-library search — not athlete-scoped.
     "tp_search_exercises",
+    # Offline analysis of local files — not athlete-scoped.
+    "tp_analyze_power_balance",
     # Coach-scoped (groups belong to the coach, not a targeted athlete).
     "tp_list_groups", "tp_list_athletes_in_group",
     "tp_create_group", "tp_rename_group", "tp_delete_group",
@@ -1746,6 +1773,14 @@ async def _h_get_prs(args): return await tp_get_workout_prs(workout_id=args["wor
 @_handler("tp_get_peaks")
 async def _h_get_peaks(args):
     return await tp_get_peaks(sport=args["sport"], pr_type=args["pr_type"], days=args.get("days", 3650))
+
+@_handler("tp_analyze_power_balance")
+async def _h_analyze_power_balance(args):
+    return await tp_analyze_power_balance(
+        file_paths=args["file_paths"],
+        bucket_size=args.get("bucket_size", 50),
+        sample_seconds=args.get("sample_seconds"),
+    )
 
 @_handler("tp_analyze_workout")
 async def _h_analyze(args): return await tp_analyze_workout(workout_id=args["workout_id"])
