@@ -61,7 +61,7 @@ Ask your AI assistant things like:
 |------|-------------|
 | `tp_get_athlete_settings` | Get FTP, thresholds, zones, profile |
 | `tp_update_ftp` | Update FTP for a sport's power set (bike default; preserves the set's calculation method) |
-| `tp_update_hr_zones` | Update HR threshold/max/resting for a sport (general/bike/run/swim), preserving the method |
+| `tp_update_hr_zones` | Update HR threshold/max/resting for ONE sport's zone set (general/bike/run/swim), preserving the method; returns `ZONES_MISSING` if that sport has no set yet (use `tp_create_zones`) |
 | `tp_update_speed_zones` | Update run/swim threshold pace, preserving the method |
 | `tp_create_zones` | Create a NEW per-sport zone set from scratch (choose the calculation method); errors if one already exists |
 | `tp_get_zone_methods` | List available zone-calculation methods per metric (power/HR/pace) with each method's zone count and labels |

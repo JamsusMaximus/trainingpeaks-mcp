@@ -277,10 +277,16 @@ async def _update_single_zone_set(
     client: "TPClient", athlete_id: int, settings_key: str, put_path: str,
     wtid: int, new_threshold: float | None, *, integer: bool,
     extra_fields: dict[str, Any] | None = None,
+    strict: bool = False, sport: str | None = None,
 ) -> dict[str, Any]:
     """GET settings → locate the wtid group → rescale → PUT the full array (the
     only shape TP accepts). `extra_fields` sets extra anchors verbatim (HR
-    maximumHeartRate/restingHeartRate)."""
+    maximumHeartRate/restingHeartRate).
+
+    `strict=True` requires a zone set for exactly `wtid`: if the athlete has
+    none, nothing is written and ``ZONES_MISSING`` is returned (pointing at
+    tp_create_zones) instead of silently updating the default (0) set. Without
+    it the lookup falls back as documented in `_select_group_index`."""
     sr = await client.get(f"/fitness/v1/athletes/{athlete_id}/settings")
     if sr.is_error:
         return {"isError": True,
@@ -292,8 +298,21 @@ async def _update_single_zone_set(
     if not isinstance(groups, list) or not groups:
         return {"isError": True, "error_code": "API_ERROR",
                 "message": f"No {settings_key} found in athlete settings."}
-    idx, note = _select_group_index(groups, wtid)
     metric = _CALC_METRIC.get(put_path, "")
+    if strict and not any(isinstance(g, dict) and g.get("workoutTypeId") == wtid for g in groups):
+        label = f"'{sport}' " if sport else ""
+        present_ids: set[int] = set()
+        for g in groups:
+            if isinstance(g, dict) and isinstance(g.get("workoutTypeId"), int):
+                present_ids.add(g["workoutTypeId"])
+        present = sorted(present_ids)
+        return {"isError": True, "error_code": "ZONES_MISSING",
+                "message": f"No {metric or settings_key} zone set exists for workout_type "
+                           f"{label}(workoutTypeId={wtid}); nothing was changed. Existing sets: "
+                           f"workoutTypeId={present}. Create one with tp_create_zones"
+                           f"(metric='{metric or settings_key}', workout_type=...) or target an "
+                           "existing set."}
+    idx, note = _select_group_index(groups, wtid)
     calc_zones, derived = await _calculated_zones(client, metric, groups[idx], new_threshold, extra_fields)
     method_correct = calc_zones is not None
     if method_correct:
@@ -428,11 +447,19 @@ async def tp_update_hr_zones(
 ) -> dict[str, Any]:
     """Update heart-rate zones for a specific sport, preserving the method.
 
+    TrainingPeaks keeps one HR zone set per sport (workoutTypeId 0 = general /
+    default, 1 = swim, 2 = bike, 3 = run, …). Workouts of a sport that has its
+    own set use THAT set, so updating 'general' does not change e.g. running
+    zones — target the sport explicitly. Only the requested set is written; if
+    the athlete has no set for that sport, ``ZONES_MISSING`` is returned (nothing
+    written) — create it with tp_create_zones first.
+
     Args:
         threshold_hr: Threshold (LTHR). When given, bands rescale to it.
         max_hr: Maximum HR (stored as an anchor; bands not auto-rescaled by it).
         resting_hr: Resting HR (stored as an anchor).
-        workout_type: 'general' (default set), 'bike', 'run' or 'swim'.
+        workout_type: 'general' (default set, workoutTypeId 0), 'bike' (2),
+            'run' (3), 'swim' (1) or any other sport name from SPORT_TYPE_MAP.
     """
     try:
         params = HRZonesInput(
@@ -460,7 +487,8 @@ async def tp_update_hr_zones(
         new_thr = float(params.threshold_hr) if params.threshold_hr is not None else None
         return await _update_single_zone_set(
             client, athlete_id, "heartRateZones", "heartratezones", wtid,
-            new_thr, integer=True, extra_fields=extra)
+            new_thr, integer=True, extra_fields=extra,
+            strict=True, sport=params.workout_type.lower())
 
 
 async def tp_update_speed_zones(
