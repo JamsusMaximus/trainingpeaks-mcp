@@ -667,17 +667,26 @@ TOOLS = [
     ),
     Tool(
         name="tp_update_hr_zones",
-        description="Update heart rate zones.",
+        description="Update the heart-rate zone set of ONE sport (threshold/LTHR, max, resting), "
+                    "preserving its calculation method. TrainingPeaks keeps separate HR zone sets "
+                    "per sport (general=0, swim=1, bike=2, run=3); workouts use their sport's own "
+                    "set when it exists, so pick the sport whose zones should change - updating "
+                    "'general' does not affect a sport that has its own set. Returns ZONES_MISSING "
+                    "(nothing written) if the athlete has no set for that sport; create one with "
+                    "tp_create_zones.",
         input_schema={
             "type": "object",
             "properties": {
-                "threshold_hr": {"type": "integer"},
-                "max_hr": {"type": "integer"},
-                "resting_hr": {"type": "integer"},
+                "threshold_hr": {"type": "integer",
+                                 "description": "Threshold HR (LTHR) in bpm; bands are recomputed from it."},
+                "max_hr": {"type": "integer", "description": "Maximum HR in bpm (anchor)."},
+                "resting_hr": {"type": "integer", "description": "Resting HR in bpm (anchor)."},
                 "workout_type": {
                     "type": "string",
                     "enum": ["general", "bike", "run", "swim", "xcski", "mtnbike", "rowing"],
-                    "default": "general"},
+                    "default": "general",
+                    "description": "Which sport's HR zone set to update (general -> workoutTypeId 0, "
+                                   "swim -> 1, bike -> 2, run -> 3). Must already exist."},
             },
             "required": [],
         },

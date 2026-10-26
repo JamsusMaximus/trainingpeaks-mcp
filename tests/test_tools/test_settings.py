@@ -210,6 +210,49 @@ class TestUpdateHRZones:
         assert payload[0] == settings["heartRateZones"][0]     # default untouched
 
     @pytest.mark.asyncio
+    async def test_targets_swim_set(self):
+        settings = {"heartRateZones": [_hzones(160, 0, 3), _hzones(150, 1, 3), _hzones(165, 3, 2)]}
+        p, mi = _client(settings)
+        try:
+            result = await tp_update_hr_zones(threshold_hr=155, workout_type="swim")
+        finally:
+            p.stop()
+        assert result["success"] and result["workout_type_id"] == 1
+        payload = mi.put.call_args[1]["json"]
+        assert payload[1]["threshold"] == 155
+        assert payload[0] == settings["heartRateZones"][0]     # general untouched
+        assert payload[2] == settings["heartRateZones"][2]     # run untouched
+
+    @pytest.mark.asyncio
+    async def test_general_only_touches_default_set(self):
+        """Issue #186: with a run set present, 'general' must not alter it."""
+        settings = {"heartRateZones": [_hzones(160, 0, 3), _hzones(165, 3, 2)]}
+        p, mi = _client(settings)
+        try:
+            result = await tp_update_hr_zones(threshold_hr=182)   # workout_type default = general
+        finally:
+            p.stop()
+        assert result["success"] and result["workout_type_id"] == 0
+        payload = mi.put.call_args[1]["json"]
+        assert payload[0]["threshold"] == 182
+        assert payload[1] == settings["heartRateZones"][1]     # run set untouched
+
+    @pytest.mark.asyncio
+    async def test_missing_sport_set_returns_zones_missing(self):
+        """No silent fallback to the default set: error out and write nothing."""
+        settings = {"heartRateZones": [_hzones(160, 0, 3), _hzones(150, 2, 3)]}
+        p, mi = _client(settings)
+        try:
+            result = await tp_update_hr_zones(threshold_hr=175, workout_type="run")
+        finally:
+            p.stop()
+        assert result["isError"] is True and result["error_code"] == "ZONES_MISSING"
+        assert "tp_create_zones" in result["message"] and "workoutTypeId=3" in result["message"]
+        assert "[0, 2]" in result["message"]                    # lists the sets that do exist
+        mi.put.assert_not_called()
+        mi.post.assert_not_called()                            # no calculator call either
+
+    @pytest.mark.asyncio
     async def test_max_only_keeps_threshold_and_bands(self):
         settings = {"heartRateZones": [_hzones(160, 0, 3)]}
         before = [(z["minimum"], z["maximum"]) for z in settings["heartRateZones"][0]["zones"]]
