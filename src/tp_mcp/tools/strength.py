@@ -19,6 +19,10 @@ Verified against the live API:
               strength workouts never appear in the /fitness/v6 endpoints)
   • detail  → GET    /rx/activity/v1/workouts/{id}         (full blocks/sets, {data} wrapper)
   • summary → GET    /rx/activity/v1/workouts/{id}/summary
+  • comments→ GET    /rx/activity/v1/workouts/{id}/comments   (the athlete's gym
+              notes — lifts / RPE — live HERE, not on the fitness API; the
+              fitness comment/note tools return 403 for strength ids →
+              `tp_get_strength_workout_comments`)
   • delete  → DELETE /rx/activity/v1/workouts/{id}
   • a prescription must declare its own `parameters` (the prescribed columns),
     distinct from the exercise's library parameters and each set's values;
@@ -841,6 +845,82 @@ async def tp_get_strength_workout(workout_id: str) -> dict[str, Any]:
         if not d:
             return _err("NOT_FOUND", "Strength workout not found.")
         return _fmt_workout_detail(d)
+
+
+async def tp_get_strength_workout_comments(workout_id: str) -> dict[str, Any]:
+    """Get the comments on a strength workout (where gym loads / RPE get logged).
+
+    Strength workouts live on the Peaksware strength API, so the fitness-API
+    comment tools (`tp_get_workout_comments`, `tp_get_workout_note`) return 403
+    for their IDs. This reads the strength API's own `/comments` route plus the
+    `/summary` route for the comment count and private-note flag.
+
+    Args:
+        workout_id: The strength workout ID (from tp_get_strength_workouts).
+
+    Returns:
+        Dict with `workout_id`, `total_comments`, `has_private_note` and
+        `comments` (id, comment, date_created, commenter_person_id,
+        commenter_name — the name resolved from the response's `people` list).
+    """
+    wid = str(workout_id).strip()
+    if not wid.isdigit() or int(wid) <= 0:
+        return _err("VALIDATION_ERROR", "workout_id must be a positive integer.")
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                headers = _headers(access)
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/{wid}/comments",
+                    headers=headers,
+                )
+                if r.status_code != 200:
+                    return _map_status(r.status_code, r.text)
+                s = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/workouts/{wid}/summary",
+                    headers=headers,
+                )
+        except httpx.TimeoutException:
+            return _err("NETWORK_ERROR", "Strength comments timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error reading strength workout comments")
+            return _err("NETWORK_ERROR", "A network error occurred.")
+
+        body = r.json()
+        if not isinstance(body, dict):
+            body = {}
+        raw_comments = body.get("comments") or []
+        people = {
+            str(p.get("id")): p.get("name")
+            for p in (body.get("people") or [])
+            if isinstance(p, dict)
+        }
+        comments = [
+            {
+                "id": c.get("id"),
+                "comment": c.get("comment"),
+                "date_created": c.get("dateCreated"),
+                "commenter_person_id": c.get("commenterPersonId"),
+                "commenter_name": people.get(str(c.get("commenterPersonId"))),
+            }
+            for c in raw_comments
+            if isinstance(c, dict)
+        ]
+        # Summary is best-effort: the comments themselves are the payload.
+        summary: dict[str, Any] = {}
+        if s.status_code == 200:
+            sj = s.json()
+            summary = (sj.get("data") or {}) if isinstance(sj, dict) else {}
+        total = summary.get("totalComments")
+        return {
+            "workout_id": wid,
+            "total_comments": total if isinstance(total, int) else len(comments),
+            "has_private_note": bool(summary.get("hasPrivateWorkoutNoteForCaller", False)),
+            "comments": comments,
+        }
 
 
 async def tp_delete_strength_workout(workout_id: str) -> dict[str, Any]:

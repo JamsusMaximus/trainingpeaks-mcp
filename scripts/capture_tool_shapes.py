@@ -344,8 +344,10 @@ async def main(out_path: Path) -> int:
         if st_id:
             await r.capture("tp_get_strength_workout", {"workout_id": st_id})
             await r.capture("tp_get_strength_summary", {"workout_id": st_id})
+            await r.capture("tp_get_strength_workout_comments", {"workout_id": st_id})
     if not st_id:
-        for t in ("tp_create_strength_workout", "tp_get_strength_workout", "tp_get_strength_summary"):
+        for t in ("tp_create_strength_workout", "tp_get_strength_workout", "tp_get_strength_summary",
+                  "tp_get_strength_workout_comments"):
             r.results.setdefault(t, {"skipped": "scratch strength workout could not be created"})
 
     # --- settings round-trips (write current value back, unchanged) ----------
