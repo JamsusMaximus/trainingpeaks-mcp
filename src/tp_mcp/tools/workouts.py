@@ -8,7 +8,7 @@ from typing import Any, Literal, NamedTuple
 
 from pydantic import ValidationError
 
-from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+from tp_mcp.client import ErrorCode, TPClient, parse_workout_detail, parse_workout_list
 from tp_mcp.tools._validation import (
     CreateWorkoutInput,
     DateRangeInput,
@@ -1181,6 +1181,32 @@ async def tp_set_workout_note(workout_id: str, note: str) -> dict[str, Any]:
         }
 
 
+# Pair/unpair go through the fitness v6 *commands* endpoints, which only know
+# endurance workouts. Structured-strength workouts (tp_get_strength_workouts,
+# ids from the Peaksware /rx/activity API) are a separate id space: such an id
+# either does not exist in the fitness namespace (404) or collides with some
+# other athlete's old endurance workout (403 -> AUTH_INVALID). Neither status
+# says "wrong kind of id", so the hint below does.
+_PAIRING_ID_HINT = (
+    "This endpoint only handles endurance workouts from tp_get_workouts. If this id came "
+    "from tp_get_strength_workouts (structured strength workouts live on a separate API) "
+    "it cannot be paired or unpaired here; a strength id can also collide with another "
+    "athlete's endurance workout, which the API reports as 403/AUTH_INVALID. Confirm the "
+    "id with tp_get_workout before retrying."
+)
+
+
+def _pairing_error(response: Any, ids: str) -> dict[str, Any]:
+    """Error envelope for a failed pair/unpair command, with the id-namespace hint on 403/404."""
+    code = response.error_code.value if response.error_code else "API_ERROR"
+    message = response.message
+    result: dict[str, Any] = {"isError": True, "error_code": code, "message": message}
+    if response.error_code in (ErrorCode.AUTH_INVALID, ErrorCode.NOT_FOUND):
+        result["message"] = f"{message} Workout id(s) {ids} could not be resolved for this command. {_PAIRING_ID_HINT}"
+        result["hint"] = _PAIRING_ID_HINT
+    return result
+
+
 async def tp_unpair_workout(workout_id: str) -> dict[str, Any]:
     """Unpair (split) a paired workout into separate completed and planned workouts.
 
@@ -1219,11 +1245,7 @@ async def tp_unpair_workout(workout_id: str) -> dict[str, Any]:
         response = await client.post(endpoint)
 
         if response.is_error:
-            return {
-                "isError": True,
-                "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
-            }
+            return _pairing_error(response, str(validated.workout_id))
 
         if not isinstance(response.data, dict):
             return {
@@ -1303,11 +1325,9 @@ async def tp_pair_workout(
         response = await client.post(endpoint, json=payload)
 
         if response.is_error:
-            return {
-                "isError": True,
-                "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
-            }
+            return _pairing_error(
+                response, f"{validated_completed.workout_id} / {validated_planned.workout_id}",
+            )
 
         if not isinstance(response.data, dict):
             return {
