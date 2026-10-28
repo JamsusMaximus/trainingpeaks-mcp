@@ -201,7 +201,10 @@ TOOLS = [
         name="tp_get_workouts",
         description=(
             "List workouts in date range. Query only days needed. Max 90 days. "
-            "Does NOT include strength-builder gym workouts — use "
+            "Set compact=true for a small row per workout (ids, numbers, "
+            "has_description/has_structure/file_count flags, title cut to 80 chars) "
+            "without description text - use it for overviews, then tp_get_workout "
+            "for detail. Does NOT include strength-builder gym workouts — use "
             "tp_get_strength_workouts for those."
         ),
         input_schema={
@@ -214,6 +217,14 @@ TOOLS = [
                     "enum": ["all", "planned", "completed"],
                     "description": "Filter: all, planned, or completed",
                     "default": "all",
+                },
+                "compact": {
+                    "type": "boolean",
+                    "description": (
+                        "Return one small row per workout and omit description text. "
+                        "Default false keeps the full output."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["start_date", "end_date"],
@@ -759,12 +770,25 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_metrics",
-        description="Get health metrics for a date range.",
+        description=(
+            "Get health metrics for a date range. Set compact=true for one row per "
+            "day with a snake_cased column per metric (hrv, pulse, sleep_hours, "
+            "weight, body_battery, ...) instead of TrainingPeaks' per-detail "
+            "wrapper objects."
+        ),
         input_schema={
             "type": "object",
             "properties": {
                 "start_date": {"type": "string", "description": "YYYY-MM-DD"},
                 "end_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "compact": {
+                    "type": "boolean",
+                    "description": (
+                        "Return one flat row per day keyed by metric label. "
+                        "Default false keeps the raw TrainingPeaks output."
+                    ),
+                    "default": False,
+                },
             },
             "required": ["start_date", "end_date"],
         },
@@ -1641,6 +1665,7 @@ async def _h_get_workouts(args):
     return await tp_get_workouts(
         start_date=args["start_date"], end_date=args["end_date"],
         workout_filter=args.get("type", "all"),
+        compact=bool(args.get("compact", False)),
     )
 
 @_handler("tp_get_workout")
@@ -1865,7 +1890,10 @@ async def _h_log_metrics(args):
 
 @_handler("tp_get_metrics")
 async def _h_get_metrics(args):
-    return await tp_get_metrics(start_date=args["start_date"], end_date=args["end_date"])
+    return await tp_get_metrics(
+        start_date=args["start_date"], end_date=args["end_date"],
+        compact=bool(args.get("compact", False)),
+    )
 
 @_handler("tp_get_nutrition")
 async def _h_get_nutrition(args):

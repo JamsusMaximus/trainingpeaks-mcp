@@ -166,10 +166,54 @@ def _shift_start_time_planned(existing_start_time: str, target_day: date_type) -
     return datetime_type.combine(target_day, start_dt.timetz()).isoformat(timespec="seconds")
 
 
+COMPACT_TITLE_MAX = 80
+
+
+def _truncate_title(title: str | None, limit: int = COMPACT_TITLE_MAX) -> str | None:
+    """Shorten a title for compact listings, marking the cut with an ellipsis."""
+    if title is None or len(title) <= limit:
+        return title
+    return title[: limit - 1].rstrip() + "\u2026"
+
+
+def _file_count(raw: dict[str, Any]) -> int | None:
+    """Count attached device/attachment files when the payload carries them.
+
+    The v6 list endpoint does not always include file metadata (the single
+    workout endpoint fetches it from ``/details``), so this is ``None`` when
+    neither key is present rather than a misleading 0.
+    """
+    keys = ("workoutDeviceFileInfos", "attachmentFileInfos")
+    if not any(k in raw for k in keys):
+        return None
+    return sum(len(raw.get(k) or []) for k in keys if isinstance(raw.get(k), list))
+
+
+def _compact_workout(w: Any, raw: dict[str, Any]) -> dict[str, Any]:
+    """One small row per workout: identity, numbers, and presence flags only."""
+    return {
+        "id": str(w.id),
+        "date": w.date.isoformat(),
+        "sport": w.sport,
+        "type": w.workout_status,
+        "title": _truncate_title(w.title),
+        "duration_planned": w.duration_planned,
+        "duration_actual": w.duration_actual,
+        "distance_planned_km": w.distance_planned / 1000 if w.distance_planned else None,
+        "distance_actual_km": w.distance_actual / 1000 if w.distance_actual else None,
+        "tss_planned": w.tss_planned,
+        "tss_actual": w.tss_actual,
+        "has_description": bool(w.description),
+        "has_structure": bool(raw.get("structure")),
+        "file_count": _file_count(raw),
+    }
+
+
 async def tp_get_workouts(
     start_date: str,
     end_date: str,
     workout_filter: Literal["all", "planned", "completed"] = "all",
+    compact: bool = False,
 ) -> dict[str, Any]:
     """Get workouts for a date range.
 
@@ -177,6 +221,10 @@ async def tp_get_workouts(
         start_date: Start date in ISO format (YYYY-MM-DD).
         end_date: End date in ISO format (YYYY-MM-DD).
         workout_filter: Filter by status - "all", "planned", or "completed".
+        compact: When true, return one small row per workout (ids, numbers and
+            ``has_description`` / ``has_structure`` / ``file_count`` flags,
+            title truncated to 80 chars) and omit description text. Default
+            output is unchanged.
 
     Returns:
         Dict with workouts list, count, and date_range.
@@ -221,13 +269,25 @@ async def tp_get_workouts(
             }
 
         try:
-            workouts = parse_workout_list(response.data)
+            raw_items = response.data
+            workouts = parse_workout_list(raw_items)
 
             # Apply filter
             if workout_filter == "planned":
                 workouts = [w for w in workouts if not w.is_completed]
             elif workout_filter == "completed":
                 workouts = [w for w in workouts if w.is_completed]
+
+            if compact:
+                raw_by_id = {
+                    str(item.get("workoutId")): item for item in raw_items if isinstance(item, dict)
+                }
+                return {
+                    "workouts": [_compact_workout(w, raw_by_id.get(str(w.id), {})) for w in workouts],
+                    "count": len(workouts),
+                    "date_range": {"start": start_date, "end": end_date},
+                    "compact": True,
+                }
 
             # Convert to dict format for response
             workout_dicts = [

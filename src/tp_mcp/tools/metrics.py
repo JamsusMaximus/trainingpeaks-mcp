@@ -1,6 +1,7 @@
 """Health metrics tools: log, get, nutrition."""
 
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -166,12 +167,69 @@ async def tp_log_metrics(
         }
 
 
-async def tp_get_metrics(start_date: str, end_date: str) -> dict[str, Any]:
+# Labels whose snake_case form would be ambiguous on its own. Everything else
+# is derived mechanically from the label TrainingPeaks attaches to the detail.
+_COMPACT_LABEL_OVERRIDES: dict[str, str] = {
+    "sleep": "sleep_hours",  # type 6, hours - matches the tp_log_metrics parameter name
+}
+
+
+def _metric_column(label: Any, metric_type: Any) -> str:
+    """Derive a stable snake_case column name from a metric detail's label."""
+    text = str(label or "").strip()
+    if not text:
+        return f"type_{metric_type}"
+    lowered = text.lower()
+    if lowered in _COMPACT_LABEL_OVERRIDES:
+        return _COMPACT_LABEL_OVERRIDES[lowered]
+    column = re.sub(r"[^0-9a-z]+", "_", lowered).strip("_")
+    if not column:
+        return f"type_{metric_type}"
+    if column[0].isdigit():
+        column = f"m_{column}"
+    return column
+
+
+def _compact_metrics(days: list[Any]) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Flatten TP's consolidated metric days into one row per day.
+
+    Each detail becomes a ``{column: value}`` pair keyed by its snake_cased
+    label; the per-detail wrapper (``parentId``, ``uploadClient``,
+    ``modifiedTime``, ``type``, ``isPotentiallyNegative``, ``time``) is
+    dropped. Values are passed through untouched (some metrics are lists).
+    If a label repeats within a day the last value wins.
+
+    Returns:
+        ``(rows, labels)`` where ``labels`` maps each column back to the
+        original TrainingPeaks label.
+    """
+    rows: list[dict[str, Any]] = []
+    labels: dict[str, str] = {}
+    for day in days:
+        if not isinstance(day, dict):
+            continue
+        stamp = str(day.get("timeStamp") or "")
+        row: dict[str, Any] = {"date": stamp.split("T")[0] if stamp else None}
+        for detail in day.get("details") or []:
+            if not isinstance(detail, dict):
+                continue
+            column = _metric_column(detail.get("label"), detail.get("type"))
+            labels.setdefault(column, str(detail.get("label") or column))
+            row[column] = detail.get("value")
+        rows.append(row)
+    return rows, labels
+
+
+async def tp_get_metrics(start_date: str, end_date: str, compact: bool = False) -> dict[str, Any]:
     """Get health metrics for a date range.
 
     Args:
         start_date: Start date in ISO format (YYYY-MM-DD).
         end_date: End date in ISO format (YYYY-MM-DD).
+        compact: When true, return one row per day with a snake_cased column
+            per metric label (hrv, pulse, sleep_hours, weight, body_battery,
+            ...) instead of TP's per-detail wrapper objects. Default output is
+            unchanged.
 
     Returns:
         Dict with per-day metric values.
@@ -214,9 +272,21 @@ async def tp_get_metrics(start_date: str, end_date: str) -> dict[str, Any]:
                 "message": "No metrics data for this date range.",
             }
 
+        days = response.data if isinstance(response.data, list) else [response.data]
+
+        if compact:
+            rows, labels = _compact_metrics(days)
+            return {
+                "metrics": rows,
+                "count": len(rows),
+                "date_range": {"start": start_date, "end": end_date},
+                "compact": True,
+                "labels": labels,
+            }
+
         return {
-            "metrics": response.data if isinstance(response.data, list) else [response.data],
-            "count": len(response.data) if isinstance(response.data, list) else 1,
+            "metrics": days,
+            "count": len(days),
             "date_range": {"start": start_date, "end": end_date},
         }
 

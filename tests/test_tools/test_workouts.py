@@ -781,3 +781,83 @@ class TestTpPairWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "API_ERROR"
+
+
+class TestTpGetWorkoutsCompact:
+    """compact=True returns one small row per workout; the default output is unchanged."""
+
+    def _raw(self, mock_api_responses):
+        raw = [dict(w) for w in mock_api_responses["workouts"]]
+        raw[0]["description"] = "A long description that compact mode must not return."
+        raw[0]["structure"] = '{"structure": [], "polyline": []}'
+        raw[0]["workoutDeviceFileInfos"] = [{"fileId": 1}, {"fileId": 2}]
+        raw[0]["attachmentFileInfos"] = []
+        raw[1]["title"] = "T" * 120
+        return raw
+
+    async def _call(self, raw, **kwargs):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=APIResponse(success=True, data=raw))
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            return await tp_get_workouts("2025-01-08", "2025-01-09", **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_compact_rows_have_flags_and_no_description(self, mock_api_responses):
+        result = await self._call(self._raw(mock_api_responses), compact=True)
+
+        assert result["compact"] is True
+        assert result["count"] == 2
+        completed, planned = result["workouts"]
+        assert set(completed) == {
+            "id", "date", "sport", "type", "title", "duration_planned", "duration_actual",
+            "distance_planned_km", "distance_actual_km", "tss_planned", "tss_actual",
+            "has_description", "has_structure", "file_count",
+        }
+        assert "description" not in completed
+        assert completed["id"] == "1001"
+        assert completed["sport"] == "Bike"
+        assert completed["type"] == "completed"
+        assert completed["has_description"] is True
+        assert completed["has_structure"] is True
+        assert completed["file_count"] == 2
+        assert completed["tss_planned"] == 80
+        assert completed["tss_actual"] == 75
+        assert planned["has_description"] is False
+        assert planned["has_structure"] is False
+        assert planned["file_count"] is None  # list payload carried no file metadata
+
+    @pytest.mark.asyncio
+    async def test_compact_truncates_long_titles(self, mock_api_responses):
+        result = await self._call(self._raw(mock_api_responses), compact=True)
+        title = result["workouts"][1]["title"]
+        assert len(title) == 80
+        assert title.endswith("…")
+        assert title.startswith("T" * 79)
+
+    @pytest.mark.asyncio
+    async def test_compact_respects_filter(self, mock_api_responses):
+        result = await self._call(self._raw(mock_api_responses), workout_filter="planned", compact=True)
+        assert result["count"] == 1
+        assert result["workouts"][0]["type"] == "planned"
+
+    @pytest.mark.asyncio
+    async def test_default_output_unchanged(self, mock_api_responses):
+        raw = self._raw(mock_api_responses)
+        result = await self._call(raw)
+        assert "compact" not in result
+        first = result["workouts"][0]
+        assert first["description"] == raw[0]["description"]
+        assert first["title"] == raw[0]["title"]
+        assert result["workouts"][1]["title"] == "T" * 120  # not truncated
+        assert set(first) == {
+            "id", "date", "title", "type", "sport", "duration_planned", "duration_actual",
+            "distance_planned_km", "distance_actual_km", "tss", "tss_planned", "tss_actual", "description",
+        }
+
+    @pytest.mark.asyncio
+    async def test_compact_empty_range(self):
+        result = await self._call([], compact=True)
+        assert result["workouts"] == []
+        assert result["count"] == 0

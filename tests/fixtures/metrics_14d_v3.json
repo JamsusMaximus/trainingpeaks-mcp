@@ -1,0 +1,1739 @@
+[
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000000",
+  "timeStamp": "2026-10-14T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 74,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 48,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.97,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.93,
+    "time": "2026-10-14T06:14:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.75,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.28,
+    "time": "2026-10-14T07:30:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.55,
+    "time": "2026-10-14T07:30:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 74,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 26,
+    "time": "2026-10-14T07:30:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.3,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 8306,
+    "time": "2026-10-14T06:02:00",
+    "parentId": 9000000,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-14T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000001",
+  "timeStamp": "2026-10-15T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 79,
+    "time": "2026-10-15T07:30:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 43,
+    "time": "2026-10-15T06:14:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.4,
+    "time": "2026-10-15T07:30:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.84,
+    "time": "2026-10-15T07:30:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.76,
+    "time": "2026-10-15T06:02:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 0.92,
+    "time": "2026-10-15T07:30:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.3,
+    "time": "2026-10-15T06:14:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 64,
+    "time": "2026-10-15T06:14:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 40,
+    "time": "2026-10-15T07:30:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.6,
+    "time": "2026-10-15T06:14:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 7306,
+    "time": "2026-10-15T06:02:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 11,
+    "label": "Blood Pressure",
+    "value": [
+     117,
+     73
+    ],
+    "time": "2026-10-15T06:14:00",
+    "parentId": 9000001,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-15T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000002",
+  "timeStamp": "2026-10-16T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 58,
+    "time": "2026-10-16T06:14:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 48,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.74,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.8,
+    "time": "2026-10-16T06:14:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.89,
+    "time": "2026-10-16T07:30:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 0.89,
+    "time": "2026-10-16T07:30:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.22,
+    "time": "2026-10-16T07:30:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 82,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 18,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.0,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-16T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 12261,
+    "time": "2026-10-16T06:02:00",
+    "parentId": 9000002,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000003",
+  "timeStamp": "2026-10-17T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 66,
+    "time": "2026-10-17T06:02:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 45,
+    "time": "2026-10-17T07:30:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 7.35,
+    "time": "2026-10-17T06:02:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 1.53,
+    "time": "2026-10-17T06:14:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 4.27,
+    "time": "2026-10-17T06:14:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 0.81,
+    "time": "2026-10-17T06:02:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.31,
+    "time": "2026-10-17T07:30:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 85,
+    "time": "2026-10-17T06:14:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 35,
+    "time": "2026-10-17T07:30:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-17T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.2,
+    "time": "2026-10-17T06:14:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 9084,
+    "time": "2026-10-17T06:14:00",
+    "parentId": 9000003,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000004",
+  "timeStamp": "2026-10-18T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 68,
+    "time": "2026-10-18T06:02:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 49,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.15,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.69,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.36,
+    "time": "2026-10-18T06:02:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.87,
+    "time": "2026-10-18T06:02:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.44,
+    "time": "2026-10-18T06:02:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 89,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 21,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.3,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-18T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 15439,
+    "time": "2026-10-18T06:02:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 94,
+    "time": "2026-10-18T07:30:00",
+    "parentId": 9000004,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000005",
+  "timeStamp": "2026-10-19T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 65,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 48,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 7.56,
+    "time": "2026-10-19T06:02:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.79,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 4.28,
+    "time": "2026-10-19T06:02:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.37,
+    "time": "2026-10-19T06:02:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.26,
+    "time": "2026-10-19T07:30:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 51,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 21,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 73.8,
+    "time": "2026-10-19T06:02:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 8901,
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-19T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 11,
+    "label": "Blood Pressure",
+    "value": [
+     111,
+     74
+    ],
+    "time": "2026-10-19T06:14:00",
+    "parentId": 9000005,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000006",
+  "timeStamp": "2026-10-20T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 73,
+    "time": "2026-10-20T07:30:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 50,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.24,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 1.3,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.29,
+    "time": "2026-10-20T07:30:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 0.95,
+    "time": "2026-10-20T06:14:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.21,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 50,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 19,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-20T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 73.8,
+    "time": "2026-10-20T06:02:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 14947,
+    "time": "2026-10-20T07:30:00",
+    "parentId": 9000006,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000007",
+  "timeStamp": "2026-10-21T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 77,
+    "time": "2026-10-21T06:14:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 44,
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.56,
+    "time": "2026-10-21T06:02:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.66,
+    "time": "2026-10-21T06:14:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.46,
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.44,
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.44,
+    "time": "2026-10-21T06:14:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 50,
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 37,
+    "time": "2026-10-21T06:14:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.1,
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 9283,
+    "time": "2026-10-21T06:02:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 11,
+    "label": "Blood Pressure",
+    "value": [
+     115,
+     69
+    ],
+    "time": "2026-10-21T07:30:00",
+    "parentId": 9000007,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-21T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000008",
+  "timeStamp": "2026-10-22T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 76,
+    "time": "2026-10-22T06:14:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 47,
+    "time": "2026-10-22T06:14:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.74,
+    "time": "2026-10-22T07:30:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.86,
+    "time": "2026-10-22T06:02:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.95,
+    "time": "2026-10-22T06:14:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.64,
+    "time": "2026-10-22T07:30:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.19,
+    "time": "2026-10-22T06:02:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 64,
+    "time": "2026-10-22T06:14:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 34,
+    "time": "2026-10-22T06:14:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 73.8,
+    "time": "2026-10-22T06:02:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-22T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 10863,
+    "time": "2026-10-22T07:30:00",
+    "parentId": 9000008,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000009",
+  "timeStamp": "2026-10-23T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 73,
+    "time": "2026-10-23T06:14:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 50,
+    "time": "2026-10-23T07:30:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 7.28,
+    "time": "2026-10-23T07:30:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.87,
+    "time": "2026-10-23T06:14:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.26,
+    "time": "2026-10-23T07:30:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 0.95,
+    "time": "2026-10-23T06:02:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.27,
+    "time": "2026-10-23T06:14:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 81,
+    "time": "2026-10-23T07:30:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 20,
+    "time": "2026-10-23T06:02:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.3,
+    "time": "2026-10-23T06:02:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 9017,
+    "time": "2026-10-23T06:14:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-23T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 95,
+    "time": "2026-10-23T06:02:00",
+    "parentId": 9000009,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000010",
+  "timeStamp": "2026-10-24T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 64,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 47,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.87,
+    "time": "2026-10-24T06:02:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 1.11,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.41,
+    "time": "2026-10-24T07:30:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.52,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.55,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 65,
+    "time": "2026-10-24T07:30:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 37,
+    "time": "2026-10-24T06:02:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 73.5,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 14847,
+    "time": "2026-10-24T07:30:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 96,
+    "time": "2026-10-24T06:14:00",
+    "parentId": 9000010,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-24T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000011",
+  "timeStamp": "2026-10-25T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 76,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 42,
+    "time": "2026-10-25T07:30:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.21,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 1.56,
+    "time": "2026-10-25T06:02:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.88,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.36,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.32,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 46,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 30,
+    "time": "2026-10-25T06:14:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.5,
+    "time": "2026-10-25T06:02:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 11859,
+    "time": "2026-10-25T06:02:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 99,
+    "time": "2026-10-25T06:02:00",
+    "parentId": 9000011,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-25T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000012",
+  "timeStamp": "2026-10-26T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 56,
+    "time": "2026-10-26T06:02:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 48,
+    "time": "2026-10-26T06:02:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 7.31,
+    "time": "2026-10-26T06:14:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 1.04,
+    "time": "2026-10-26T07:30:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.89,
+    "time": "2026-10-26T06:02:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.54,
+    "time": "2026-10-26T06:02:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.36,
+    "time": "2026-10-26T06:14:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 53,
+    "time": "2026-10-26T06:14:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 32,
+    "time": "2026-10-26T06:14:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 74.5,
+    "time": "2026-10-26T06:02:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 11556,
+    "time": "2026-10-26T07:30:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-26T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 97,
+    "time": "2026-10-26T07:30:00",
+    "parentId": 9000012,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   }
+  ]
+ },
+ {
+  "athleteId": 123456,
+  "id": "a1b2c3d4-0000-4000-8000-000000000013",
+  "timeStamp": "2026-10-27T00:00:00",
+  "details": [
+   {
+    "type": 60,
+    "label": "HRV",
+    "value": 72,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 5,
+    "label": "Pulse",
+    "value": 44,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 6,
+    "label": "Sleep",
+    "value": 6.88,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 70,
+    "label": "Time In Deep Sleep",
+    "value": 0.83,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 71,
+    "label": "Time In Light Sleep",
+    "value": 3.67,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 72,
+    "label": "Time In REM Sleep",
+    "value": 1.03,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 73,
+    "label": "Time Awake",
+    "value": 0.53,
+    "time": "2026-10-27T06:02:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 74,
+    "label": "Body Battery",
+    "value": 60,
+    "time": "2026-10-27T06:14:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 75,
+    "label": "Stress Level",
+    "value": 34,
+    "time": "2026-10-27T06:02:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 9,
+    "label": "Weight",
+    "value": 73.9,
+    "time": "2026-10-27T06:02:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 58,
+    "label": "Steps",
+    "value": 10836,
+    "time": "2026-10-27T07:30:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": null,
+    "isPotentiallyNegative": false
+   },
+   {
+    "type": 53,
+    "label": "SPO2",
+    "value": 99,
+    "time": "2026-10-27T07:30:00",
+    "parentId": 9000013,
+    "uploadClient": "Garmin Connect",
+    "modifiedTime": "2026-10-27T07:45:12",
+    "isPotentiallyNegative": false
+   }
+  ]
+ }
+]

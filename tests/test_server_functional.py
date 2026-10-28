@@ -144,6 +144,17 @@ class TestListTools:
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
+    async def test_compact_flag_is_advertised_and_optional(self):
+        tools = await list_tools()
+        for name in ("tp_get_workouts", "tp_get_metrics"):
+            t = next(t for t in tools if t.name == name)
+            props = t.input_schema["properties"]
+            assert props["compact"]["type"] == "boolean", name
+            assert props["compact"]["default"] is False, name
+            assert "compact" not in t.input_schema["required"], name
+            assert "compact" in t.description, name
+
+    @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")
@@ -236,6 +247,28 @@ class TestGetWorkoutsDispatch:
 
         assert result["count"] == 2
         assert len(result["workouts"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_compact_flag_reaches_the_tool(self, mock_api_responses):
+        workouts_response = APIResponse(success=True, data=mock_api_responses["workouts"])
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=workouts_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = _parse_result(
+                await call_tool(
+                    "tp_get_workouts",
+                    {"start_date": "2025-01-08", "end_date": "2025-01-09", "compact": True},
+                )
+            )
+
+        assert result["compact"] is True
+        assert all("description" not in w for w in result["workouts"])
+        assert all("has_structure" in w for w in result["workouts"])
+
 
 
 # ---------------------------------------------------------------------------
