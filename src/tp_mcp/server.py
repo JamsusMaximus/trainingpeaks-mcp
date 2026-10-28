@@ -279,7 +279,9 @@ TOOLS = [
         description=(
             "Update fields of an existing workout. Supports the same simplified "
             "interval structure format as tp_create_workout plus an optional native "
-            "structured_workout payload, then fetches existing, merges, and saves."
+            "structured_workout payload, then fetches existing, merges, and saves. "
+            "description replaces the existing text by default; set "
+            "description_mode='append' to add to it instead."
         ),
         input_schema={
             "type": "object",
@@ -289,6 +291,15 @@ TOOLS = [
                 "subtype_id": {"type": "integer"},
                 "title": {"type": "string"},
                 "description": {"type": "string"},
+                "description_mode": {
+                    "type": "string",
+                    "enum": ["replace", "append"],
+                    "description": (
+                        "How to apply description: 'replace' (default) overwrites; "
+                        "'append' adds it after the existing text, separated by a blank line."
+                    ),
+                    "default": "replace",
+                },
                 "date": {"type": "string", "description": "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"},
                 "duration_minutes": {"type": "number"},
                 "distance_km": {"type": "number"},
@@ -1672,6 +1683,7 @@ async def _h_update_workout(args):
         rpe=args.get("rpe"), structure=args.get("structure"),
         structured_workout=args.get("structured_workout"),
         is_hidden=args.get("is_hidden"),
+        description_mode=args.get("description_mode", "replace"),
     )
 
 @_handler("tp_delete_workout")
