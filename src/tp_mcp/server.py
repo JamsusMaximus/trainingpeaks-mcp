@@ -378,7 +378,11 @@ TOOLS = [
         name="tp_pair_workout",
         description=(
             "Pair a completed workout with a planned workout. Attaches the "
-            "completed data to the planned workout, merging them into one."
+            "completed data to the planned workout, merging them into one. "
+            "The result states surviving_workout_id (the id that continues to "
+            "exist, verified with a follow-up GET), removed_workout_id, merged "
+            "and removal_check ('confirmed' | 'still_exists' | 'unverified'); "
+            "use surviving_workout_id for any further calls."
         ),
         input_schema={
             "type": "object",
