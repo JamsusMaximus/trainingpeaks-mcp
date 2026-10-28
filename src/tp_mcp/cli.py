@@ -119,14 +119,18 @@ def cmd_auth_status() -> int:
     Returns:
         Exit code (0 for authenticated, 1 for not authenticated).
     """
-    cred = get_credential()
-    if not cred.success or not cred.cookie:
+    import asyncio
+
+    from tp_mcp.auth.login import resolve_cookie
+
+    cookie, _ = asyncio.run(resolve_cookie())
+    if not cookie:
         print("Not authenticated.")
-        print("Run 'tp-mcp auth' to authenticate.")
+        print("Run 'tp-mcp auth' to authenticate, or set TP_USERNAME and TP_PASSWORD.")
         return 1
 
     print("Checking authentication status...")
-    result = validate_auth_sync(cred.cookie)
+    result = validate_auth_sync(cookie)
 
     if result.is_valid:
         print("Authenticated")
@@ -163,6 +167,41 @@ def cmd_serve() -> int:
     from tp_mcp.server import run_server
 
     return run_server()
+
+
+def cmd_login_check() -> int:
+    """Verify TP_USERNAME/TP_PASSWORD from the environment without storing them.
+
+    Returns:
+        Exit code (0 if login works, 1 otherwise).
+    """
+    import asyncio
+
+    from tp_mcp.auth.login import env_credentials, get_session_cookie
+
+    if env_credentials() is None:
+        print("Password login is not configured.")
+        print()
+        print("Pass credentials through the environment (they are never stored by tp-mcp):")
+        print("  TP_USERNAME   your TrainingPeaks username or email")
+        print("  TP_PASSWORD   your TrainingPeaks password")
+        print()
+        print("Supply them from a secrets manager or your MCP host's secret mechanism.")
+        print("Not supported for accounts with 2FA, a CAPTCHA, or social sign-in.")
+        return 1
+
+    result = asyncio.run(get_session_cookie(force_refresh=True))
+    if not result.success:
+        print(f"Login failed: {result.message}")
+        return 1
+    validation = validate_auth_sync(result.cookie or "")
+    if validation.is_valid:
+        print("Password login works.")
+        print(f"  Email: {validation.email}")
+        print(f"  Athlete ID: {validation.athlete_id}")
+        return 0
+    print(f"Login produced an invalid session: {validation.message}")
+    return 1
 
 
 def cmd_config() -> int:
@@ -209,6 +248,7 @@ def cmd_help() -> int:
     print("    --from-browser X    Extract cookie from browser (chrome, firefox, safari, edge, auto)")
     print("  auth-status           Check authentication status")
     print("  auth-clear            Clear stored cookie")
+    print("  login-check           Verify TP_USERNAME/TP_PASSWORD from the environment (nothing is stored)")
     print("  config                Output Claude Desktop config snippet")
     print("  serve                 Start the MCP server")
     print("  help                  Show this help message")
@@ -248,6 +288,7 @@ def main() -> int:
     commands = {
         "auth-status": cmd_auth_status,
         "auth-clear": cmd_auth_clear,
+        "login-check": cmd_login_check,
         "config": cmd_config,
         "serve": cmd_serve,
         "help": cmd_help,

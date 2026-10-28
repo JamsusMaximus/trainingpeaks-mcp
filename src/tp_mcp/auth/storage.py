@@ -29,6 +29,8 @@ def get_storage_backend() -> str:
     """
     if os.environ.get(ENV_VAR_NAME):
         return "environment"
+    if os.environ.get("TP_USERNAME") and os.environ.get("TP_PASSWORD"):
+        return "environment-login"
     if is_keyring_available():
         return "keyring"
     return "encrypted_file"
