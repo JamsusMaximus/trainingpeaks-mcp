@@ -152,7 +152,10 @@ class TestListTools:
             assert props["timezone"]["type"] == "string", name
             assert "IANA" in props["timezone"]["description"], name
             assert "timezone" not in t.input_schema["required"], name
-            assert "UTC" in t.description, name
+        get_workout = next(t for t in tools if t.name == "tp_get_workout")
+        assert "America/Denver" in get_workout.description  # uploaded_at source zone
+        analyze = next(t for t in tools if t.name == "tp_analyze_workout")
+        assert "UTC" in analyze.description  # startTimestamp/stopTimestamp source zone
 
     @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):

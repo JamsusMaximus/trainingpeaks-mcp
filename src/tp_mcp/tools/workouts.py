@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
-from tp_mcp.tools._time import resolve_timezone, utc_to_local
+from tp_mcp.tools._time import resolve_timezone, server_time_to_local
 from tp_mcp.tools._validation import (
     CreateWorkoutInput,
     DateRangeInput,
@@ -38,8 +38,10 @@ class StructurePayload(NamedTuple):
 def _extract_file_infos(raw_data: dict, key: str, zone: ZoneInfo | None = None) -> list[dict]:
     """Normalize TP workout file metadata arrays.
 
-    ``uploaded_at`` is TP's ``dateUploaded`` as-is (naive UTC). When ``zone``
-    is given an ``uploaded_at_local`` sibling with offset is added.
+    ``uploaded_at`` is TP's ``dateUploaded`` as-is: a naive timestamp in
+    TrainingPeaks **server time (America/Denver)**, not UTC. When ``zone`` is
+    given an ``uploaded_at_local`` sibling with offset is added, converted
+    from Denver time (DST-aware).
     """
     infos = raw_data.get(key)
     if not isinstance(infos, list):
@@ -56,7 +58,7 @@ def _extract_file_infos(raw_data: dict, key: str, zone: ZoneInfo | None = None) 
             "uploaded_at": item.get("dateUploaded"),
         }
         if zone is not None:
-            entry["uploaded_at_local"] = utc_to_local(item.get("dateUploaded"), zone)
+            entry["uploaded_at_local"] = server_time_to_local(item.get("dateUploaded"), zone)
         normalized.append(entry)
     return normalized
 
@@ -279,8 +281,8 @@ async def tp_get_workout(workout_id: str, timezone: str | None = None) -> dict[s
     Args:
         workout_id: The workout ID.
         timezone: Optional IANA zone name. When given, each file's
-            ``uploaded_at`` (naive UTC from TP) gets an ``uploaded_at_local``
-            sibling with offset.
+            ``uploaded_at`` (naive TrainingPeaks server time, America/Denver)
+            gets an ``uploaded_at_local`` sibling with offset.
 
     Returns:
         Dict with full workout details including structure.

@@ -224,8 +224,9 @@ TOOLS = [
         name="tp_get_workout",
         description=(
             "Get workout details by ID. Use after tp_get_workouts. "
-            "device_files/attachment_files uploaded_at is UTC (no offset); pass "
-            "timezone to get uploaded_at_local alongside it."
+            "device_files/attachment_files uploaded_at is TrainingPeaks server time "
+            "(America/Denver, no offset, NOT UTC); pass timezone to get "
+            "uploaded_at_local alongside it, converted from that zone."
         ),
         input_schema={
             "type": "object",

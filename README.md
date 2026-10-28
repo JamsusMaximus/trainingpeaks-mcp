@@ -29,7 +29,7 @@ Ask your AI assistant things like:
 | Tool | Description |
 |------|-------------|
 | `tp_get_workouts` | List workouts in a date range (max 90 days) |
-| `tp_get_workout` | Get full details for a single workout (optional `timezone` adds `uploaded_at_local` next to the UTC `uploaded_at` on files) |
+| `tp_get_workout` | Get full details for a single workout (file `uploaded_at` is TrainingPeaks server time, America/Denver; optional `timezone` adds `uploaded_at_local` converted from that) |
 | `tp_create_workout` | Create a workout with optional interval structure, auto-computed IF/TSS, and optional planned start time |
 | `tp_update_workout` | Update any field of an existing workout, including structured intervals and planned start time |
 | `tp_delete_workout` | Delete a workout |
