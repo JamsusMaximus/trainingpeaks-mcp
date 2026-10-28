@@ -1155,3 +1155,93 @@ class TestWorkoutNote:
         result = await tp_set_workout_note("abc", "note")
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+
+class TestStructureShapeErrorsOnWritePath:
+    """Wire-format / malformed `structure` must fail validation before any API call."""
+
+    WIRE_LIST = [
+        {
+            "type": "step",
+            "length": {"value": 1, "unit": "repetition"},
+            "steps": [
+                {
+                    "name": "Warm up",
+                    "type": "step",
+                    "length": {"value": 600, "unit": "second"},
+                    "targets": [{"minValue": 40, "maxValue": 55}],
+                    "intensityClass": "warmUp",
+                }
+            ],
+            "begin": 0,
+            "end": 600,
+        }
+    ]
+
+    @pytest.mark.asyncio
+    async def test_create_with_wire_list_returns_validation_error(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport="Bike",
+                title="Wire",
+                structure=self.WIRE_LIST,
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "wire format" in result["message"]
+        assert "structured_workout" in result["message"]
+        assert "duration_seconds" in result["message"]
+        mock_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_with_wire_list_as_json_string_returns_validation_error(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport="Bike",
+                title="Wire",
+                structure=json.dumps(self.WIRE_LIST),
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "wire format" in result["message"]
+        mock_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_with_object_missing_steps_returns_validation_error(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_create_workout(
+                date_str="2026-03-01",
+                sport="Bike",
+                title="No steps",
+                structure={"primaryIntensityMetric": "percentOfFtp"},
+            )
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "'steps'" in result["message"]
+        mock_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_with_wire_list_returns_validation_error(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_update_workout(workout_id="1001", structure=self.WIRE_LIST)
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "wire format" in result["message"]
+        assert "structured_workout" in result["message"]
+        mock_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_with_object_missing_steps_returns_validation_error(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_update_workout(workout_id="1001", structure={"steps_": []})
+
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "'steps'" in result["message"]
+        mock_client.assert_not_called()

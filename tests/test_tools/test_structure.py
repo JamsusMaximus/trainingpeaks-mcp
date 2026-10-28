@@ -286,3 +286,97 @@ class TestTpValidateStructure:
 
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+
+class TestInputShapeErrors:
+    """Malformed or wire-format input must produce a clear VALIDATION_ERROR, not a crash."""
+
+    WIRE_LIST = [
+        {
+            "type": "step",
+            "length": {"value": 1, "unit": "repetition"},
+            "steps": [
+                {
+                    "name": "Warm up",
+                    "type": "step",
+                    "length": {"value": 600, "unit": "second"},
+                    "targets": [{"minValue": 40, "maxValue": 55}],
+                    "intensityClass": "warmUp",
+                    "openDuration": False,
+                }
+            ],
+            "begin": 0,
+            "end": 600,
+        }
+    ]
+
+    def test_json_list_raises_value_error_naming_format(self):
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input(self.WIRE_LIST)
+        msg = str(exc_info.value)
+        assert "JSON list" in msg
+        assert "wire format" in msg
+        assert "structured_workout" in msg
+        assert "duration_seconds" in msg  # the simplified format is spelled out
+
+    def test_missing_steps_raises_value_error(self):
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input({"primaryIntensityMetric": "percentOfFtp"})
+        msg = str(exc_info.value)
+        assert "'steps'" in msg
+        assert "duration_seconds" in msg
+
+    def test_builder_object_without_steps_is_identified_as_wire_format(self):
+        builder = {
+            "structure": self.WIRE_LIST,
+            "polyline": [],
+            "primaryLengthMetric": "duration",
+            "primaryIntensityMetric": "percentOfFtp",
+            "primaryIntensityTargetOrRange": "range",
+        }
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input(builder)
+        msg = str(exc_info.value)
+        assert "builder object" in msg
+        assert "structured_workout" in msg
+
+    def test_wire_format_step_inside_steps_is_rejected(self):
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input({"steps": self.WIRE_LIST})
+        msg = str(exc_info.value)
+        assert "steps[0]" in msg
+        assert "wire-format" in msg
+
+    @pytest.mark.parametrize("bad", ["warmup", 42, None, [600, 40, 55]])
+    def test_non_object_step_is_rejected(self, bad):
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input({"steps": [bad]})
+        assert "steps[0] must be an object" in str(exc_info.value)
+
+    @pytest.mark.parametrize("bad", ["a string", 7, None])
+    def test_non_object_structure_is_rejected(self, bad):
+        with pytest.raises(ValueError) as exc_info:
+            parse_structure_input({"steps": bad} if bad is not None else {"steps": None})
+        assert "steps must be a list" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_validate_structure_list_input_returns_validation_error(self):
+        result = await tp_validate_structure(json.dumps(self.WIRE_LIST))
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "wire format" in result["message"]
+        assert "duration_seconds" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_validate_structure_missing_steps_returns_validation_error(self):
+        result = await tp_validate_structure(json.dumps({"primaryIntensityMetric": "percentOfFtp"}))
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "'steps'" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_validate_structure_scalar_json_returns_validation_error(self):
+        result = await tp_validate_structure("42")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "must be a JSON object" in result["message"]

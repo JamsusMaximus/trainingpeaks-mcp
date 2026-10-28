@@ -154,6 +154,8 @@ STRUCTURE_DESCRIPTION = (
     " rest (all recovery), coolDown, other."
     " Intensity values are % of threshold (FTP/HR/pace)."
     " Optional per-step: cadence_min, cadence_max (rpm)."
+    " NOT the native wire format (blocks with begin/end/length/targets, as"
+    " returned by tp_get_workout) - pass that as structured_workout instead."
 )
 RAW_STRUCTURE_DESCRIPTION = (
     "Native TrainingPeaks structured workout payload in builder format. "
