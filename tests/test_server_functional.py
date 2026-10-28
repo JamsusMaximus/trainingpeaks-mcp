@@ -144,6 +144,16 @@ class TestListTools:
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
+    async def test_update_workout_schema_advertises_description_mode(self):
+        tools = await list_tools()
+        uw = next(t for t in tools if t.name == "tp_update_workout")
+        props = uw.input_schema["properties"]
+        assert props["description_mode"]["enum"] == ["replace", "append"]
+        assert props["description_mode"]["default"] == "replace"
+        assert "description_mode" not in uw.input_schema["required"]
+        assert "append" in uw.description
+
+    @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")

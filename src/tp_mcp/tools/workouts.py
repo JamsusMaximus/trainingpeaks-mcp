@@ -547,6 +547,20 @@ async def tp_create_workout(
         }
 
 
+def _merge_description(current: Any, new: str, mode: str) -> str:
+    """Apply ``new`` to the current description text according to ``mode``.
+
+    ``append`` joins the two with a blank line; if there is no existing text
+    (or it is only whitespace) the result is just ``new``.
+    """
+    if mode != "append":
+        return new
+    base = current.rstrip() if isinstance(current, str) else ""
+    if not base:
+        return new
+    return f"{base}\n\n{new}"
+
+
 async def tp_update_workout(
     workout_id: str,
     sport: str | None = None,
@@ -565,6 +579,7 @@ async def tp_update_workout(
     is_hidden: bool | None = None,
     structure: dict[str, Any] | str | None = None,
     structured_workout: dict[str, Any] | None = None,
+    description_mode: Literal["replace", "append"] = "replace",
 ) -> dict[str, Any]:
     """Update fields of an existing workout.
 
@@ -573,9 +588,21 @@ async def tp_update_workout(
     Supports either simplified ``structure`` input or a native
     ``structured_workout`` payload, but not both in the same call.
 
+    ``description_mode`` controls how ``description`` is applied: ``"replace"``
+    (default) overwrites the existing text; ``"append"`` adds the new text
+    after the existing description, separated by a blank line. It has no
+    effect when ``description`` is not given.
+
     Returns:
         Dict with updated workout details or error.
     """
+    if description_mode not in ("replace", "append"):
+        return {
+            "isError": True,
+            "error_code": "VALIDATION_ERROR",
+            "message": f"description_mode must be 'replace' or 'append', got {description_mode!r}.",
+        }
+
     try:
         params = UpdateWorkoutInput(
             workout_id=workout_id,
@@ -672,7 +699,9 @@ async def tp_update_workout(
         if params.title is not None:
             existing["title"] = params.title
         if params.description is not None:
-            existing["description"] = params.description
+            existing["description"] = _merge_description(
+                existing.get("description"), params.description, description_mode,
+            )
         if params.date is not None:
             existing["workoutDay"] = _format_workout_day(params.date)
             if isinstance(params.date, datetime_type):

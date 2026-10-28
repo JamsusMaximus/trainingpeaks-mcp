@@ -1155,3 +1155,64 @@ class TestWorkoutNote:
         result = await tp_set_workout_note("abc", "note")
         assert result["isError"] is True
         assert result["error_code"] == "VALIDATION_ERROR"
+
+
+class TestUpdateDescriptionMode:
+    """description_mode='append' adds to the existing description; default replaces."""
+
+    async def _update(self, existing_description, **kwargs):
+        existing = {"workoutId": 1001, "title": "Easy run"}
+        if existing_description is not None:
+            existing["description"] = existing_description
+        get_response = APIResponse(success=True, data=existing)
+        put_response = APIResponse(success=True, data=None)
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_instance.put = AsyncMock(return_value=put_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            result = await tp_update_workout(workout_id="1001", **kwargs)
+        assert result["success"] is True
+        return mock_instance.put.call_args[1]["json"]
+
+    @pytest.mark.asyncio
+    async def test_default_replaces(self):
+        payload = await self._update("Old text.", description="New text.")
+        assert payload["description"] == "New text."
+
+    @pytest.mark.asyncio
+    async def test_explicit_replace(self):
+        payload = await self._update("Old text.", description="New text.", description_mode="replace")
+        assert payload["description"] == "New text."
+
+    @pytest.mark.asyncio
+    async def test_append_separates_with_blank_line(self):
+        payload = await self._update("Old text.", description="Debrief: felt good.", description_mode="append")
+        assert payload["description"] == "Old text.\n\nDebrief: felt good."
+
+    @pytest.mark.asyncio
+    async def test_append_strips_trailing_whitespace_before_separator(self):
+        payload = await self._update("Old text.\n\n", description="More.", description_mode="append")
+        assert payload["description"] == "Old text.\n\nMore."
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("existing", [None, "", "   \n"])
+    async def test_append_to_empty_is_just_the_new_text(self, existing):
+        payload = await self._update(existing, description="Fresh.", description_mode="append")
+        assert payload["description"] == "Fresh."
+
+    @pytest.mark.asyncio
+    async def test_append_without_description_leaves_it_alone(self):
+        payload = await self._update("Old text.", title="Renamed", description_mode="append")
+        assert payload["description"] == "Old text."
+        assert payload["title"] == "Renamed"
+
+    @pytest.mark.asyncio
+    async def test_invalid_mode_is_rejected_before_any_api_call(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_update_workout(workout_id="1001", description="x", description_mode="prepend")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "description_mode" in result["message"]
+        mock_client.assert_not_called()
