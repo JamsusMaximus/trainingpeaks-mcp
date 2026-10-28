@@ -781,3 +781,55 @@ class TestTpPairWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "API_ERROR"
+
+
+class TestTpGetWorkoutTimezone:
+    """timezone adds uploaded_at_local next to the raw UTC uploaded_at; default is unchanged."""
+
+    def _details(self):
+        return {
+            "workoutDeviceFileInfos": [
+                {"fileId": 77, "fileSystemId": "fs-1", "fileName": "run.fit", "dateUploaded": "2026-07-01T06:15:00"},
+            ],
+            "attachmentFileInfos": [
+                {"fileId": 78, "fileName": "notes.pdf", "dateUploaded": "2026-11-01T06:15:00"},
+            ],
+        }
+
+    async def _call(self, mock_api_responses, **kwargs):
+        workout_response = APIResponse(success=True, data=mock_api_responses["workout_detail"])
+        details_response = APIResponse(success=True, data=self._details())
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(side_effect=[workout_response, details_response])
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            return await tp_get_workout("1001", **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_local_sibling_added_and_raw_untouched(self, mock_api_responses):
+        result = await self._call(mock_api_responses, timezone="Europe/London")
+        assert result["timezone"] == "Europe/London"
+        device = result["device_files"][0]
+        assert device["uploaded_at"] == "2026-07-01T06:15:00"  # raw UTC untouched
+        assert device["uploaded_at_local"] == "2026-07-01T07:15:00+01:00"  # BST
+        attachment = result["attachment_files"][0]
+        assert attachment["uploaded_at"] == "2026-11-01T06:15:00"
+        assert attachment["uploaded_at_local"] == "2026-11-01T06:15:00+00:00"  # GMT
+
+    @pytest.mark.asyncio
+    async def test_default_output_has_no_local_fields(self, mock_api_responses):
+        result = await self._call(mock_api_responses)
+        assert "timezone" not in result
+        assert "uploaded_at_local" not in result["device_files"][0]
+        assert "uploaded_at_local" not in result["attachment_files"][0]
+        assert result["device_files"][0]["uploaded_at"] == "2026-07-01T06:15:00"
+
+    @pytest.mark.asyncio
+    async def test_unknown_timezone_is_rejected_before_any_api_call(self):
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            result = await tp_get_workout("1001", timezone="Mars/Olympus_Mons")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        assert "Mars/Olympus_Mons" in result["message"]
+        mock_client.assert_not_called()

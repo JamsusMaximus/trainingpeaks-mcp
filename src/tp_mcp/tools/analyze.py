@@ -39,6 +39,7 @@ import httpx
 from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_analysis
+from tp_mcp.tools._time import resolve_timezone, utc_to_local
 from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
 
 logger = logging.getLogger("tp-mcp")
@@ -146,13 +147,17 @@ def _stop_timestamp(start_iso: str | None, elapsed_seconds: Any) -> str | None:
     return (start_dt + timedelta(seconds=float(elapsed_seconds))).isoformat()
 
 
-async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
+async def tp_analyze_workout(workout_id: str, timezone: str | None = None) -> dict[str, Any]:
     """Get detailed workout analysis including metrics, zones, and lap data.
 
     Full time-series data is saved to a JSON file for further analysis.
 
     Args:
         workout_id: The workout ID (from tp_get_workouts).
+        timezone: Optional IANA zone name. ``startTimestamp`` / ``stopTimestamp``
+            are naive UTC strings from the analysis API; when a zone is given
+            the result also carries ``startTimestamp_local`` /
+            ``stopTimestamp_local`` with offset.
 
     Returns:
         Dict with totals, data channels, lap data, and path to full data file.
@@ -167,6 +172,10 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
             "message": msg,
         }
     wid = validated.workout_id
+
+    zone, tz_error = resolve_timezone(timezone)
+    if tz_error is not None:
+        return tz_error
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
@@ -308,14 +317,23 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         for ch in analysis.data_elements
     ]
 
-    return {
+    result: dict[str, Any] = {
         "workoutId": analysis.workout_id,
         "startTimestamp": analysis.start_timestamp,
         "stopTimestamp": analysis.stop_timestamp,
-        "totals": totals_out,
-        "dataChannels": channels,
-        "lapData": analysis.lap_data,
-        "lapColumns": analysis.lap_columns,
-        "time_series_points": len(analysis.data),
-        "data_file": data_file,
     }
+    if zone is not None:
+        result["startTimestamp_local"] = utc_to_local(analysis.start_timestamp, zone)
+        result["stopTimestamp_local"] = utc_to_local(analysis.stop_timestamp, zone)
+        result["timezone"] = zone.key
+    result.update(
+        {
+            "totals": totals_out,
+            "dataChannels": channels,
+            "lapData": analysis.lap_data,
+            "lapColumns": analysis.lap_columns,
+            "time_series_points": len(analysis.data),
+            "data_file": data_file,
+        }
+    )
+    return result

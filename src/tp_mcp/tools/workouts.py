@@ -5,10 +5,12 @@ import logging
 from datetime import date as date_type
 from datetime import datetime as datetime_type
 from typing import Any, Literal, NamedTuple
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+from tp_mcp.tools._time import resolve_timezone, utc_to_local
 from tp_mcp.tools._validation import (
     CreateWorkoutInput,
     DateRangeInput,
@@ -33,8 +35,12 @@ class StructurePayload(NamedTuple):
     error: str | None
 
 
-def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
-    """Normalize TP workout file metadata arrays."""
+def _extract_file_infos(raw_data: dict, key: str, zone: ZoneInfo | None = None) -> list[dict]:
+    """Normalize TP workout file metadata arrays.
+
+    ``uploaded_at`` is TP's ``dateUploaded`` as-is (naive UTC). When ``zone``
+    is given an ``uploaded_at_local`` sibling with offset is added.
+    """
     infos = raw_data.get(key)
     if not isinstance(infos, list):
         return []
@@ -43,12 +49,15 @@ def _extract_file_infos(raw_data: dict, key: str) -> list[dict]:
         if not isinstance(item, dict):
             continue
         file_id = item.get("fileId")
-        normalized.append({
+        entry = {
             "file_id": str(file_id) if file_id is not None else None,
             "file_system_id": item.get("fileSystemId"),
             "file_name": item.get("fileName"),
             "uploaded_at": item.get("dateUploaded"),
-        })
+        }
+        if zone is not None:
+            entry["uploaded_at_local"] = utc_to_local(item.get("dateUploaded"), zone)
+        normalized.append(entry)
     return normalized
 
 
@@ -264,11 +273,14 @@ async def tp_get_workouts(
             }
 
 
-async def tp_get_workout(workout_id: str) -> dict[str, Any]:
+async def tp_get_workout(workout_id: str, timezone: str | None = None) -> dict[str, Any]:
     """Get full details for a single workout.
 
     Args:
         workout_id: The workout ID.
+        timezone: Optional IANA zone name. When given, each file's
+            ``uploaded_at`` (naive UTC from TP) gets an ``uploaded_at_local``
+            sibling with offset.
 
     Returns:
         Dict with full workout details including structure.
@@ -282,6 +294,10 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
             "error_code": "VALIDATION_ERROR",
             "message": msg,
         }
+
+    zone, tz_error = resolve_timezone(timezone)
+    if tz_error is not None:
+        return tz_error
 
     async with TPClient() as client:
         athlete_id = await client.ensure_athlete_id()
@@ -326,7 +342,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
             workout = parse_workout_detail(raw_data)
             workout_comments = raw_data.get("workoutComments") or []
 
-            return {
+            result: dict[str, Any] = {
                 "id": str(workout.id),
                 "date": workout.date.isoformat(),
                 "title": workout.title,
@@ -357,9 +373,12 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 "completed": workout.completed,
                 "structured_workout": structured_workout,
                 "workout_comments": workout_comments,
-                "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos"),
-                "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos"),
+                "device_files": _extract_file_infos(details_raw, "workoutDeviceFileInfos", zone),
+                "attachment_files": _extract_file_infos(details_raw, "attachmentFileInfos", zone),
             }
+            if zone is not None:
+                result["timezone"] = zone.key
+            return result
 
         except Exception:
             logger.exception("Failed to parse workout")

@@ -144,6 +144,17 @@ class TestListTools:
         assert props["is_hidden"]["default"] is False
 
     @pytest.mark.asyncio
+    async def test_timezone_param_is_advertised_and_optional(self):
+        tools = await list_tools()
+        for name in ("tp_get_workout", "tp_analyze_workout"):
+            t = next(t for t in tools if t.name == name)
+            props = t.input_schema["properties"]
+            assert props["timezone"]["type"] == "string", name
+            assert "IANA" in props["timezone"]["description"], name
+            assert "timezone" not in t.input_schema["required"], name
+            assert "UTC" in t.description, name
+
+    @pytest.mark.asyncio
     async def test_update_workout_schema_includes_structured_workout(self):
         tools = await list_tools()
         uw = next(t for t in tools if t.name == "tp_update_workout")

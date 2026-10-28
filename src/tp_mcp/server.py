@@ -114,6 +114,7 @@ from tp_mcp.tools import (
     tp_upload_workout_file,
     tp_validate_structure,
 )
+from tp_mcp.tools._time import TIMEZONE_PARAM_DESCRIPTION
 from tp_mcp.tools.events import EVENT_TYPES
 from tp_mcp.tools.workouts import SPORT_TYPE_MAP
 
@@ -221,11 +222,16 @@ TOOLS = [
     ),
     Tool(
         name="tp_get_workout",
-        description="Get workout details by ID. Use after tp_get_workouts.",
+        description=(
+            "Get workout details by ID. Use after tp_get_workouts. "
+            "device_files/attachment_files uploaded_at is UTC (no offset); pass "
+            "timezone to get uploaded_at_local alongside it."
+        ),
         input_schema={
             "type": "object",
             "properties": {
                 "workout_id": {"type": "string", "description": "Workout ID"},
+                "timezone": {"type": "string", "description": TIMEZONE_PARAM_DESCRIPTION},
             },
             "required": ["workout_id"],
         },
@@ -541,10 +547,17 @@ TOOLS = [
     ),
     Tool(
         name="tp_analyze_workout",
-        description="Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file.",
+        description=(
+            "Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file. "
+            "startTimestamp/stopTimestamp are UTC (no offset); pass timezone to get "
+            "startTimestamp_local/stopTimestamp_local alongside them."
+        ),
         input_schema={
             "type": "object",
-            "properties": {"workout_id": {"type": "string"}},
+            "properties": {
+                "workout_id": {"type": "string"},
+                "timezone": {"type": "string", "description": TIMEZONE_PARAM_DESCRIPTION},
+            },
             "required": ["workout_id"],
         },
     ),
@@ -1644,7 +1657,8 @@ async def _h_get_workouts(args):
     )
 
 @_handler("tp_get_workout")
-async def _h_get_workout(args): return await tp_get_workout(workout_id=args["workout_id"])
+async def _h_get_workout(args):
+    return await tp_get_workout(workout_id=args["workout_id"], timezone=args.get("timezone"))
 
 @_handler("tp_create_workout")
 async def _h_create_workout(args):
@@ -1748,7 +1762,8 @@ async def _h_get_peaks(args):
     return await tp_get_peaks(sport=args["sport"], pr_type=args["pr_type"], days=args.get("days", 3650))
 
 @_handler("tp_analyze_workout")
-async def _h_analyze(args): return await tp_analyze_workout(workout_id=args["workout_id"])
+async def _h_analyze(args):
+    return await tp_analyze_workout(workout_id=args["workout_id"], timezone=args.get("timezone"))
 
 # --- Structured strength / gym ---
 @_handler("tp_search_exercises")

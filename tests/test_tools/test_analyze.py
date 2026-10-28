@@ -382,3 +382,42 @@ class TestTpAnalyzeWorkout:
                 assert headers["Authorization"] == f"Bearer {TEST_ACCESS_TOKEN}"
                 assert "Cookie" not in headers
                 assert call_kwargs.kwargs["json"] == {"workoutId": 3553733903}
+
+
+class TestTpAnalyzeWorkoutTimezone:
+    """timezone adds startTimestamp_local/stopTimestamp_local; the raw UTC fields stay."""
+
+    async def _call(self, **kwargs):
+        mock_client = _mock_tp_client()
+        with patch("tp_mcp.tools.analyze.TPClient") as mock_tp:
+            mock_tp.return_value.__aenter__.return_value = mock_client
+            with patch("tp_mcp.tools.analyze.httpx.AsyncClient") as mock_httpx:
+                mock_httpx.return_value.__aenter__.return_value = _mock_post_sequence()
+                return await tp_analyze_workout("3553733903", **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_local_fields_added(self):
+        result = await self._call(timezone="America/Denver")
+        assert result["startTimestamp"] == "2025-01-08T12:00:00"  # raw UTC untouched
+        assert result["stopTimestamp"] == "2025-01-08T13:00:00"
+        assert result["startTimestamp_local"] == "2025-01-08T05:00:00-07:00"  # MST
+        assert result["stopTimestamp_local"] == "2025-01-08T06:00:00-07:00"
+        assert result["timezone"] == "America/Denver"
+        # Everything else is still there.
+        assert result["totals"]["TSS"]["value"] == 75.2
+        assert result["time_series_points"] == 3
+
+    @pytest.mark.asyncio
+    async def test_default_output_has_no_local_fields(self):
+        result = await self._call()
+        assert "startTimestamp_local" not in result
+        assert "stopTimestamp_local" not in result
+        assert "timezone" not in result
+
+    @pytest.mark.asyncio
+    async def test_unknown_timezone_is_rejected_before_any_call(self):
+        with patch("tp_mcp.tools.analyze.TPClient") as mock_tp:
+            result = await tp_analyze_workout("3553733903", timezone="Not/AZone")
+        assert result["isError"] is True
+        assert result["error_code"] == "VALIDATION_ERROR"
+        mock_tp.assert_not_called()

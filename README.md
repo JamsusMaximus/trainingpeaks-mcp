@@ -29,7 +29,7 @@ Ask your AI assistant things like:
 | Tool | Description |
 |------|-------------|
 | `tp_get_workouts` | List workouts in a date range (max 90 days) |
-| `tp_get_workout` | Get full details for a single workout |
+| `tp_get_workout` | Get full details for a single workout (optional `timezone` adds `uploaded_at_local` next to the UTC `uploaded_at` on files) |
 | `tp_create_workout` | Create a workout with optional interval structure, auto-computed IF/TSS, and optional planned start time |
 | `tp_update_workout` | Update any field of an existing workout, including structured intervals and planned start time |
 | `tp_delete_workout` | Delete a workout |
@@ -49,7 +49,7 @@ Ask your AI assistant things like:
 ### Analysis & Performance
 | Tool | Description |
 |------|-------------|
-| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps |
+| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps (`startTimestamp`/`stopTimestamp` are UTC; optional `timezone` adds `*_local` with offset) |
 | `tp_get_peaks` | Power PRs (5s-90min) and running PRs (400m-marathon) |
 | `tp_get_workout_prs` | PRs set during a specific session |
 | `tp_get_fitness` | CTL, ATL, and TSB trend (fitness, fatigue, form) |
