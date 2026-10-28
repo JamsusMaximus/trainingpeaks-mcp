@@ -128,3 +128,93 @@ class TestGetNutrition:
             result = await tp_get_nutrition("2026-03-01", "2026-03-07")
 
         assert "No nutrition" in result.get("message", "")
+
+
+class TestGetMetricsCompact:
+    """compact=True flattens each day to {date, <snake_label>: value}; the default is unchanged."""
+
+    def _days(self):
+        def detail(label, mtype, value):
+            return {
+                "type": mtype, "label": label, "value": value, "time": "2026-03-01T06:10:00",
+                "parentId": 42, "uploadClient": "Garmin Connect", "modifiedTime": None,
+                "isPotentiallyNegative": False,
+            }
+
+        return [
+            {
+                "athleteId": 123, "id": "guid-1", "timeStamp": "2026-03-01T00:00:00",
+                "details": [
+                    detail("HRV", 60, 68), detail("Pulse", 5, 46), detail("Sleep", 6, 7.25),
+                    detail("Time In Deep Sleep", 70, 1.1), detail("Time In REM Sleep", 72, 1.4),
+                    detail("Body Battery", 74, 81), detail("Stress Level", 75, 24),
+                    detail("Weight", 9, 74.2), detail("Blood Pressure", 11, [118, 76]),
+                    detail("", 99, 3), detail("SPO2", 53, 97),
+                ],
+            },
+            {
+                "athleteId": 123, "id": "guid-2", "timeStamp": "2026-03-02T00:00:00",
+                "details": [detail("HRV", 60, 71), detail("Weight", 9, 74.0), detail("Weight", 9, 73.8)],
+            },
+        ]
+
+    async def _call(self, days, **kwargs):
+        with patch("tp_mcp.tools.metrics.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=APIResponse(success=True, data=days))
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            return await tp_get_metrics("2026-03-01", "2026-03-07", **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_compact_rows_are_keyed_by_snake_cased_label(self):
+        result = await self._call(self._days(), compact=True)
+
+        assert result["compact"] is True
+        assert result["count"] == 2
+        day1, day2 = result["metrics"]
+        assert day1 == {
+            "date": "2026-03-01",
+            "hrv": 68, "pulse": 46, "sleep_hours": 7.25,
+            "time_in_deep_sleep": 1.1, "time_in_rem_sleep": 1.4,
+            "body_battery": 81, "stress_level": 24, "weight": 74.2,
+            "blood_pressure": [118, 76],  # list values pass through untouched
+            "type_99": 3,  # empty label falls back to the type id
+            "spo2": 97,
+        }
+        # No wrapper fields leak through.
+        for key in ("parentId", "uploadClient", "modifiedTime", "type", "isPotentiallyNegative", "time"):
+            assert key not in day1
+        # Missing metrics are simply absent; a repeated label keeps the last value.
+        assert day2 == {"date": "2026-03-02", "hrv": 71, "weight": 73.8}
+
+    @pytest.mark.asyncio
+    async def test_compact_reports_original_labels(self):
+        result = await self._call(self._days(), compact=True)
+        assert result["labels"]["sleep_hours"] == "Sleep"
+        assert result["labels"]["time_in_deep_sleep"] == "Time In Deep Sleep"
+        assert result["labels"]["hrv"] == "HRV"
+
+    @pytest.mark.asyncio
+    async def test_default_output_unchanged(self):
+        days = self._days()
+        result = await self._call(days)
+        assert "compact" not in result
+        assert "labels" not in result
+        assert result["metrics"] == days
+        assert result["count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_compact_empty_range_keeps_message(self):
+        result = await self._call([], compact=True)
+        assert "No metrics" in result.get("message", "")
+
+    def test_metric_column_derivation(self):
+        from tp_mcp.tools.metrics import _metric_column
+
+        assert _metric_column("HRV", 60) == "hrv"
+        assert _metric_column("Time In REM Sleep", 72) == "time_in_rem_sleep"
+        assert _metric_column("Sleep", 6) == "sleep_hours"
+        assert _metric_column("Resting HR (bpm)", 5) == "resting_hr_bpm"
+        assert _metric_column("3 km TT", 80) == "m_3_km_tt"
+        assert _metric_column(None, 12) == "type_12"

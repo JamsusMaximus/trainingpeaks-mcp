@@ -28,7 +28,7 @@ Ask your AI assistant things like:
 ### Workouts
 | Tool | Description |
 |------|-------------|
-| `tp_get_workouts` | List workouts in a date range (max 90 days) |
+| `tp_get_workouts` | List workouts in a date range (max 90 days); `compact: true` returns one small row per workout without description text |
 | `tp_get_workout` | Get full details for a single workout |
 | `tp_create_workout` | Create a workout with optional interval structure, auto-computed IF/TSS, and optional planned start time |
 | `tp_update_workout` | Update any field of an existing workout, including structured intervals and planned start time |
@@ -86,7 +86,7 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | Tool | Description |
 |------|-------------|
 | `tp_log_metrics` | Log weight, HRV, sleep, steps, SpO2, pulse, RMR, injury |
-| `tp_get_metrics` | Get health metrics for a date range |
+| `tp_get_metrics` | Get health metrics for a date range; `compact: true` returns one flat row per day keyed by metric label (hrv, pulse, sleep_hours, weight, ...) |
 | `tp_get_nutrition` | Get nutrition data for a date range |
 
 ### Equipment
