@@ -236,6 +236,69 @@ def compute_if_tss(structure: SimpleWorkoutStructure) -> tuple[float, float, int
     return round(intensity_factor, 3), round(tss, 1), total_seconds
 
 
+# One-line reminder of the accepted input format, appended to shape errors so a
+# caller that sent the wrong thing can fix it without consulting the docs.
+SIMPLIFIED_FORMAT_HINT = (
+    "Expected the simplified format: "
+    '{"primaryIntensityMetric": "percentOfFtp"|"percentOfThresholdHr"|"percentOfThresholdPace", '
+    '"steps": [{"name": "...", "duration_seconds": N, "intensity_min": X, "intensity_max": Y, '
+    '"intensityClass": "warmUp"|"active"|"rest"|"coolDown"|"other"}, '
+    '{"type": "repetition", "reps": N, "steps": [...]}]}.'
+)
+
+_WIRE_NOT_ACCEPTED = (
+    "The native TrainingPeaks wire format (blocks with begin/end, length "
+    "{value, unit}, targets [{minValue, maxValue}]) is not accepted as "
+    "`structure`. Pass the full builder object as `structured_workout` "
+    "instead, or convert it to the simplified format. "
+)
+
+# Keys that only exist on wire-format blocks/steps, never on simplified ones.
+_WIRE_STEP_KEYS = {"length", "targets", "begin", "end", "openDuration"}
+
+
+def _check_structure_shape(data: Any) -> None:
+    """Reject inputs that are not a simplified structure object with a clear message.
+
+    Pydantic validation (field ranges, enum values, min lengths) happens later;
+    this guard only covers the shapes that would otherwise crash the parser
+    (``list.get`` / ``str.get``) and surface as a bare internal error.
+
+    Raises:
+        ValueError: With a message naming the expected format.
+    """
+    if isinstance(data, list):
+        raise ValueError(
+            "structure is a JSON list, not an object. " + _WIRE_NOT_ACCEPTED + SIMPLIFIED_FORMAT_HINT
+        )
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"structure must be a JSON object, got {type(data).__name__}. " + SIMPLIFIED_FORMAT_HINT
+        )
+    if "steps" not in data:
+        if isinstance(data.get("structure"), list):
+            raise ValueError(
+                "structure looks like a native TrainingPeaks builder object (it has a "
+                "'structure' list but no 'steps'). " + _WIRE_NOT_ACCEPTED + SIMPLIFIED_FORMAT_HINT
+            )
+        raise ValueError("structure is missing the required 'steps' list. " + SIMPLIFIED_FORMAT_HINT)
+    steps = data["steps"]
+    if not isinstance(steps, list):
+        raise ValueError(
+            f"structure.steps must be a list, got {type(steps).__name__}. " + SIMPLIFIED_FORMAT_HINT
+        )
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ValueError(
+                f"structure.steps[{index}] must be an object, got {type(step).__name__}. "
+                + SIMPLIFIED_FORMAT_HINT
+            )
+        if _WIRE_STEP_KEYS & set(step):
+            raise ValueError(
+                f"structure.steps[{index}] is a wire-format block. " + _WIRE_NOT_ACCEPTED + SIMPLIFIED_FORMAT_HINT
+            )
+
+
 def parse_structure_input(structure_input: dict[str, Any] | str) -> SimpleWorkoutStructure:
     """Parse structure input from either a dict or JSON string.
 
@@ -247,7 +310,8 @@ def parse_structure_input(structure_input: dict[str, Any] | str) -> SimpleWorkou
 
     Raises:
         ValidationError: If structure is invalid.
-        ValueError: If JSON is malformed.
+        ValueError: If JSON is malformed or the input is not a simplified
+            structure object (e.g. the native wire format, or no ``steps``).
     """
     if isinstance(structure_input, str):
         try:
@@ -257,8 +321,10 @@ def parse_structure_input(structure_input: dict[str, Any] | str) -> SimpleWorkou
     else:
         data = structure_input
 
+    _check_structure_shape(data)
+
     # Parse steps - distinguish between simple steps and repetition blocks
-    raw_steps = data.get("steps", [])
+    raw_steps = data["steps"]
     parsed_steps: list[SimpleStep | SimpleRepetitionBlock] = []
 
     for raw_step in raw_steps:
