@@ -8,7 +8,7 @@ from typing import Any, Literal, NamedTuple
 
 from pydantic import ValidationError
 
-from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+from tp_mcp.client import ErrorCode, TPClient, parse_workout_detail, parse_workout_list
 from tp_mcp.tools._validation import (
     CreateWorkoutInput,
     DateRangeInput,
@@ -1316,13 +1316,92 @@ async def tp_pair_workout(
                 "message": "Unexpected response format from API.",
             }
 
+        outcome = await _pairing_outcome(
+            client, athlete_id, response.data.get("workoutId"),
+            validated_completed.workout_id, validated_planned.workout_id,
+        )
+
         return {
             "success": True,
-            "message": (
-                f"Workout {validated_completed.workout_id} paired with "
-                f"planned workout {validated_planned.workout_id}."
-            ),
+            "message": outcome.pop("note"),
             "workout_id": response.data.get("workoutId"),
+            **outcome,
             "title": response.data.get("title"),
             "workout": response.data,
         }
+
+
+async def _pairing_outcome(
+    client: TPClient,
+    athlete_id: int,
+    returned_id: Any,
+    completed_id: int,
+    planned_id: int,
+) -> dict[str, Any]:
+    """Work out which input id survived a combine and which one is gone.
+
+    The combine command returns the merged workout. Its ``workoutId`` is the
+    surviving id; the other input id should no longer resolve. That is
+    verified with one GET so the caller never has to guess (TP has been seen
+    to re-issue a fresh id for a leftover planned entry, so the day should be
+    re-listed when ``removal_check`` is not ``"confirmed"``).
+    """
+    try:
+        surviving = int(returned_id) if returned_id is not None else None
+    except (TypeError, ValueError):
+        surviving = None
+
+    inputs = {"completed": str(completed_id), "planned": str(planned_id)}
+    if surviving == completed_id:
+        presumed_removed: int | None = planned_id
+    elif surviving == planned_id:
+        presumed_removed = completed_id
+    else:
+        presumed_removed = None
+
+    if presumed_removed is None:
+        return {
+            "merged": False,
+            "surviving_workout_id": str(surviving) if surviving is not None else None,
+            "removed_workout_id": None,
+            "removal_check": "not_applicable",
+            "input_ids": inputs,
+            "note": (
+                f"TrainingPeaks returned workout id {surviving} which matches neither input "
+                f"({completed_id} completed, {planned_id} planned). Re-list the day with "
+                "tp_get_workouts to see which ids now exist."
+            ),
+        }
+
+    check = await client.get(f"/fitness/v6/athletes/{athlete_id}/workouts/{presumed_removed}")
+    if check.is_error and check.error_code == ErrorCode.NOT_FOUND:
+        removal_check = "confirmed"
+        removed: int | None = presumed_removed
+        note = (
+            f"Paired: completed {completed_id} + planned {planned_id} -> workout {surviving} "
+            f"continues to exist; id {presumed_removed} no longer exists."
+        )
+    elif check.success:
+        removal_check = "still_exists"
+        removed = None
+        note = (
+            f"Paired: workout {surviving} carries the merged data, but id {presumed_removed} "
+            "still resolves on the calendar. Re-list the day with tp_get_workouts before "
+            "using either id again."
+        )
+    else:
+        removal_check = "unverified"
+        removed = presumed_removed
+        note = (
+            f"Paired: workout {surviving} continues to exist; id {presumed_removed} is "
+            f"presumed removed but could not be verified ({check.error_code.value if check.error_code else 'error'})."
+        )
+
+    return {
+        "merged": True,
+        "surviving_workout_id": str(surviving),
+        "removed_workout_id": str(removed) if removed is not None else None,
+        "removal_check": removal_check,
+        "input_ids": inputs,
+        "note": note,
+    }

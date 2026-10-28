@@ -685,10 +685,13 @@ class TestTpPairWorkout:
             },
         )
 
+        gone = APIResponse(success=False, error_code=ErrorCode.NOT_FOUND, message="Resource not found.")
+
         with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
             mock_instance.post = AsyncMock(return_value=combine_response)
+            mock_instance.get = AsyncMock(return_value=gone)
             mock_client.return_value.__aenter__.return_value = mock_instance
 
             result = await tp_pair_workout(
@@ -698,7 +701,13 @@ class TestTpPairWorkout:
         assert result["success"] is True
         assert result["workout_id"] == 111
         assert result["title"] == "EASY run"
+        assert result["surviving_workout_id"] == "111"
+        assert result["removed_workout_id"] == "222"
+        assert result["merged"] is True
+        assert result["removal_check"] == "confirmed"
         mock_instance.post.assert_called_once()
+        mock_instance.get.assert_called_once()
+        assert mock_instance.get.call_args[0][0] == "/fitness/v6/athletes/123/workouts/222"
         call_args = mock_instance.post.call_args
         assert "/commands/workouts/combine" in call_args[0][0]
         payload = call_args[1]["json"]
@@ -781,3 +790,84 @@ class TestTpPairWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "API_ERROR"
+
+
+class TestTpPairWorkoutOutcome:
+    """The pair result must say which id continues to exist and which is gone."""
+
+    GONE = APIResponse(success=False, error_code=ErrorCode.NOT_FOUND, message="Resource not found.")
+
+    async def _pair(self, returned_id, get_response):
+        combine = APIResponse(success=True, data={"workoutId": returned_id, "title": "EASY run"})
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=combine)
+            mock_instance.get = AsyncMock(return_value=get_response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            result = await tp_pair_workout(completed_workout_id="111", planned_workout_id="222")
+        return result, mock_instance
+
+    @pytest.mark.asyncio
+    async def test_completed_id_survives(self):
+        result, inst = await self._pair(111, self.GONE)
+        assert result["surviving_workout_id"] == "111"
+        assert result["removed_workout_id"] == "222"
+        assert result["merged"] is True
+        assert result["removal_check"] == "confirmed"
+        assert result["input_ids"] == {"completed": "111", "planned": "222"}
+        assert "222 no longer exists" in result["message"]
+        assert inst.get.call_args[0][0].endswith("/workouts/222")
+
+    @pytest.mark.asyncio
+    async def test_planned_id_survives(self):
+        result, inst = await self._pair(222, self.GONE)
+        assert result["surviving_workout_id"] == "222"
+        assert result["removed_workout_id"] == "111"
+        assert result["merged"] is True
+        assert result["removal_check"] == "confirmed"
+        assert inst.get.call_args[0][0].endswith("/workouts/111")
+
+    @pytest.mark.asyncio
+    async def test_returned_id_matches_neither_input(self):
+        result, inst = await self._pair(333, self.GONE)
+        assert result["surviving_workout_id"] == "333"
+        assert result["removed_workout_id"] is None
+        assert result["merged"] is False
+        assert result["removal_check"] == "not_applicable"
+        assert "matches neither input" in result["message"]
+        assert "tp_get_workouts" in result["message"]
+        inst.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_other_id_still_exists_is_reported_not_guessed(self):
+        still_there = APIResponse(success=True, data={"workoutId": 222, "title": "EASY run"})
+        result, _ = await self._pair(111, still_there)
+        assert result["surviving_workout_id"] == "111"
+        assert result["removed_workout_id"] is None
+        assert result["merged"] is True
+        assert result["removal_check"] == "still_exists"
+        assert "still resolves" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_verification_failure_is_flagged_unverified(self):
+        flaky = APIResponse(success=False, error_code=ErrorCode.NETWORK_ERROR, message="timeout")
+        result, _ = await self._pair(111, flaky)
+        assert result["surviving_workout_id"] == "111"
+        assert result["removed_workout_id"] == "222"
+        assert result["removal_check"] == "unverified"
+        assert "NETWORK_ERROR" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_missing_workout_id_in_response(self):
+        combine = APIResponse(success=True, data={"title": "EASY run"})
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.post = AsyncMock(return_value=combine)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            result = await tp_pair_workout(completed_workout_id="111", planned_workout_id="222")
+        assert result["success"] is True
+        assert result["surviving_workout_id"] is None
+        assert result["merged"] is False
+        mock_instance.get.assert_not_called()
