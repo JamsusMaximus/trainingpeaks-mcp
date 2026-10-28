@@ -781,3 +781,70 @@ class TestTpPairWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "API_ERROR"
+
+
+class TestPairingIdNamespaceHint:
+    """403/404 from the pair/unpair commands carry a hint about strength-namespace ids."""
+
+    @staticmethod
+    def _client(response):
+        mock_instance = AsyncMock()
+        mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+        mock_instance.post = AsyncMock(return_value=response)
+        return mock_instance
+
+    @pytest.mark.asyncio
+    async def test_unpair_403_keeps_code_and_adds_hint(self):
+        denied = APIResponse(
+            success=False, error_code=ErrorCode.AUTH_INVALID,
+            message="Access denied. Check your permissions or re-authenticate.",
+        )
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value = self._client(denied)
+            result = await tp_unpair_workout(workout_id="35884113")
+
+        assert result["isError"] is True
+        assert result["error_code"] == "AUTH_INVALID"  # unchanged: we cannot prove the id's kind
+        assert result["message"].startswith("Access denied.")
+        assert "35884113" in result["message"]
+        assert "tp_get_strength_workouts" in result["message"]
+        assert "tp_get_strength_workouts" in result["hint"]
+
+    @pytest.mark.asyncio
+    async def test_unpair_404_adds_hint(self):
+        missing = APIResponse(success=False, error_code=ErrorCode.NOT_FOUND, message="Resource not found.")
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value = self._client(missing)
+            result = await tp_unpair_workout(workout_id="35884113")
+
+        assert result["error_code"] == "NOT_FOUND"
+        assert "separate API" in result["hint"]
+
+    @pytest.mark.asyncio
+    async def test_unpair_other_errors_are_untouched(self):
+        boom = APIResponse(success=False, error_code=ErrorCode.API_ERROR, message="API error: 500")
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value = self._client(boom)
+            result = await tp_unpair_workout(workout_id="111")
+
+        assert result == {"isError": True, "error_code": "API_ERROR", "message": "API error: 500"}
+
+    @pytest.mark.asyncio
+    async def test_pair_403_names_both_ids_and_adds_hint(self):
+        denied = APIResponse(success=False, error_code=ErrorCode.AUTH_INVALID, message="Access denied.")
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value = self._client(denied)
+            result = await tp_pair_workout(completed_workout_id="4018553158", planned_workout_id="35884113")
+
+        assert result["error_code"] == "AUTH_INVALID"
+        assert "4018553158 / 35884113" in result["message"]
+        assert "cannot be paired or unpaired here" in result["hint"]
+
+    @pytest.mark.asyncio
+    async def test_pair_other_errors_are_untouched(self):
+        boom = APIResponse(success=False, error_code=ErrorCode.RATE_LIMITED, message="Rate limited.")
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value = self._client(boom)
+            result = await tp_pair_workout(completed_workout_id="111", planned_workout_id="222")
+
+        assert result == {"isError": True, "error_code": "RATE_LIMITED", "message": "Rate limited."}
