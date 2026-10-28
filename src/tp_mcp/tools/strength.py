@@ -20,6 +20,11 @@ Verified against the live API:
   • detail  → GET    /rx/activity/v1/workouts/{id}         (full blocks/sets, {data} wrapper)
   • summary → GET    /rx/activity/v1/workouts/{id}/summary
   • delete  → DELETE /rx/activity/v1/workouts/{id}
+  • start time → `prescribedStartTime` ("HH:mm:ss", optional; probed 2026-08-25).
+    `prescribedDate` is DATE-ONLY — posting a datetime there returns 400
+    ("expected format: yyyy-MM-dd"). The UI's hh:mm am/pm field writes
+    `prescribedStartTime`, and the calendar orders same-day workouts by it.
+    (`orderOnDay` also exists; it is not needed once a start time is set.)
   • a prescription must declare its own `parameters` (the prescribed columns),
     distinct from the exercise's library parameters and each set's values;
   • parameter metadata may be minimal (`{parameter, inputFormat}`);
@@ -52,6 +57,7 @@ Choosing a default unit (e.g. kg) is the caller's concern, not the connector's.
 
 import json
 import logging
+import re
 import uuid
 from functools import lru_cache
 from typing import Any
@@ -253,12 +259,33 @@ def _build_prescription(ex: dict[str, Any], catalogue: dict[str, Any]) -> dict[s
     }
 
 
+_START_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$")
+
+
+def _normalise_start_time(value: str | None) -> str | None:
+    """Normalise a start time to the API's "HH:mm:ss" form; None passes through.
+
+    Accepts "HH:MM" or "HH:MM:SS" (24-hour). Raises ValueError otherwise.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    m = _START_TIME_RE.match(text)
+    if not m:
+        raise ValueError(f"start_time must be HH:MM or HH:MM:SS (24-hour), got {value!r}.")
+    hh, mm, ss = m.group(1), m.group(2), m.group(3) or "00"
+    return f"{hh}:{mm}:{ss}"
+
+
 def _build_payload(
     athlete_id: int,
     date: str,
     title: str,
     blocks: list[dict[str, Any]],
     instructions: str | None,
+    start_time: str | None = None,
 ) -> dict[str, Any]:
     catalogue = _catalogue()
     blocks_out = []
@@ -281,6 +308,7 @@ def _build_payload(
         "calendarId": athlete_id,
         "title": title,
         "prescribedDate": date,
+        "prescribedStartTime": start_time,
         "instructions": instructions,
         "blocks": blocks_out,
         "snapshot": {
@@ -338,6 +366,7 @@ async def tp_create_strength_workout(
     title: str,
     blocks: list[dict[str, Any]],
     instructions: str | None = None,
+    start_time: str | None = None,
 ) -> dict[str, Any]:
     """Create a structured strength (gym) workout on the athlete's calendar.
 
@@ -355,12 +384,22 @@ async def tp_create_strength_workout(
             For Superset / Circuit blocks every exercise must have the same
             number of sets.
         instructions: Optional free-text instructions for the whole session.
+        start_time: Optional planned start time of day, "HH:MM" or "HH:MM:SS"
+            (24-hour). Sets the calendar's start-time field, which also fixes
+            the display order of several workouts on one day (e.g. an AM and a
+            PM session). Omit to leave it unset. Note `date` itself must be a
+            bare YYYY-MM-DD — the strength API rejects a datetime there.
 
     Returns:
-        Dict with the created `workout_id`, date, title, and block/set counts.
+        Dict with the created `workout_id`, date, start_time, title, and
+        block/set counts.
     """
     if not str(date).strip():
         return _err("VALIDATION_ERROR", "date is required (YYYY-MM-DD).")
+    try:
+        start_time_norm = _normalise_start_time(start_time)
+    except ValueError as exc:
+        return _err("VALIDATION_ERROR", str(exc))
     if not str(title).strip():
         return _err("VALIDATION_ERROR", "title is required.")
     if not isinstance(blocks, list):
@@ -373,7 +412,9 @@ async def tp_create_strength_workout(
         athlete_id, access, err = await _access(client)
         if err:
             return err
-        payload = _build_payload(athlete_id, date.strip(), title.strip(), blocks, instructions)
+        payload = _build_payload(
+            athlete_id, date.strip(), title.strip(), blocks, instructions, start_time_norm
+        )
         try:
             async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
                 r = await h.post(
@@ -403,6 +444,7 @@ async def tp_create_strength_workout(
         return {
             "workout_id": str(data.get("id")),
             "date": date.strip(),
+            "start_time": start_time_norm,
             "title": title.strip(),
             "total_blocks": snap.get("totalBlocks"),
             "total_sets": snap.get("totalSets"),
@@ -469,8 +511,9 @@ async def tp_update_strength_workout(
     mode: str = "replace",
     mark_complete: bool = False,
     dry_run: bool = False,
+    start_time: str | None = None,
 ) -> dict[str, Any]:
-    """Update an existing strength workout in place (blocks, title, instructions).
+    """Update an existing strength workout in place (blocks, title, instructions, start time).
 
     Fetches the full workout, applies the requested changes, and posts the whole
     document back to the upsert endpoint. Everything not explicitly changed is
@@ -494,6 +537,9 @@ async def tp_update_strength_workout(
             values are left untouched.
         dry_run: Validate and build the update, report what would change, but
             send nothing.
+        start_time: Optional new planned start time of day, "HH:MM" or
+            "HH:MM:SS" (24-hour) — the calendar's start-time field, which also
+            orders same-day workouts. Pass "" to clear it.
 
     Returns:
         Dict with the workout_id, before/after block and set counts, the fields
@@ -510,11 +556,21 @@ async def tp_update_strength_workout(
         invalid = _validate_blocks(blocks)
         if invalid:
             return _err("VALIDATION_ERROR", invalid)
-    if blocks is None and title is None and instructions is None and not mark_complete:
+    if (
+        blocks is None
+        and title is None
+        and instructions is None
+        and start_time is None
+        and not mark_complete
+    ):
         return _err(
             "VALIDATION_ERROR",
-            "Nothing to update: provide blocks, title, instructions or mark_complete.",
+            "Nothing to update: provide blocks, title, instructions, start_time or mark_complete.",
         )
+    try:
+        start_time_norm = _normalise_start_time(start_time)
+    except ValueError as exc:
+        return _err("VALIDATION_ERROR", str(exc))
 
     async with TPClient() as client:
         _, access, err = await _access(client)
@@ -561,6 +617,9 @@ async def tp_update_strength_workout(
                 if instructions is not None:
                     doc["instructions"] = instructions
                     changed.append("instructions")
+                if start_time is not None:
+                    doc["prescribedStartTime"] = start_time_norm
+                    changed.append("start_time")
                 if mark_complete:
                     _mark_complete(doc.get("blocks") or [])
                     changed.append("mark_complete")
@@ -721,6 +780,7 @@ def _fmt_workout_detail(d: dict[str, Any]) -> dict[str, Any]:
     return {
         "workout_id": str(d.get("id")),
         "date": d.get("prescribedDate"),
+        "start_time": d.get("prescribedStartTime"),
         "title": d.get("title"),
         "workout_type": d.get("workoutType"),
         "instructions": d.get("instructions"),
@@ -784,6 +844,7 @@ async def tp_get_strength_workouts(start_date: str, end_date: str) -> dict[str, 
             {
                 "workout_id": str(w.get("id")),
                 "date": w.get("prescribedDate"),
+                "start_time": w.get("prescribedStartTime"),
                 "title": w.get("title"),
                 "workout_type": w.get("workoutType"),
                 "prescribed_duration_min": _min(w.get("prescribedDurationInSeconds")),
@@ -797,7 +858,7 @@ async def tp_get_strength_workouts(start_date: str, end_date: str) -> dict[str, 
             }
             for w in items
         ]
-        workouts.sort(key=lambda w: w["date"] or "")
+        workouts.sort(key=lambda w: (w["date"] or "", w["start_time"] or ""))
         return {
             "count": len(workouts),
             "date_range": {"start": start, "end": end},

@@ -1264,9 +1264,17 @@ TOOLS = [
         input_schema={
             "type": "object",
             "properties": {
-                "date": {"type": "string", "description": "Planned date YYYY-MM-DD."},
+                "date": {"type": "string", "description": "Planned date YYYY-MM-DD (date only)."},
                 "title": {"type": "string", "description": "Workout title, e.g. 'Upper Body'."},
                 "instructions": {"type": "string", "description": "Optional session instructions."},
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional planned start time of day, 'HH:MM' or 'HH:MM:SS' "
+                        "(24-hour). Sets the calendar start-time field and orders "
+                        "same-day workouts."
+                    ),
+                },
                 "blocks": {
                     "type": "array",
                     "items": {"type": "object"},
@@ -1329,7 +1337,7 @@ TOOLS = [
         name="tp_update_strength_workout",
         description=(
             "Update an existing strength workout in place: replace or append blocks, "
-            "retitle, or mark it complete. Preserves everything else, including "
+            "retitle, set the start time, or mark it complete. Preserves everything else, including "
             "Garmin-derived TSS and the attached FIT file — so this is the correct "
             "way to fill in a device-synced workout that arrived with no structure. "
             "Never delete-and-recreate for that: exercise detail is rebuildable, "
@@ -1349,6 +1357,13 @@ TOOLS = [
                 },
                 "title": {"type": "string", "description": "Optional new title."},
                 "instructions": {"type": "string", "description": "Optional new instructions."},
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional new planned start time of day, 'HH:MM' or 'HH:MM:SS' "
+                        "(24-hour); orders same-day workouts. Pass '' to clear."
+                    ),
+                },
                 "mode": {
                     "type": "string",
                     "enum": ["replace", "append"],
@@ -1761,7 +1776,8 @@ async def _h_search_exercises(args):
 async def _h_create_strength(args):
     return await tp_create_strength_workout(
         date=args["date"], title=args["title"],
-        blocks=args.get("blocks") or [], instructions=args.get("instructions"))
+        blocks=args.get("blocks") or [], instructions=args.get("instructions"),
+        start_time=args.get("start_time"))
 
 @_handler("tp_get_strength_summary")
 async def _h_get_strength_summary(args):
@@ -1783,7 +1799,8 @@ async def _h_update_strength(args):
         title=args.get("title"), instructions=args.get("instructions"),
         mode=args.get("mode", "replace"),
         mark_complete=bool(args.get("mark_complete", False)),
-        dry_run=bool(args.get("dry_run", False)))
+        dry_run=bool(args.get("dry_run", False)),
+        start_time=args.get("start_time"))
 
 @_handler("tp_delete_strength_workout")
 async def _h_delete_strength(args):
