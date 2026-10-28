@@ -101,3 +101,21 @@ async def test_resolve_cookie_precedence(monkeypatch):
     assert await login.resolve_cookie() == ("from-login", True)
     monkeypatch.setenv("TP_AUTH_COOKIE", "explicit")
     assert await login.resolve_cookie() == ("explicit", False)
+
+
+@pytest.mark.asyncio
+async def test_failed_login_not_retried_during_cooldown(monkeypatch):
+    monkeypatch.setenv("TP_USERNAME", "coach")
+    monkeypatch.setenv("TP_PASSWORD", "wrong")
+    calls = {"n": 0}
+
+    async def fake_login(u, p):
+        calls["n"] += 1
+        return login.LoginResult(False, message="nope")
+
+    monkeypatch.setattr(login, "login_with_password", fake_login)
+    assert not (await login.get_session_cookie()).success
+    assert not (await login.get_session_cookie()).success
+    assert calls["n"] == 1
+    assert not (await login.get_session_cookie(force_refresh=True)).success
+    assert calls["n"] == 2

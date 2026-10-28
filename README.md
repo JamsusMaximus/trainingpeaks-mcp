@@ -244,15 +244,15 @@ tp-mcp serve
 
 Or in your MCP client config, add it under the server's `env` block. This is a **supported, first-class auth method**, not a testing-only override - it is the recommended path wherever the keyring and encrypted-file backends don't work: headless Linux boxes without Secret Service, containers that are rebuilt (the encrypted file's key is derived from a machine-specific salt, so it doesn't survive a rebuild), and CI.
 
-### Option D: username and password (opt-in, nothing stored)
+Precedence: `TP_AUTH_COOKIE` is always checked **first**, before the system keyring, then the encrypted file, so setting it overrides any stored credential.
+
+> **Security note:** the cookie grants full access to your TrainingPeaks account, so treat `TP_AUTH_COOKIE` like a password. Inject it from a secrets manager or your orchestrator's secret mechanism - never hard-code it in Dockerfiles, compose files, or anything committed to git. Be aware that environment variables are readable by any process running as the same user, and via `docker inspect`. On desktop setups, the keyring/encrypted-file storage (Options A and B) remains the recommended default; `TP_AUTH_COOKIE` is for headless and container use.
+
+**Option D: username and password (opt-in, nothing stored)**
 
 For accounts that sign in with a username and password (no 2FA, CAPTCHA, or Google/Apple sign-in), pass `TP_USERNAME` and `TP_PASSWORD` in the server's environment. tp-mcp logs in through the web form and keeps the session **in memory only**; it never writes the password or the session to the keyring or disk, and it logs in again once if the session expires. Run `tp-mcp login-check` to verify the variables without storing anything.
 
 Precedence: `TP_AUTH_COOKIE`, then `TP_USERNAME`/`TP_PASSWORD`, then the keyring, then the encrypted file. Inject the password from a secrets manager, never hard-code it.
-
-Precedence: `TP_AUTH_COOKIE` is always checked **first**, before the system keyring, then the encrypted file, so setting it overrides any stored credential.
-
-> **Security note:** the cookie grants full access to your TrainingPeaks account, so treat `TP_AUTH_COOKIE` like a password. Inject it from a secrets manager or your orchestrator's secret mechanism - never hard-code it in Dockerfiles, compose files, or anything committed to git. Be aware that environment variables are readable by any process running as the same user, and via `docker inspect`. On desktop setups, the keyring/encrypted-file storage (Options A and B) remains the recommended default; `TP_AUTH_COOKIE` is for headless and container use.
 
 **Other auth commands:**
 ```bash

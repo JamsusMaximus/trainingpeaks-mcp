@@ -9,7 +9,9 @@ SECURITY NOTES:
 - Accounts that require 2FA, a CAPTCHA, or social sign-in cannot use this path.
 """
 
+import asyncio
 import os
+import time
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
@@ -21,7 +23,11 @@ LOGIN_TIMEOUT = 15.0
 USERNAME_ENV = "TP_USERNAME"
 PASSWORD_ENV = "TP_PASSWORD"
 
+FAILURE_COOLDOWN = 300.0
+
 _session_cookie: str | None = None
+_failed_until: float = 0.0
+_login_lock = asyncio.Lock()
 
 
 @dataclass
@@ -114,24 +120,33 @@ async def login_with_password(username: str, password: str) -> LoginResult:
 async def get_session_cookie(force_refresh: bool = False) -> LoginResult:
     """Return the in-memory session cookie, logging in from the environment if needed.
 
+    A failed login is not retried for FAILURE_COOLDOWN seconds, so a wrong
+    password cannot hammer the login endpoint (and lock the account) on every
+    tool call. Concurrent callers share a single login.
+
     Args:
-        force_refresh: Discard any cached session and log in again.
+        force_refresh: Discard any cached session and cooldown, and log in again.
     """
-    global _session_cookie
+    global _session_cookie, _failed_until
     creds = env_credentials()
     if creds is None:
         return LoginResult(False, message="TP_USERNAME and TP_PASSWORD are not both set.")
-    if _session_cookie and not force_refresh:
-        return LoginResult(True, cookie=_session_cookie, message="Using in-memory session")
-    result = await login_with_password(*creds)
-    _session_cookie = result.cookie if result.success else None
-    return result
+    async with _login_lock:
+        if _session_cookie and not force_refresh:
+            return LoginResult(True, cookie=_session_cookie, message="Using in-memory session")
+        if not force_refresh and time.monotonic() < _failed_until:
+            return LoginResult(False, message="Password login failed recently; not retrying yet.")
+        result = await login_with_password(*creds)
+        _session_cookie = result.cookie if result.success else None
+        _failed_until = 0.0 if result.success else time.monotonic() + FAILURE_COOLDOWN
+        return result
 
 
 def clear_session() -> None:
     """Forget the in-memory session cookie."""
-    global _session_cookie
+    global _session_cookie, _failed_until
     _session_cookie = None
+    _failed_until = 0.0
 
 
 async def resolve_cookie() -> tuple[str | None, bool]:
