@@ -2,7 +2,7 @@
 
 SECURITY NOTES:
 - Credentials are read ONLY from the TP_USERNAME and TP_PASSWORD environment
-  variables, supplied by the caller (for example from a secrets manager). They
+  variables, supplied by the caller (for example a launcher that reads the OS keyring). They
   are never written to the keyring, the encrypted file, or disk.
 - The session cookie obtained from a login is held in process memory only.
 - Neither the password nor the cookie may appear in messages or logs.

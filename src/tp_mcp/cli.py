@@ -186,7 +186,7 @@ def cmd_login_check() -> int:
         print("  TP_USERNAME   your TrainingPeaks username or email")
         print("  TP_PASSWORD   your TrainingPeaks password")
         print()
-        print("Supply them from a secrets manager or your MCP host's secret mechanism.")
+        print("Supply them at launch, for example from a script that reads your OS keyring.")
         print("Not supported for accounts with 2FA, a CAPTCHA, or social sign-in.")
         return 1
 

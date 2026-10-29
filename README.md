@@ -252,7 +252,7 @@ Precedence: `TP_AUTH_COOKIE` is always checked **first**, before the system keyr
 
 For accounts that sign in with a username and password (no 2FA, CAPTCHA, or Google/Apple sign-in), pass `TP_USERNAME` and `TP_PASSWORD` in the server's environment. tp-mcp logs in through the web form and keeps the session **in memory only**; it never writes the password or the session to the keyring or disk, and it logs in again once if the session expires. Run `tp-mcp login-check` to verify the variables without storing anything.
 
-Precedence: `TP_AUTH_COOKIE`, then `TP_USERNAME`/`TP_PASSWORD`, then the keyring, then the encrypted file. Inject the password from a secrets manager, never hard-code it.
+Precedence: `TP_AUTH_COOKIE`, then `TP_USERNAME`/`TP_PASSWORD`, then the keyring, then the encrypted file. Supply the password at launch from the OS keyring (macOS Keychain, Linux Secret Service) or another credential store the host machine controls, for example via a small launcher script that exports the two variables and then starts `tp-mcp serve`; never hard-code it. Many agent hosts cannot yet feed their own secret store into an MCP server's environment, so a launcher like this is the practical route.
 
 **Other auth commands:**
 ```bash
