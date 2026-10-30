@@ -4,11 +4,21 @@ import json
 import logging
 from typing import Any
 
+import httpx
 from pydantic import ValidationError
 
 from tp_mcp.client import TPClient
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
+from tp_mcp.tools.strength import (
+    _TEMPLATE_BASE,
+    STRENGTH_TIMEOUT,
+    _access,
+    _err,
+    _fetch_templates,
+    _headers,
+    _map_status,
+)
 
 logger = logging.getLogger("tp-mcp")
 
@@ -788,3 +798,135 @@ async def _schedule_item_bulk(
             "see errors for per-athlete detail."
         )
     return result
+
+
+# ── Item delete / copy (strength-builder and endurance templates) ───────────
+#
+# A library holds items on two backends: endurance templates on tpapi
+# (`/exerciselibrary/v1/...`) and strength-builder templates on the Peaksware
+# API. Item ids are only unique per backend, so both tools look the id up in the
+# strength list first and fall back to the endurance backend.
+
+
+async def _find_strength_item(library_id: str, item_id: str) -> dict[str, Any] | None:
+    items, err = await _fetch_templates(library_id)
+    if err:
+        return None
+    return next((i for i in items or [] if str(i.get("id")) == item_id), None)
+
+
+async def tp_delete_library_item(library_id: str, item_id: str) -> dict[str, Any]:
+    """Permanently delete a template from a workout library (strength or endurance).
+
+    Args:
+        library_id: Library ID.
+        item_id: Item ID (from tp_get_library_items or tp_get_strength_library_templates).
+
+    Returns:
+        Dict confirming deletion.
+    """
+    lid, iid = str(library_id).strip(), str(item_id).strip()
+    if not lid.isdigit() or not iid.isdigit():
+        return _err("VALIDATION_ERROR", "library_id and item_id must be numeric IDs.")
+
+    if await _find_strength_item(lid, iid):
+        async with TPClient() as client:
+            _, access, err = await _access(client)
+            if err:
+                return err
+            try:
+                async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                    r = await h.delete(f"{_TEMPLATE_BASE}/items/{iid}", headers=_headers(access))
+            except httpx.TimeoutException:
+                return _err("NETWORK_ERROR", "Template delete timed out.")
+            except httpx.RequestError:
+                logger.exception("Network error deleting library item")
+                return _err("NETWORK_ERROR", "A network error occurred.")
+            if r.status_code not in (200, 204):
+                return _map_status(r.status_code, r.text)
+        return {"deleted": True, "item_id": iid, "library_id": lid, "kind": "strength"}
+
+    async with TPClient() as client:
+        if not await client.ensure_athlete_id():
+            return _err("AUTH_INVALID", "Could not get athlete ID. Re-authenticate.")
+        # The server answers 200 for ids that do not exist, so check first.
+        listing = await client.get(f"/exerciselibrary/v2/libraries/{lid}/items")
+        if listing.is_error:
+            return _err(listing.error_code.value if listing.error_code else "API_ERROR", listing.message or "")
+        rows = listing.data if isinstance(listing.data, list) else []
+        if not any(str(i.get("exerciseLibraryItemId", i.get("id"))) == iid for i in rows):
+            return _err("NOT_FOUND", f"Item {iid} not found in library {lid}.")
+        response = await client.delete(f"/exerciselibrary/v1/libraries/{lid}/items/{iid}")
+        if response.is_error:
+            return _err(response.error_code.value if response.error_code else "API_ERROR", response.message or "")
+    return {"deleted": True, "item_id": iid, "library_id": lid, "kind": "endurance"}
+
+
+async def tp_copy_library_item(
+    library_id: str,
+    item_id: str,
+    title: str | None = None,
+    target_library_id: str | None = None,
+) -> dict[str, Any]:
+    """Copy a template (strength or endurance), in the same library or into another.
+
+    Also the way to move one: copy it to the target library, then delete the original.
+
+    Args:
+        library_id: Library the item is in.
+        item_id: Item ID to copy.
+        title: Title for the copy (default: "<original> Copy").
+        target_library_id: Destination library (default: the same library).
+
+    Returns:
+        Dict with the new item id and the library it landed in.
+    """
+    lid, iid = str(library_id).strip(), str(item_id).strip()
+    target = str(target_library_id).strip() if target_library_id else lid
+    if not lid.isdigit() or not iid.isdigit() or not target.isdigit():
+        return _err("VALIDATION_ERROR", "library_id, item_id and target_library_id must be numeric IDs.")
+
+    original = await _find_strength_item(lid, iid)
+    if original:
+        new_title = (title or "").strip() or f"{original.get('title')} Copy"
+        async with TPClient() as client:
+            _, access, err = await _access(client)
+            if err:
+                return err
+            try:
+                async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                    r = await h.post(
+                        f"{_TEMPLATE_BASE}/items/copy",
+                        headers=_headers(access),
+                        json={"libraryId": int(target), "workoutLibraryItemId": int(iid), "title": new_title},
+                    )
+            except httpx.TimeoutException:
+                return _err("NETWORK_ERROR", "Template copy timed out.")
+            except httpx.RequestError:
+                logger.exception("Network error copying library item")
+                return _err("NETWORK_ERROR", "A network error occurred.")
+            if r.status_code != 200:
+                return _map_status(r.status_code, r.text)
+        data = r.json().get("data") or {}
+        return {"item_id": str(data.get("id")), "library_id": target, "title": new_title, "kind": "strength"}
+
+    async with TPClient() as client:
+        if not await client.ensure_athlete_id():
+            return _err("AUTH_INVALID", "Could not get athlete ID. Re-authenticate.")
+        listing = await client.get(f"/exerciselibrary/v2/libraries/{lid}/items")
+        if listing.is_error:
+            return _err(listing.error_code.value if listing.error_code else "API_ERROR", listing.message or "")
+        rows = listing.data if isinstance(listing.data, list) else []
+        original = next((i for i in rows if str(i.get("exerciseLibraryItemId", i.get("id"))) == iid), None)
+        if original is None:
+            return _err("NOT_FOUND", f"Item {iid} not found in library {lid}.")
+        payload = {k: v for k, v in original.items() if k not in ("exerciseLibraryItemId", "id")}
+        payload["exerciseLibraryId"] = int(target)
+        payload["itemName"] = (title or "").strip() or f"{original.get('itemName', original.get('name', ''))} Copy"
+        response = await client.post(f"/exerciselibrary/v1/libraries/{target}/items", json=payload)
+        if response.is_error:
+            return _err(response.error_code.value if response.error_code else "API_ERROR", response.message or "")
+        new_id = None
+        if isinstance(response.data, dict):
+            new_id = response.data.get("exerciseLibraryItemId", response.data.get("id"))
+    return {"item_id": str(new_id), "library_id": target, "title": payload["itemName"], "kind": "endurance"}

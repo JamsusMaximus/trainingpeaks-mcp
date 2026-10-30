@@ -264,6 +264,21 @@ def _build_prescription(ex: dict[str, Any], catalogue: dict[str, Any]) -> dict[s
     }
 
 
+def _new_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build API blocks (with fresh ids) from the tool-level block specs."""
+    catalogue = _catalogue()
+    return [
+        {
+            "id": _u(),
+            "blockType": b.get("type", "SingleExercise"),
+            "title": b.get("title"),
+            "coachNotes": b.get("notes"),
+            "prescriptions": [_build_prescription(ex, catalogue) for ex in b["exercises"]],
+        }
+        for b in blocks
+    ]
+
+
 def _build_payload(
     athlete_id: int,
     date: str,
@@ -547,19 +562,7 @@ async def tp_update_strength_workout(
                 changed: list[str] = []
 
                 if blocks is not None:
-                    catalogue = _catalogue()
-                    new_blocks = [
-                        {
-                            "id": _u(),
-                            "blockType": b.get("type", "SingleExercise"),
-                            "title": b.get("title"),
-                            "coachNotes": b.get("notes"),
-                            "prescriptions": [
-                                _build_prescription(ex, catalogue) for ex in b["exercises"]
-                            ],
-                        }
-                        for b in blocks
-                    ]
+                    new_blocks = _new_blocks(blocks)
                     if mode == "append":
                         doc["blocks"] = (doc.get("blocks") or []) + new_blocks
                     else:
@@ -1025,3 +1028,223 @@ async def tp_delete_strength_workout(workout_id: str) -> dict[str, Any]:
         if r.status_code not in (200, 204):
             return _map_status(r.status_code, r.text)
         return {"deleted": True, "workout_id": wid}
+
+
+# ── Library templates (read) ─────────────────────────────────────────────────
+#
+# Templates saved from the strength builder live on the Peaksware API, not in
+# `/exerciselibrary/v2/libraries/{id}/items` (which only returns endurance
+# templates). The web app merges both lists when it opens a library.
+#   • list → GET /rx/activity/v1/libraryContent/workoutLibrary/{libraryId}
+#            (bare JSON array; each item carries its full workout, so there is
+#            no separate detail call — detail is a filter over the list)
+# The item `id` is the library item id; `workout.id` is the underlying workout.
+
+
+async def _fetch_templates(library_id: str) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return None, err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}/rx/activity/v1/libraryContent/workoutLibrary/{library_id}",
+                    headers=_headers(access),
+                )
+        except httpx.TimeoutException:
+            return None, _err("NETWORK_ERROR", "Strength template list timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error listing strength templates")
+            return None, _err("NETWORK_ERROR", "A network error occurred.")
+        if r.status_code != 200:
+            return None, _map_status(r.status_code, r.text)
+        data = r.json()
+        return (data if isinstance(data, list) else []), None
+
+
+# ── Library templates (write) ────────────────────────────────────────────────
+#
+# Verified against the live API (probed 2026-10-30, throwaway libraries):
+#   • create → POST /rx/activity/v1/libraryContent/workoutLibrary/save
+#              body {id: <client uuid>, libraryId, title, workoutLibraryItemType:
+#              "ActivityWorkoutTemplate", workout: {workoutType, title, instructions,
+#              blocks, snapshot}}; returns the new numeric item id.
+#   • update → the same POST with the existing numeric item id and the full
+#              document (partial documents are not safe — fetch, mutate, post back).
+#              The web app also PUTs the document to /workoutLibrary first; that
+#              only returns the server-recomputed document and persists nothing.
+#   • copy   → POST   /rx/activity/v1/libraryContent/workoutLibrary/items/copy
+#   • delete → DELETE /rx/activity/v1/libraryContent/workoutLibrary/items/{id}
+# copy/delete live in library.py (they also cover endurance items).
+
+_TEMPLATE_BASE = f"{STRENGTH_API_BASE}/rx/activity/v1/libraryContent/workoutLibrary"
+
+
+async def _post_template(access: str, doc: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    try:
+        async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+            r = await h.post(f"{_TEMPLATE_BASE}/save", headers=_headers(access), json=doc)
+    except httpx.TimeoutException:
+        return None, _err("NETWORK_ERROR", "Strength template save timed out.")
+    except httpx.RequestError:
+        logger.exception("Network error saving strength template")
+        return None, _err("NETWORK_ERROR", "A network error occurred.")
+    if r.status_code != 200:
+        try:
+            errs = r.json().get("errors")
+            if errs:
+                return None, _err("API_ERROR", f"Strength API rejected the template: {errs}")
+        except Exception:
+            pass
+        return None, _map_status(r.status_code, r.text)
+    return r.json().get("data") or {}, None
+
+
+async def tp_create_strength_template(
+    library_id: str,
+    title: str,
+    blocks: list[dict[str, Any]],
+    instructions: str | None = None,
+) -> dict[str, Any]:
+    """Save a strength workout template into a workout library.
+
+    Args:
+        library_id: Library ID (from tp_get_libraries).
+        title: Template title.
+        blocks: Ordered blocks, same shape as tp_create_strength_workout.
+        instructions: Optional free-text instructions.
+
+    Returns:
+        Dict with the new `template_id`, library_id, title and block/set counts.
+    """
+    lid = str(library_id).strip()
+    if not lid.isdigit():
+        return _err("VALIDATION_ERROR", "library_id must be a numeric library ID.")
+    if not str(title).strip():
+        return _err("VALIDATION_ERROR", "title is required.")
+    if not isinstance(blocks, list) or not blocks:
+        return _err("VALIDATION_ERROR", "blocks must be a non-empty list.")
+    invalid = _validate_blocks(blocks)
+    if invalid:
+        return _err("VALIDATION_ERROR", invalid)
+
+    built = _new_blocks(blocks)
+    doc: dict[str, Any] = {
+        "id": _u(),
+        "libraryId": int(lid),
+        "title": title.strip(),
+        "workoutLibraryItemType": "ActivityWorkoutTemplate",
+        "workout": {
+            "workoutType": "StructuredStrength",
+            "title": title.strip(),
+            "instructions": instructions,
+            "blocks": built,
+            "snapshot": _recount(built),
+        },
+    }
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return err
+        data, err = await _post_template(access, doc)
+        if err:
+            return err
+    assert data is not None
+    snap = (data.get("workout") or {}).get("snapshot") or doc["workout"]["snapshot"]
+    return {
+        "template_id": str(data.get("id")),
+        "library_id": lid,
+        "title": title.strip(),
+        "total_blocks": snap.get("totalBlocks"),
+        "total_sets": snap.get("totalSets"),
+    }
+
+
+async def tp_update_strength_template(
+    library_id: str,
+    template_id: str,
+    blocks: list[dict[str, Any]] | None = None,
+    title: str | None = None,
+    instructions: str | None = None,
+    mode: str = "replace",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Update a strength template in place (blocks, title, instructions).
+
+    Fetches the full template, applies the changes and saves the whole document
+    back, so everything not changed is preserved.
+
+    Args:
+        library_id: Library the template is saved in.
+        template_id: Template `id` from tp_get_strength_library_templates.
+        blocks: Optional blocks, same shape as tp_create_strength_workout.
+        title: Optional new title.
+        instructions: Optional new instructions.
+        mode: "replace" (default) swaps the block list; "append" adds after it.
+        dry_run: Build the update and report what would change, send nothing.
+
+    Returns:
+        Dict with template_id, fields changed and before/after block and set counts.
+    """
+    lid = str(library_id).strip()
+    tid = str(template_id).strip()
+    if not lid or not tid:
+        return _err("VALIDATION_ERROR", "library_id and template_id are required.")
+    if mode not in ("replace", "append"):
+        return _err("VALIDATION_ERROR", f"mode must be 'replace' or 'append', got {mode!r}.")
+    if blocks is not None:
+        if not isinstance(blocks, list):
+            return _err("VALIDATION_ERROR", "blocks must be a list.")
+        invalid = _validate_blocks(blocks)
+        if invalid:
+            return _err("VALIDATION_ERROR", invalid)
+    if blocks is None and title is None and instructions is None:
+        return _err("VALIDATION_ERROR", "Nothing to update: provide blocks, title or instructions.")
+
+    items, err = await _fetch_templates(lid)
+    if err:
+        return err
+    assert items is not None
+    doc = next((i for i in items if str(i.get("id")) == tid), None)
+    if doc is None:
+        return _err("NOT_FOUND", "Strength template not found in that library.")
+
+    w = doc.setdefault("workout", {})
+    before = dict(w.get("snapshot") or {})
+    changed: list[str] = []
+    if blocks is not None:
+        new = _new_blocks(blocks)
+        w["blocks"] = (w.get("blocks") or []) + new if mode == "append" else new
+        changed.append(f"blocks ({mode})")
+    if title is not None:
+        doc["title"] = w["title"] = str(title).strip()
+        changed.append("title")
+    if instructions is not None:
+        w["instructions"] = instructions
+        changed.append("instructions")
+    w["snapshot"] = _recount(w.get("blocks") or [])
+
+    summary: dict[str, Any] = {
+        "template_id": tid,
+        "changed": changed,
+        "blocks_before": before.get("totalBlocks"),
+        "blocks_after": w["snapshot"]["totalBlocks"],
+        "sets_before": before.get("totalSets"),
+        "sets_after": w["snapshot"]["totalSets"],
+    }
+    if dry_run:
+        return {**summary, "dry_run": True}
+
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return err
+        data, err = await _post_template(access, doc)
+        if err:
+            return err
+    assert data is not None
+    returned = str(data.get("id")) if data.get("id") is not None else tid
+    if returned != tid:
+        summary["warning"] = f"Server returned id {returned}, expected {tid} — a duplicate may have been created."
+    return summary

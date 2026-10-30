@@ -771,3 +771,152 @@ class TestUpdateStrength:
         r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
         assert r["error_code"] == "API_ERROR"
         assert "bad" in r["message"]
+
+
+# ── Library templates ────────────────────────────────────────────────────────
+
+_TEMPLATE_ITEMS = [
+    {
+        "id": 111,
+        "libraryId": 5,
+        "title": "Upper focus",
+        "workoutLibraryItemType": "ActivityWorkoutTemplate",
+        "workout": {
+            "id": "9001",
+            "title": "Upper focus",
+            "workoutType": "StructuredStrength",
+            "prescribedTss": None,
+            "prescribedDurationInSeconds": None,
+            "snapshot": {"totalBlocks": 1, "totalSets": 2},
+            "blocks": [
+                {
+                    "blockType": "SingleExercise",
+                    "title": "Bench Press",
+                    "prescriptions": [
+                        {
+                            "exercise": {"title": "Bench Press"},
+                            "sets": [
+                                {"parameterValues": [{"parameter": "Reps", "prescribedValue": "5"}]},
+                                {"parameterValues": [{"parameter": "Reps", "prescribedValue": "5"}]},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        },
+    },
+    {"id": 222, "libraryId": 5, "title": "Other", "workout": {"id": "9002", "blocks": []}},
+]
+
+
+class TestStrengthTemplateWrites:
+    BLOCKS = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "10"}, {"Reps": "10"}]}]}]
+
+    @pytest.mark.asyncio
+    async def test_create_posts_save_document(self):
+        from tp_mcp.tools.strength import tp_create_strength_template
+
+        http = _mock_http(200, {"data": {"id": 777, "workout": {"snapshot": {"totalBlocks": 1, "totalSets": 2}}}})
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            r = await tp_create_strength_template("5", " My template ", self.BLOCKS, "notes")
+        assert r["template_id"] == "777"
+        assert r["title"] == "My template"
+        assert (r["total_blocks"], r["total_sets"]) == (1, 2)
+        url = http.post.call_args.args[0]
+        body = http.post.call_args.kwargs["json"]
+        assert url.endswith("/rx/activity/v1/libraryContent/workoutLibrary/save")
+        assert body["libraryId"] == 5
+        assert body["workoutLibraryItemType"] == "ActivityWorkoutTemplate"
+        assert body["workout"]["workoutType"] == "StructuredStrength"
+        assert body["workout"]["instructions"] == "notes"
+        assert body["workout"]["snapshot"]["totalSets"] == 2
+        assert len(body["id"]) == 36  # client-generated uuid
+
+    @pytest.mark.asyncio
+    async def test_create_validation(self):
+        from tp_mcp.tools.strength import tp_create_strength_template
+
+        assert (await tp_create_strength_template("abc", "t", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_template("5", " ", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_template("5", "t", []))["error_code"] == "VALIDATION_ERROR"
+        bad = [{"type": "Superset", "exercises": [{"id": "1", "sets": [{"Reps": 1}]}, {"id": "1", "sets": []}]}]
+        assert (await tp_create_strength_template("5", "t", bad))["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_create_surfaces_server_errors(self):
+        from tp_mcp.tools.strength import tp_create_strength_template
+
+        http = _mock_http(400, {"errors": {"workoutLibraryItemType": ["Invalid"]}})
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            r = await tp_create_strength_template("5", "t", self.BLOCKS)
+        assert r["error_code"] == "API_ERROR"
+        assert "workoutLibraryItemType" in r["message"]
+
+    def _run_update(self, **kwargs):
+        import copy
+
+        from tp_mcp.tools.strength import tp_update_strength_template
+
+        async def go():
+            http = _mock_http(200, copy.deepcopy(_TEMPLATE_ITEMS))
+            post_resp = MagicMock()
+            post_resp.status_code = 200
+            post_resp.json.return_value = {"data": {"id": 111}}
+            http.post.return_value = post_resp
+            with (
+                patch("tp_mcp.tools.strength.TPClient") as tpc,
+                patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+            ):
+                tpc.return_value.__aenter__.return_value = _mock_tp_client()
+                hc.return_value.__aenter__.return_value = http
+                return await tp_update_strength_template("5", "111", **kwargs), http
+
+        return go()
+
+    @pytest.mark.asyncio
+    async def test_update_replace_blocks_and_title(self):
+        r, http = await self._run_update(blocks=self.BLOCKS, title="Renamed")
+        assert r["changed"] == ["blocks (replace)", "title"]
+        assert r["sets_before"] == 2 and r["sets_after"] == 2
+        body = http.post.call_args.kwargs["json"]
+        assert body["id"] == 111 and body["title"] == "Renamed" and body["workout"]["title"] == "Renamed"
+        assert len(body["workout"]["blocks"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_update_append(self):
+        r, http = await self._run_update(blocks=self.BLOCKS, mode="append")
+        assert r["blocks_before"] == 1 and r["blocks_after"] == 2
+        assert len(http.post.call_args.kwargs["json"]["workout"]["blocks"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_dry_run_sends_nothing(self):
+        r, http = await self._run_update(title="x", dry_run=True)
+        assert r["dry_run"] is True
+        http.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_validation_and_missing(self):
+        from tp_mcp.tools.strength import tp_update_strength_template
+
+        assert (await tp_update_strength_template("5", "111"))["error_code"] == "VALIDATION_ERROR"
+        bad_mode = await tp_update_strength_template("5", "111", title="x", mode="nope")
+        assert bad_mode["error_code"] == "VALIDATION_ERROR"
+        http = _mock_http(200, _TEMPLATE_ITEMS)
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            missing = await tp_update_strength_template("5", "999", title="x")
+        assert missing["error_code"] == "NOT_FOUND"
