@@ -73,6 +73,8 @@ from tp_mcp.tools import (
     tp_get_peaks,
     tp_get_pool_length_settings,
     tp_get_profile,
+    tp_get_strength_library_template,
+    tp_get_strength_library_templates,
     tp_get_strength_summary,
     tp_get_strength_workout,
     tp_get_strength_workouts,
@@ -1103,7 +1105,8 @@ TOOLS = [
         name="tp_get_library_items",
         description=(
             "List the workout templates in one library (slim listing). library_id from tp_get_libraries. For a "
-            "template's full interval structure use tp_get_library_item."
+            "template's full interval structure use tp_get_library_item. Does NOT include strength-builder "
+            "templates — use tp_get_strength_library_templates for those."
         ),
         input_schema={
             "type": "object",
@@ -1310,6 +1313,38 @@ TOOLS = [
                 "end_date": {"type": "string", "description": "Range end YYYY-MM-DD (inclusive)."},
             },
             "required": ["start_date", "end_date"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_library_templates",
+        description=(
+            "List the strength-builder templates saved in a workout library. "
+            "These ActivityWorkoutTemplate items do NOT appear in "
+            "tp_get_library_items (the exerciselibrary listing misses them "
+            "entirely); use this to enumerate them. Returns template_id, name, "
+            "planned TSS and duration (either may be null), set totals, and an "
+            "exercise preview. library_id from tp_get_libraries."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library ID from tp_get_libraries."},
+            },
+            "required": ["library_id"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_library_template",
+        description=(
+            "Get one strength-builder library template's full detail by its "
+            "template_id (from tp_get_strength_library_templates): planned "
+            "TSS plus blocks, exercises, and sets with prescribed values, in "
+            "the same shape as tp_get_strength_workout."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"template_id": {"type": "string", "description": "Strength library template ID."}},
+            "required": ["template_id"],
         },
     ),
     Tool(
@@ -1771,6 +1806,14 @@ async def _h_get_strength_summary(args):
 async def _h_get_strength_workouts(args):
     return await tp_get_strength_workouts(
         start_date=args["start_date"], end_date=args["end_date"])
+
+@_handler("tp_get_strength_library_templates")
+async def _h_get_strength_library_templates(args):
+    return await tp_get_strength_library_templates(library_id=args["library_id"])
+
+@_handler("tp_get_strength_library_template")
+async def _h_get_strength_library_template(args):
+    return await tp_get_strength_library_template(template_id=args["template_id"])
 
 @_handler("tp_get_strength_workout")
 async def _h_get_strength_workout(args):

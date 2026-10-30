@@ -69,6 +69,8 @@ from tp_mcp.tools.settings import (
 from tp_mcp.tools.strength import (
     tp_create_strength_workout,
     tp_delete_strength_workout,
+    tp_get_strength_library_template,
+    tp_get_strength_library_templates,
     tp_get_strength_summary,
     tp_get_strength_workout,
     tp_get_strength_workouts,
@@ -144,6 +146,8 @@ __all__ = [
     "tp_get_peaks",
     "tp_get_pool_length_settings",
     "tp_get_profile",
+    "tp_get_strength_library_template",
+    "tp_get_strength_library_templates",
     "tp_get_weekly_summary",
     "tp_get_workout",
     "tp_get_workout_comments",
