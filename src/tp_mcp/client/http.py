@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from tp_mcp.auth import get_credential
+from tp_mcp.auth import login as login_mod
 
 logger = logging.getLogger("tp-mcp")
 
@@ -212,8 +212,11 @@ class TPClient:
             "Content-Type": "application/json",
         }
 
-    async def _exchange_cookie_for_token(self) -> APIResponse:
+    async def _exchange_cookie_for_token(self, _retry_login: bool = False) -> APIResponse:
         """Exchange the stored cookie for an OAuth access token.
+
+        Args:
+            _retry_login: Internal flag so a password login is retried only once.
 
         Returns:
             APIResponse with token data or error.
@@ -222,8 +225,8 @@ class TPClient:
         await self._throttle()
         assert self._client is not None
 
-        cred = get_credential()
-        if not cred.success or not cred.cookie:
+        cookie, from_login = await login_mod.resolve_cookie()
+        if not cookie:
             return APIResponse(
                 success=False,
                 error_code=ErrorCode.AUTH_INVALID,
@@ -231,7 +234,7 @@ class TPClient:
             )
 
         url = f"{self.base_url}{TOKEN_ENDPOINT}"
-        headers = self._get_cookie_headers(cred.cookie)
+        headers = self._get_cookie_headers(cookie)
 
         try:
             response = await self._client.request(
@@ -239,6 +242,11 @@ class TPClient:
                 url=url,
                 headers=headers,
             )
+
+            if response.status_code == 401 and from_login and not _retry_login:
+                # The in-memory session expired: log in again, once.
+                login_mod.clear_session()
+                return await self._exchange_cookie_for_token(_retry_login=True)
 
             if response.status_code == 401:
                 return APIResponse(
@@ -701,8 +709,8 @@ class TPClient:
         result: dict[str, Any] = {"success": False, "step": "init", "details": {}}
 
         # Step 1: Check credential
-        cred = get_credential()
-        if not cred.success or not cred.cookie:
+        cookie, _ = await login_mod.resolve_cookie()
+        if not cookie:
             result["step"] = "credential_check"
             result["error"] = "No credential stored. Run 'tp-mcp auth' to authenticate."
             return result

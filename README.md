@@ -248,6 +248,12 @@ Precedence: `TP_AUTH_COOKIE` is always checked **first**, before the system keyr
 
 > **Security note:** the cookie grants full access to your TrainingPeaks account, so treat `TP_AUTH_COOKIE` like a password. Inject it from a secrets manager or your orchestrator's secret mechanism - never hard-code it in Dockerfiles, compose files, or anything committed to git. Be aware that environment variables are readable by any process running as the same user, and via `docker inspect`. On desktop setups, the keyring/encrypted-file storage (Options A and B) remains the recommended default; `TP_AUTH_COOKIE` is for headless and container use.
 
+**Option D: username and password (opt-in, nothing stored)**
+
+For accounts that sign in with a username and password (no 2FA, CAPTCHA, or Google/Apple sign-in), pass `TP_USERNAME` and `TP_PASSWORD` in the server's environment. tp-mcp logs in through the web form and keeps the session **in memory only**; it never writes the password or the session to the keyring or disk, and it logs in again once if the session expires. Run `tp-mcp login-check` to verify the variables without storing anything.
+
+Precedence: `TP_AUTH_COOKIE`, then `TP_USERNAME`/`TP_PASSWORD`, then the keyring, then the encrypted file. Supply the password at launch from the OS keyring (macOS Keychain, Linux Secret Service) or another credential store the host machine controls, for example via a small launcher script that exports the two variables and then starts `tp-mcp serve`; never hard-code it. Many agent hosts cannot yet feed their own secret store into an MCP server's environment, so a launcher like this is the practical route.
+
 **Other auth commands:**
 ```bash
 tp-mcp auth-status  # Check if authenticated

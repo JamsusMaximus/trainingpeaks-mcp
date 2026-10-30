@@ -25,7 +25,8 @@ from mcp.types import (
 )
 
 from tp_mcp import __version__, apps
-from tp_mcp.auth import get_credential, validate_auth
+from tp_mcp.auth import validate_auth
+from tp_mcp.auth.login import resolve_cookie
 from tp_mcp.client.context import athlete_override
 from tp_mcp.tools import (
     tp_add_athletes_to_group,
@@ -2133,12 +2134,12 @@ server.extensions[apps.EXTENSION_ID] = {}
 
 async def _validate_auth_on_startup() -> bool:
     """Validate authentication on server startup."""
-    cred = get_credential()
-    if not cred.success or not cred.cookie:
-        logger.warning("No credential stored. Run 'tp-mcp auth' to authenticate.")
+    cookie, _ = await resolve_cookie()
+    if not cookie:
+        logger.warning("No credential available. Run 'tp-mcp auth', or set TP_USERNAME and TP_PASSWORD.")
         return False
 
-    result = await validate_auth(cred.cookie)
+    result = await validate_auth(cookie)
     if result.is_valid:
         logger.info("Authentication valid (athlete_id: %s)", result.athlete_id)
         return True

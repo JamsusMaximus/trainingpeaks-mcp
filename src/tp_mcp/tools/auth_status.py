@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from tp_mcp.auth import AuthStatus, get_credential, get_storage_backend, validate_auth
+from tp_mcp.auth import AuthStatus, get_storage_backend, validate_auth
+from tp_mcp.auth.login import resolve_cookie
 
 
 async def tp_auth_status() -> dict[str, Any]:
@@ -11,9 +12,9 @@ async def tp_auth_status() -> dict[str, Any]:
     Returns:
         Dict with auth status, athlete_id if valid, and any action needed.
     """
-    cred = get_credential()
+    cookie, _ = await resolve_cookie()
 
-    if not cred.success or not cred.cookie:
+    if not cookie:
         return {
             "valid": False,
             "athlete_id": None,
@@ -21,7 +22,7 @@ async def tp_auth_status() -> dict[str, Any]:
             "action_needed": "Run 'tp-mcp auth' to authenticate",
         }
 
-    result = await validate_auth(cred.cookie)
+    result = await validate_auth(cookie)
 
     if result.is_valid:
         return {
