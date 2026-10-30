@@ -7,6 +7,7 @@ import pytest
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.strength import (
     _build_payload,
+    _fmt_library_template,
     _fmt_set,
     _fmt_workout_detail,
     _input_format,
@@ -14,6 +15,8 @@ from tp_mcp.tools.strength import (
     _validate_blocks,
     tp_create_strength_workout,
     tp_delete_strength_workout,
+    tp_get_strength_library_template,
+    tp_get_strength_library_templates,
     tp_get_strength_summary,
     tp_get_strength_workout,
     tp_get_strength_workouts,
@@ -421,6 +424,153 @@ class TestListAndDetail:
         assert r["error_code"] == "NOT_FOUND"
 
 
+# ── Strength-builder library templates ───────────────────────────────────────
+
+
+def _library_item(tid=327745, title="(3x7) Upper focus 2 - Structured - Home v2", tss=None):
+    """One libraryContent item as the live API returns it (verified 2026-10-30):
+    slim item fields plus the full embedded workout document."""
+    return {
+        "id": tid,
+        "libraryId": 1005417,
+        "title": title,
+        "workoutLibraryItemType": "ActivityWorkoutTemplate",
+        "workout": {
+            "id": 33347049,
+            "workoutType": "StructuredStrength",
+            "title": title,
+            "instructions": "",
+            "prescribedTss": tss,
+            "prescribedDurationInSeconds": None,
+            "snapshot": {"totalBlocks": 3, "completedBlocks": 0, "totalSets": 21,
+                         "completedSets": 0, "totalPrescriptions": 7,
+                         "completedPrescriptions": 0},
+            "blocks": [
+                {"blockType": "Superset", "title": "Superset", "coachNotes": None,
+                 "prescriptions": [
+                     {"exercise": {"title": "Push Up", "videoUrl": "http://v"},
+                      "coachNotes": None, "sets": [
+                          {"isComplete": False, "parameterValues": [
+                              {"parameter": "Reps", "prescribedValue": "7",
+                               "executedValue": None}]}]},
+                     {"exercise": {"title": "DeadBug", "videoUrl": None},
+                      "coachNotes": None, "sets": []},
+                 ]},
+            ],
+        },
+    }
+
+
+class TestLibraryTemplateProjection:
+    def test_fmt_maps_item_and_embedded_workout(self):
+        out = _fmt_library_template(_library_item())
+        assert out["template_id"] == "327745"
+        assert out["library_id"] == 1005417
+        assert out["name"].startswith("(3x7) Upper focus 2")
+        assert out["item_type"] == "ActivityWorkoutTemplate"
+        assert out["workout_id"] == "33347049"
+        # Planned TSS lives on the embedded workout and may be null.
+        assert out["tss"] is None
+        assert out["duration_min"] is None
+        assert out["total_sets"] == 21
+        assert out["exercises"] == ["Push Up", "DeadBug"]
+
+    def test_fmt_carries_planned_tss_and_duration(self):
+        item = _library_item(tid=327744, tss=19.0)
+        item["workout"]["prescribedDurationInSeconds"] = 2700
+        out = _fmt_library_template(item)
+        assert out["tss"] == 19.0
+        assert out["duration_min"] == 45.0
+
+
+class TestStrengthLibraryTemplates:
+    @pytest.mark.asyncio
+    async def test_list_success(self):
+        # Endpoint returns a bare JSON array (not a {data} wrapper).
+        items = [_library_item(), _library_item(tid=327744, tss=19.0)]
+        http = _mock_http(200, items)
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_library_templates(library_id="1005417")
+        assert r["count"] == 2
+        assert r["library_id"] == "1005417"
+        assert r["templates"][1]["tss"] == 19.0
+        url = http.get.call_args.args[0]
+        assert url.endswith("/rx/activity/v1/libraryContent/workoutLibrary/1005417")
+
+    @pytest.mark.asyncio
+    async def test_list_empty_library(self):
+        http = _mock_http(200, [])
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_library_templates(library_id="1703695")
+        assert r["count"] == 0
+        assert r["templates"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_requires_numeric_library_id(self):
+        r = await tp_get_strength_library_templates(library_id="")
+        assert r["error_code"] == "VALIDATION_ERROR"
+        r = await tp_get_strength_library_templates(library_id="abc")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_list_auth_failure(self):
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client(athlete_id=None)
+            r = await tp_get_strength_library_templates(library_id="1005417")
+        assert r["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_detail_success(self):
+        http = _mock_http(200, {"data": _library_item(tss=25.0)})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_library_template(template_id="327745")
+        assert r["template_id"] == "327745"
+        assert r["library_id"] == 1005417
+        assert r["tss"] == 25.0
+        assert r["workout_id"] == "33347049"
+        assert r["total_sets"] == 21
+        block = r["blocks"][0]
+        assert block["type"] == "Superset"
+        assert block["exercises"][0]["exercise"] == "Push Up"
+        assert block["exercises"][0]["sets"][0]["prescribed"] == {"Reps": "7"}
+        url = http.get.call_args.args[0]
+        assert url.endswith("/rx/activity/v1/libraryContent/workoutLibrary/items/327745")
+
+    @pytest.mark.asyncio
+    async def test_detail_not_found(self):
+        http = _mock_http(404, {"message": "nope"})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_library_template(template_id="999")
+        assert r["error_code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_detail_empty_data_is_not_found(self):
+        http = _mock_http(200, {"data": None})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_library_template(template_id="999")
+        assert r["error_code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_detail_requires_numeric_template_id(self):
+        r = await tp_get_strength_library_template(template_id="  ")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+
 # ── Update (in-place upsert) ─────────────────────────────────────────────────
 
 
@@ -621,3 +771,152 @@ class TestUpdateStrength:
         r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
         assert r["error_code"] == "API_ERROR"
         assert "bad" in r["message"]
+
+
+# ── Library templates ────────────────────────────────────────────────────────
+
+_TEMPLATE_ITEMS = [
+    {
+        "id": 111,
+        "libraryId": 5,
+        "title": "Upper focus",
+        "workoutLibraryItemType": "ActivityWorkoutTemplate",
+        "workout": {
+            "id": "9001",
+            "title": "Upper focus",
+            "workoutType": "StructuredStrength",
+            "prescribedTss": None,
+            "prescribedDurationInSeconds": None,
+            "snapshot": {"totalBlocks": 1, "totalSets": 2},
+            "blocks": [
+                {
+                    "blockType": "SingleExercise",
+                    "title": "Bench Press",
+                    "prescriptions": [
+                        {
+                            "exercise": {"title": "Bench Press"},
+                            "sets": [
+                                {"parameterValues": [{"parameter": "Reps", "prescribedValue": "5"}]},
+                                {"parameterValues": [{"parameter": "Reps", "prescribedValue": "5"}]},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        },
+    },
+    {"id": 222, "libraryId": 5, "title": "Other", "workout": {"id": "9002", "blocks": []}},
+]
+
+
+class TestStrengthTemplateWrites:
+    BLOCKS = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "10"}, {"Reps": "10"}]}]}]
+
+    @pytest.mark.asyncio
+    async def test_create_posts_save_document(self):
+        from tp_mcp.tools.strength import tp_create_strength_library_template
+
+        http = _mock_http(200, {"data": {"id": 777, "workout": {"snapshot": {"totalBlocks": 1, "totalSets": 2}}}})
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            r = await tp_create_strength_library_template("5", " My template ", self.BLOCKS, "notes")
+        assert r["template_id"] == "777"
+        assert r["title"] == "My template"
+        assert (r["total_blocks"], r["total_sets"]) == (1, 2)
+        url = http.post.call_args.args[0]
+        body = http.post.call_args.kwargs["json"]
+        assert url.endswith("/rx/activity/v1/libraryContent/workoutLibrary/save")
+        assert body["libraryId"] == 5
+        assert body["workoutLibraryItemType"] == "ActivityWorkoutTemplate"
+        assert body["workout"]["workoutType"] == "StructuredStrength"
+        assert body["workout"]["instructions"] == "notes"
+        assert body["workout"]["snapshot"]["totalSets"] == 2
+        assert len(body["id"]) == 36  # client-generated uuid
+
+    @pytest.mark.asyncio
+    async def test_create_validation(self):
+        from tp_mcp.tools.strength import tp_create_strength_library_template
+
+        assert (await tp_create_strength_library_template("abc", "t", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("5", " ", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("5", "t", []))["error_code"] == "VALIDATION_ERROR"
+        bad = [{"type": "Superset", "exercises": [{"id": "1", "sets": [{"Reps": 1}]}, {"id": "1", "sets": []}]}]
+        assert (await tp_create_strength_library_template("5", "t", bad))["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_create_surfaces_server_errors(self):
+        from tp_mcp.tools.strength import tp_create_strength_library_template
+
+        http = _mock_http(400, {"errors": {"workoutLibraryItemType": ["Invalid"]}})
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            r = await tp_create_strength_library_template("5", "t", self.BLOCKS)
+        assert r["error_code"] == "API_ERROR"
+        assert "workoutLibraryItemType" in r["message"]
+
+    def _run_update(self, **kwargs):
+        import copy
+
+        from tp_mcp.tools.strength import tp_update_strength_library_template
+
+        async def go():
+            http = _mock_http(200, copy.deepcopy(_TEMPLATE_ITEMS))
+            post_resp = MagicMock()
+            post_resp.status_code = 200
+            post_resp.json.return_value = {"data": {"id": 111}}
+            http.post.return_value = post_resp
+            with (
+                patch("tp_mcp.tools.strength.TPClient") as tpc,
+                patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+            ):
+                tpc.return_value.__aenter__.return_value = _mock_tp_client()
+                hc.return_value.__aenter__.return_value = http
+                return await tp_update_strength_library_template("5", "111", **kwargs), http
+
+        return go()
+
+    @pytest.mark.asyncio
+    async def test_update_replace_blocks_and_title(self):
+        r, http = await self._run_update(blocks=self.BLOCKS, title="Renamed")
+        assert r["changed"] == ["blocks (replace)", "title"]
+        assert r["sets_before"] == 2 and r["sets_after"] == 2
+        body = http.post.call_args.kwargs["json"]
+        assert body["id"] == 111 and body["title"] == "Renamed" and body["workout"]["title"] == "Renamed"
+        assert len(body["workout"]["blocks"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_update_append(self):
+        r, http = await self._run_update(blocks=self.BLOCKS, mode="append")
+        assert r["blocks_before"] == 1 and r["blocks_after"] == 2
+        assert len(http.post.call_args.kwargs["json"]["workout"]["blocks"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_dry_run_sends_nothing(self):
+        r, http = await self._run_update(title="x", dry_run=True)
+        assert r["dry_run"] is True
+        http.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_validation_and_missing(self):
+        from tp_mcp.tools.strength import tp_update_strength_library_template
+
+        assert (await tp_update_strength_library_template("5", "111"))["error_code"] == "VALIDATION_ERROR"
+        bad_mode = await tp_update_strength_library_template("5", "111", title="x", mode="nope")
+        assert bad_mode["error_code"] == "VALIDATION_ERROR"
+        http = _mock_http(200, _TEMPLATE_ITEMS)
+        with (
+            patch("tp_mcp.tools.strength.TPClient") as tpc,
+            patch("tp_mcp.tools.strength.httpx.AsyncClient") as hc,
+        ):
+            tpc.return_value.__aenter__.return_value = _mock_tp_client()
+            hc.return_value.__aenter__.return_value = http
+            missing = await tp_update_strength_library_template("5", "999", title="x")
+        assert missing["error_code"] == "NOT_FOUND"

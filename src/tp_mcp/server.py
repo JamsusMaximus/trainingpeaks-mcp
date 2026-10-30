@@ -34,6 +34,7 @@ from tp_mcp.tools import (
     tp_analyze_workout,
     tp_apply_training_plan,
     tp_auth_status,
+    tp_copy_library_item,
     tp_copy_workout,
     tp_create_availability,
     tp_create_equipment,
@@ -42,6 +43,7 @@ from tp_mcp.tools import (
     tp_create_library,
     tp_create_library_item,
     tp_create_note,
+    tp_create_strength_library_template,
     tp_create_strength_workout,
     tp_create_workout,
     tp_create_zones,
@@ -50,6 +52,7 @@ from tp_mcp.tools import (
     tp_delete_event,
     tp_delete_group,
     tp_delete_library,
+    tp_delete_library_item,
     tp_delete_note,
     tp_delete_strength_workout,
     tp_delete_workout,
@@ -73,6 +76,8 @@ from tp_mcp.tools import (
     tp_get_peaks,
     tp_get_pool_length_settings,
     tp_get_profile,
+    tp_get_strength_library_template,
+    tp_get_strength_library_templates,
     tp_get_strength_summary,
     tp_get_strength_workout,
     tp_get_strength_workouts,
@@ -109,6 +114,7 @@ from tp_mcp.tools import (
     tp_update_note,
     tp_update_nutrition,
     tp_update_speed_zones,
+    tp_update_strength_library_template,
     tp_update_strength_workout,
     tp_update_workout,
     tp_upload_workout_file,
@@ -1103,7 +1109,8 @@ TOOLS = [
         name="tp_get_library_items",
         description=(
             "List the workout templates in one library (slim listing). library_id from tp_get_libraries. For a "
-            "template's full interval structure use tp_get_library_item."
+            "template's full interval structure use tp_get_library_item. Does NOT include strength-builder "
+            "templates — use tp_get_strength_library_templates for those."
         ),
         input_schema={
             "type": "object",
@@ -1141,8 +1148,8 @@ TOOLS = [
     Tool(
         name="tp_delete_library",
         description=(
-            "Permanently delete a library AND every template inside it - irreversible, and there is no per- "
-            "template delete. Schedule anything you want to keep first."
+            "Permanently delete a library AND every template inside it - irreversible. To remove a single "
+            "template use tp_delete_library_item. Schedule anything you want to keep first."
         ),
         input_schema={
             "type": "object",
@@ -1286,6 +1293,98 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_create_strength_library_template",
+        description=(
+            "Save a strength/gym workout as a template in a workout library (not on the calendar). "
+            "Exercise IDs come from tp_search_exercises. Use tp_create_library_item for endurance "
+            "templates and tp_create_strength_workout to put a strength session on a date."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library ID (tp_get_libraries)."},
+                "title": {"type": "string", "description": "Template title."},
+                "instructions": {"type": "string", "description": "Optional instructions."},
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Blocks in the same shape as tp_create_strength_workout: {type: WarmUp|"
+                        "SingleExercise|Superset|Circuit|CoolDown, title?, notes?, exercises: "
+                        "[{id: '<library id>', notes?, sets: [{<param>: <value>}, ...]}]}."
+                    ),
+                },
+            },
+            "required": ["library_id", "title", "blocks"],
+        },
+    ),
+    Tool(
+        name="tp_update_strength_library_template",
+        description=(
+            "Edit a strength template in a library in place: replace or append blocks, retitle, or "
+            "change instructions. Everything else is preserved. dry_run reports the change without "
+            "saving. Get IDs from tp_get_strength_library_templates."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library ID."},
+                "template_id": {"type": "string", "description": "Template id."},
+                "blocks": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Blocks in the same shape as tp_create_strength_workout: {type: WarmUp|"
+                        "SingleExercise|Superset|Circuit|CoolDown, title?, notes?, exercises: "
+                        "[{id: '<library id>', notes?, sets: [{<param>: <value>}, ...]}]}."
+                    ),
+                },
+                "title": {"type": "string", "description": "Optional new title."},
+                "instructions": {"type": "string", "description": "Optional new instructions."},
+                "mode": {
+                    "type": "string",
+                    "enum": ["replace", "append"],
+                    "description": "replace (default) swaps the blocks; append adds after them.",
+                },
+                "dry_run": {"type": "boolean", "description": "Report what would change without saving."},
+            },
+            "required": ["library_id", "template_id"],
+        },
+    ),
+    Tool(
+        name="tp_delete_library_item",
+        description=(
+            "Permanently delete one template from a workout library - strength or endurance, "
+            "irreversible. Get IDs from tp_get_library_items or tp_get_strength_library_templates. "
+            "Deleting a template does not affect workouts already scheduled from it."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library ID."},
+                "item_id": {"type": "string", "description": "Template ID."},
+            },
+            "required": ["library_id", "item_id"],
+        },
+    ),
+    Tool(
+        name="tp_copy_library_item",
+        description=(
+            "Copy a template (strength or endurance) within its library or into another library. "
+            "To move one, copy it to the target library and then tp_delete_library_item the original."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library the template is in."},
+                "item_id": {"type": "string", "description": "Template ID to copy."},
+                "title": {"type": "string", "description": "Title for the copy (default '<title> Copy')."},
+                "target_library_id": {"type": "string", "description": "Destination library (default same)."},
+            },
+            "required": ["library_id", "item_id"],
+        },
+    ),
+    Tool(
         name="tp_get_strength_summary",
         description="Get a strength workout's compliance summary (blocks/prescriptions/sets completed).",
         input_schema={
@@ -1310,6 +1409,38 @@ TOOLS = [
                 "end_date": {"type": "string", "description": "Range end YYYY-MM-DD (inclusive)."},
             },
             "required": ["start_date", "end_date"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_library_templates",
+        description=(
+            "List the strength-builder templates saved in a workout library. "
+            "These ActivityWorkoutTemplate items do NOT appear in "
+            "tp_get_library_items (the exerciselibrary listing misses them "
+            "entirely); use this to enumerate them. Returns template_id, name, "
+            "planned TSS and duration (either may be null), set totals, and an "
+            "exercise preview. library_id from tp_get_libraries."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "library_id": {"type": "string", "description": "Library ID from tp_get_libraries."},
+            },
+            "required": ["library_id"],
+        },
+    ),
+    Tool(
+        name="tp_get_strength_library_template",
+        description=(
+            "Get one strength-builder library template's full detail by its "
+            "template_id (from tp_get_strength_library_templates): planned "
+            "TSS plus blocks, exercises, and sets with prescribed values, in "
+            "the same shape as tp_get_strength_workout."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"template_id": {"type": "string", "description": "Strength library template ID."}},
+            "required": ["template_id"],
         },
     ),
     Tool(
@@ -1520,6 +1651,7 @@ _DESTRUCTIVE_TOOLS = {
     "tp_delete_event",
     "tp_delete_group",
     "tp_delete_library",
+    "tp_delete_library_item",
     "tp_delete_note",
     "tp_delete_strength_workout",
     "tp_delete_workout",
@@ -1534,6 +1666,7 @@ _NON_IDEMPOTENT_WRITES = {
     "tp_add_note_comment",
     "tp_add_workout_comment",
     "tp_apply_training_plan",
+    "tp_copy_library_item",
     "tp_copy_workout",
     "tp_create_availability",
     "tp_create_equipment",
@@ -1542,6 +1675,7 @@ _NON_IDEMPOTENT_WRITES = {
     "tp_create_library",
     "tp_create_library_item",
     "tp_create_note",
+    "tp_create_strength_library_template",
     "tp_create_strength_workout",
     "tp_create_workout",
     "tp_create_zones",
@@ -1772,6 +1906,14 @@ async def _h_get_strength_workouts(args):
     return await tp_get_strength_workouts(
         start_date=args["start_date"], end_date=args["end_date"])
 
+@_handler("tp_get_strength_library_templates")
+async def _h_get_strength_library_templates(args):
+    return await tp_get_strength_library_templates(library_id=args["library_id"])
+
+@_handler("tp_get_strength_library_template")
+async def _h_get_strength_library_template(args):
+    return await tp_get_strength_library_template(template_id=args["template_id"])
+
 @_handler("tp_get_strength_workout")
 async def _h_get_strength_workout(args):
     return await tp_get_strength_workout(workout_id=args["workout_id"])
@@ -1784,6 +1926,29 @@ async def _h_update_strength(args):
         mode=args.get("mode", "replace"),
         mark_complete=bool(args.get("mark_complete", False)),
         dry_run=bool(args.get("dry_run", False)))
+
+@_handler("tp_create_strength_library_template")
+async def _h_create_strength_template(args):
+    return await tp_create_strength_library_template(
+        library_id=args["library_id"], title=args["title"], blocks=args["blocks"],
+        instructions=args.get("instructions"))
+
+@_handler("tp_update_strength_library_template")
+async def _h_update_strength_template(args):
+    return await tp_update_strength_library_template(
+        library_id=args["library_id"], template_id=args["template_id"], blocks=args.get("blocks"),
+        title=args.get("title"), instructions=args.get("instructions"),
+        mode=args.get("mode", "replace"), dry_run=bool(args.get("dry_run", False)))
+
+@_handler("tp_delete_library_item")
+async def _h_delete_library_item(args):
+    return await tp_delete_library_item(library_id=args["library_id"], item_id=args["item_id"])
+
+@_handler("tp_copy_library_item")
+async def _h_copy_library_item(args):
+    return await tp_copy_library_item(
+        library_id=args["library_id"], item_id=args["item_id"], title=args.get("title"),
+        target_library_id=args.get("target_library_id"))
 
 @_handler("tp_delete_strength_workout")
 async def _h_delete_strength(args):
