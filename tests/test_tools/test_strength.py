@@ -814,7 +814,7 @@ class TestStrengthTemplateWrites:
 
     @pytest.mark.asyncio
     async def test_create_posts_save_document(self):
-        from tp_mcp.tools.strength import tp_create_strength_template
+        from tp_mcp.tools.strength import tp_create_strength_library_template
 
         http = _mock_http(200, {"data": {"id": 777, "workout": {"snapshot": {"totalBlocks": 1, "totalSets": 2}}}})
         with (
@@ -823,7 +823,7 @@ class TestStrengthTemplateWrites:
         ):
             tpc.return_value.__aenter__.return_value = _mock_tp_client()
             hc.return_value.__aenter__.return_value = http
-            r = await tp_create_strength_template("5", " My template ", self.BLOCKS, "notes")
+            r = await tp_create_strength_library_template("5", " My template ", self.BLOCKS, "notes")
         assert r["template_id"] == "777"
         assert r["title"] == "My template"
         assert (r["total_blocks"], r["total_sets"]) == (1, 2)
@@ -839,17 +839,17 @@ class TestStrengthTemplateWrites:
 
     @pytest.mark.asyncio
     async def test_create_validation(self):
-        from tp_mcp.tools.strength import tp_create_strength_template
+        from tp_mcp.tools.strength import tp_create_strength_library_template
 
-        assert (await tp_create_strength_template("abc", "t", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
-        assert (await tp_create_strength_template("5", " ", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
-        assert (await tp_create_strength_template("5", "t", []))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("abc", "t", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("5", " ", self.BLOCKS))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("5", "t", []))["error_code"] == "VALIDATION_ERROR"
         bad = [{"type": "Superset", "exercises": [{"id": "1", "sets": [{"Reps": 1}]}, {"id": "1", "sets": []}]}]
-        assert (await tp_create_strength_template("5", "t", bad))["error_code"] == "VALIDATION_ERROR"
+        assert (await tp_create_strength_library_template("5", "t", bad))["error_code"] == "VALIDATION_ERROR"
 
     @pytest.mark.asyncio
     async def test_create_surfaces_server_errors(self):
-        from tp_mcp.tools.strength import tp_create_strength_template
+        from tp_mcp.tools.strength import tp_create_strength_library_template
 
         http = _mock_http(400, {"errors": {"workoutLibraryItemType": ["Invalid"]}})
         with (
@@ -858,14 +858,14 @@ class TestStrengthTemplateWrites:
         ):
             tpc.return_value.__aenter__.return_value = _mock_tp_client()
             hc.return_value.__aenter__.return_value = http
-            r = await tp_create_strength_template("5", "t", self.BLOCKS)
+            r = await tp_create_strength_library_template("5", "t", self.BLOCKS)
         assert r["error_code"] == "API_ERROR"
         assert "workoutLibraryItemType" in r["message"]
 
     def _run_update(self, **kwargs):
         import copy
 
-        from tp_mcp.tools.strength import tp_update_strength_template
+        from tp_mcp.tools.strength import tp_update_strength_library_template
 
         async def go():
             http = _mock_http(200, copy.deepcopy(_TEMPLATE_ITEMS))
@@ -879,7 +879,7 @@ class TestStrengthTemplateWrites:
             ):
                 tpc.return_value.__aenter__.return_value = _mock_tp_client()
                 hc.return_value.__aenter__.return_value = http
-                return await tp_update_strength_template("5", "111", **kwargs), http
+                return await tp_update_strength_library_template("5", "111", **kwargs), http
 
         return go()
 
@@ -906,10 +906,10 @@ class TestStrengthTemplateWrites:
 
     @pytest.mark.asyncio
     async def test_update_validation_and_missing(self):
-        from tp_mcp.tools.strength import tp_update_strength_template
+        from tp_mcp.tools.strength import tp_update_strength_library_template
 
-        assert (await tp_update_strength_template("5", "111"))["error_code"] == "VALIDATION_ERROR"
-        bad_mode = await tp_update_strength_template("5", "111", title="x", mode="nope")
+        assert (await tp_update_strength_library_template("5", "111"))["error_code"] == "VALIDATION_ERROR"
+        bad_mode = await tp_update_strength_library_template("5", "111", title="x", mode="nope")
         assert bad_mode["error_code"] == "VALIDATION_ERROR"
         http = _mock_http(200, _TEMPLATE_ITEMS)
         with (
@@ -918,5 +918,5 @@ class TestStrengthTemplateWrites:
         ):
             tpc.return_value.__aenter__.return_value = _mock_tp_client()
             hc.return_value.__aenter__.return_value = http
-            missing = await tp_update_strength_template("5", "999", title="x")
+            missing = await tp_update_strength_library_template("5", "999", title="x")
         assert missing["error_code"] == "NOT_FOUND"

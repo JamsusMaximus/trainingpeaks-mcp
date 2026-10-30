@@ -43,7 +43,7 @@ from tp_mcp.tools import (
     tp_create_library,
     tp_create_library_item,
     tp_create_note,
-    tp_create_strength_template,
+    tp_create_strength_library_template,
     tp_create_strength_workout,
     tp_create_workout,
     tp_create_zones,
@@ -114,7 +114,7 @@ from tp_mcp.tools import (
     tp_update_note,
     tp_update_nutrition,
     tp_update_speed_zones,
-    tp_update_strength_template,
+    tp_update_strength_library_template,
     tp_update_strength_workout,
     tp_update_workout,
     tp_upload_workout_file,
@@ -1293,7 +1293,7 @@ TOOLS = [
         },
     ),
     Tool(
-        name="tp_create_strength_template",
+        name="tp_create_strength_library_template",
         description=(
             "Save a strength/gym workout as a template in a workout library (not on the calendar). "
             "Exercise IDs come from tp_search_exercises. Use tp_create_library_item for endurance "
@@ -1319,7 +1319,7 @@ TOOLS = [
         },
     ),
     Tool(
-        name="tp_update_strength_template",
+        name="tp_update_strength_library_template",
         description=(
             "Edit a strength template in a library in place: replace or append blocks, retitle, or "
             "change instructions. Everything else is preserved. dry_run reports the change without "
@@ -1675,7 +1675,7 @@ _NON_IDEMPOTENT_WRITES = {
     "tp_create_library",
     "tp_create_library_item",
     "tp_create_note",
-    "tp_create_strength_template",
+    "tp_create_strength_library_template",
     "tp_create_strength_workout",
     "tp_create_workout",
     "tp_create_zones",
@@ -1927,15 +1927,15 @@ async def _h_update_strength(args):
         mark_complete=bool(args.get("mark_complete", False)),
         dry_run=bool(args.get("dry_run", False)))
 
-@_handler("tp_create_strength_template")
+@_handler("tp_create_strength_library_template")
 async def _h_create_strength_template(args):
-    return await tp_create_strength_template(
+    return await tp_create_strength_library_template(
         library_id=args["library_id"], title=args["title"], blocks=args["blocks"],
         instructions=args.get("instructions"))
 
-@_handler("tp_update_strength_template")
+@_handler("tp_update_strength_library_template")
 async def _h_update_strength_template(args):
-    return await tp_update_strength_template(
+    return await tp_update_strength_library_template(
         library_id=args["library_id"], template_id=args["template_id"], blocks=args.get("blocks"),
         title=args.get("title"), instructions=args.get("instructions"),
         mode=args.get("mode", "replace"), dry_run=bool(args.get("dry_run", False)))

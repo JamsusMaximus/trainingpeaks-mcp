@@ -864,7 +864,7 @@ async def tp_get_strength_workout(workout_id: str) -> dict[str, Any]:
 # exerciselibrary v2 listing (tp_get_library_items) never returns them.
 # The web app's library view merges both sources client-side, which is why
 # the UI count exceeds the exerciselibrary count. Writes are in the section
-# below (tp_create_strength_template etc.).
+# below (tp_create_strength_library_template etc.).
 
 LIBRARY_TEMPLATES_PATH = "/rx/activity/v1/libraryContent/workoutLibrary"
 
@@ -1075,7 +1075,7 @@ async def _post_template(access: str, doc: dict[str, Any]) -> tuple[dict[str, An
     return r.json().get("data") or {}, None
 
 
-async def tp_create_strength_template(
+async def tp_create_strength_library_template(
     library_id: str,
     title: str,
     blocks: list[dict[str, Any]],
@@ -1135,7 +1135,7 @@ async def tp_create_strength_template(
     }
 
 
-async def tp_update_strength_template(
+async def tp_update_strength_library_template(
     library_id: str,
     template_id: str,
     blocks: list[dict[str, Any]] | None = None,

@@ -125,6 +125,8 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_get_library_item` | Get full template details including structure |
 | `tp_create_library` | Create a library folder |
 | `tp_delete_library` | Delete a library folder |
+| `tp_delete_library_item` | Delete one template from a library (strength or endurance) |
+| `tp_copy_library_item` | Copy a library template, within a library or into another (strength or endurance) |
 | `tp_create_library_item` | Save a workout template |
 | `tp_update_library_item` | Edit a template |
 | `tp_schedule_library_workout` | Schedule a template to a calendar date, for one athlete or (coach accounts) several at once via `athletes` |
@@ -139,6 +141,8 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_get_strength_workout` | Get a strength workout's full detail: blocks, exercises, sets, prescribed vs executed weights |
 | `tp_get_strength_library_templates` | List strength-builder templates saved in a workout library (they don't appear in `tp_get_library_items`) |
 | `tp_get_strength_library_template` | Get one strength-builder library template's full detail: planned TSS, blocks, exercises, sets |
+| `tp_create_strength_library_template` | Create a strength-builder template in a workout library (blocks → exercises → sets) |
+| `tp_update_strength_library_template` | Edit a strength-builder library template: replace or append blocks, retitle, `dry_run` |
 | `tp_update_strength_workout` | Update a strength workout in place (replace/append blocks, retitle, mark complete) - preserves Garmin TSS and FIT files, so use this rather than delete-and-recreate on device-synced workouts |
 | `tp_delete_strength_workout` | Delete a strength workout by ID |
 
