@@ -863,8 +863,8 @@ async def tp_get_strength_workout(workout_id: str) -> dict[str, Any]:
 # live ONLY on this Peaksware libraryContent route — the tpapi
 # exerciselibrary v2 listing (tp_get_library_items) never returns them.
 # The web app's library view merges both sources client-side, which is why
-# the UI count exceeds the exerciselibrary count. Read-only here: creating /
-# editing / deleting library activities stays a web-UI operation.
+# the UI count exceeds the exerciselibrary count. Writes are in the section
+# below (tp_create_strength_template etc.).
 
 LIBRARY_TEMPLATES_PATH = "/rx/activity/v1/libraryContent/workoutLibrary"
 
