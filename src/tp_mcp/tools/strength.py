@@ -899,6 +899,32 @@ def _fmt_library_template(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _fetch_templates(library_id: str) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    """GET a library's strength-builder items. Returns (items, error)."""
+    async with TPClient() as client:
+        _, access, err = await _access(client)
+        if err:
+            return None, err
+        try:
+            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
+                r = await h.get(
+                    f"{STRENGTH_API_BASE}{LIBRARY_TEMPLATES_PATH}/{library_id}",
+                    headers=_headers(access),
+                )
+        except httpx.TimeoutException:
+            return None, _err("NETWORK_ERROR", "Strength library template list timed out.")
+        except httpx.RequestError:
+            logger.exception("Network error listing strength library templates")
+            return None, _err("NETWORK_ERROR", "A network error occurred.")
+        if r.status_code != 200:
+            return None, _map_status(r.status_code, r.text)
+        # This endpoint returns a bare JSON array of library items.
+        data = r.json()
+        if not isinstance(data, list):
+            data = data.get("data") or []
+        return [it for it in data if isinstance(it, dict)], None
+
+
 async def tp_get_strength_library_templates(library_id: str) -> dict[str, Any]:
     """List strength-builder templates saved in a workout library.
 
@@ -919,31 +945,12 @@ async def tp_get_strength_library_templates(library_id: str) -> dict[str, Any]:
     if not lid or not lid.isdigit():
         return _err("VALIDATION_ERROR", "library_id is required (numeric ID from tp_get_libraries).")
 
-    async with TPClient() as client:
-        _, access, err = await _access(client)
-        if err:
-            return err
-        try:
-            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
-                r = await h.get(
-                    f"{STRENGTH_API_BASE}{LIBRARY_TEMPLATES_PATH}/{lid}",
-                    headers=_headers(access),
-                )
-        except httpx.TimeoutException:
-            return _err("NETWORK_ERROR", "Strength library template list timed out.")
-        except httpx.RequestError:
-            logger.exception("Network error listing strength library templates")
-            return _err("NETWORK_ERROR", "A network error occurred.")
-
-        if r.status_code != 200:
-            return _map_status(r.status_code, r.text)
-
-        # This endpoint returns a bare JSON array of library items.
-        items = r.json()
-        if not isinstance(items, list):
-            items = items.get("data") or []
-        templates = [_fmt_library_template(it) for it in items if isinstance(it, dict)]
-        return {"count": len(templates), "library_id": lid, "templates": templates}
+    items, err = await _fetch_templates(lid)
+    if err:
+        return err
+    assert items is not None
+    templates = [_fmt_library_template(it) for it in items]
+    return {"count": len(templates), "library_id": lid, "templates": templates}
 
 
 async def tp_get_strength_library_template(template_id: str) -> dict[str, Any]:
@@ -1028,39 +1035,6 @@ async def tp_delete_strength_workout(workout_id: str) -> dict[str, Any]:
         if r.status_code not in (200, 204):
             return _map_status(r.status_code, r.text)
         return {"deleted": True, "workout_id": wid}
-
-
-# ── Library templates (read) ─────────────────────────────────────────────────
-#
-# Templates saved from the strength builder live on the Peaksware API, not in
-# `/exerciselibrary/v2/libraries/{id}/items` (which only returns endurance
-# templates). The web app merges both lists when it opens a library.
-#   • list → GET /rx/activity/v1/libraryContent/workoutLibrary/{libraryId}
-#            (bare JSON array; each item carries its full workout, so there is
-#            no separate detail call — detail is a filter over the list)
-# The item `id` is the library item id; `workout.id` is the underlying workout.
-
-
-async def _fetch_templates(library_id: str) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
-    async with TPClient() as client:
-        _, access, err = await _access(client)
-        if err:
-            return None, err
-        try:
-            async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
-                r = await h.get(
-                    f"{STRENGTH_API_BASE}/rx/activity/v1/libraryContent/workoutLibrary/{library_id}",
-                    headers=_headers(access),
-                )
-        except httpx.TimeoutException:
-            return None, _err("NETWORK_ERROR", "Strength template list timed out.")
-        except httpx.RequestError:
-            logger.exception("Network error listing strength templates")
-            return None, _err("NETWORK_ERROR", "A network error occurred.")
-        if r.status_code != 200:
-            return None, _map_status(r.status_code, r.text)
-        data = r.json()
-        return (data if isinstance(data, list) else []), None
 
 
 # ── Library templates (write) ────────────────────────────────────────────────
