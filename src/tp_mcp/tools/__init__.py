@@ -76,6 +76,12 @@ from tp_mcp.tools.strength import (
     tp_update_strength_workout,
 )
 from tp_mcp.tools.structure import tp_validate_structure
+from tp_mcp.tools.user_settings import (
+    tp_get_notification_settings,
+    tp_get_user_settings,
+    tp_update_notification_settings,
+    tp_update_user_settings,
+)
 from tp_mcp.tools.weekly_summary import tp_get_weekly_summary
 from tp_mcp.tools.workout_files import (
     tp_delete_workout_file,
@@ -142,7 +148,11 @@ __all__ = [
     "tp_list_notes",
     "tp_get_nutrition",
     "tp_get_peaks",
+    "tp_get_notification_settings",
     "tp_get_pool_length_settings",
+    "tp_get_user_settings",
+    "tp_update_notification_settings",
+    "tp_update_user_settings",
     "tp_get_profile",
     "tp_get_weekly_summary",
     "tp_get_workout",

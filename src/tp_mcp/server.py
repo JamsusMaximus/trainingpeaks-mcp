@@ -69,6 +69,7 @@ from tp_mcp.tools import (
     tp_get_next_event,
     tp_get_note,
     tp_get_note_comments,
+    tp_get_notification_settings,
     tp_get_nutrition,
     tp_get_peaks,
     tp_get_pool_length_settings,
@@ -78,6 +79,7 @@ from tp_mcp.tools import (
     tp_get_strength_workouts,
     tp_get_training_plan,
     tp_get_training_plan_workouts,
+    tp_get_user_settings,
     tp_get_weekly_summary,
     tp_get_workout,
     tp_get_workout_comments,
@@ -107,9 +109,11 @@ from tp_mcp.tools import (
     tp_update_hr_zones,
     tp_update_library_item,
     tp_update_note,
+    tp_update_notification_settings,
     tp_update_nutrition,
     tp_update_speed_zones,
     tp_update_strength_workout,
+    tp_update_user_settings,
     tp_update_workout,
     tp_upload_workout_file,
     tp_validate_structure,
@@ -730,6 +734,75 @@ TOOLS = [
             "type": "object",
             "properties": {"planned_calories": {"type": "integer"}},
             "required": ["planned_calories"],
+        },
+    ),
+    Tool(
+        name="tp_get_user_settings",
+        description=(
+            "Read calendar / layout / general settings: compliance colouring and its metric order, which items "
+            "show on the calendar, default landing page, and so on. scope 'athlete' (default) is the targeted "
+            "athlete's own settings, the ones their calendar uses; 'account' is the signed-in coach account. "
+            "Pass section (calendar, workout, general, metrics, atp, ...) for one part."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "section": {"type": "string", "description": "One section; omit for everything."},
+                "scope": {"type": "string", "enum": ["athlete", "account"]},
+            },
+            "required": [],
+        },
+    ),
+    Tool(
+        name="tp_update_user_settings",
+        description=(
+            "Change calendar / layout / general settings (sections calendar, workout, general, metrics). "
+            "Merges `changes` into the section (objects key by key; lists replace) and returns `previous`, "
+            "so the change can be undone by sending it back. Use dry_run to preview. Example: "
+            "section 'calendar', changes {'orderComplianceBy': ['Duration', 'TSS', 'Distance']}."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "section": {"type": "string", "enum": ["calendar", "workout", "general", "metrics"]},
+                "changes": {"description": "Object of fields to change (a list for the metrics section)."},
+                "scope": {"type": "string", "enum": ["athlete", "account"]},
+                "dry_run": {"type": "boolean"},
+            },
+            "required": ["section", "changes"],
+        },
+    ),
+    Tool(
+        name="tp_get_notification_settings",
+        description=(
+            "Read notification settings: the coach's in-app / mobile / email alerts per athlete and per type "
+            "(uploads, comments, completions, threshold changes, notes, availability), plus the targeted "
+            "athlete's own."
+        ),
+        input_schema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="tp_update_notification_settings",
+        description=(
+            "Change the coach's alerts for one athlete: the athlete-wide switches, or one notification type. "
+            "athlete_id from tp_get_notification_settings; set in_app / mobile / email. Returns `previous`. "
+            "Use dry_run to preview."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "athlete_id": {"type": "integer"},
+                "type": {
+                    "type": "string",
+                    "enum": ["WorkoutUpload", "WorkoutComment", "WorkoutCompleted", "ThresholdChange",
+                             "CalendarNoteCreated", "AvailabilityCreated"],
+                },
+                "in_app": {"type": "boolean"},
+                "mobile": {"type": "boolean"},
+                "email": {"type": "boolean"},
+                "dry_run": {"type": "boolean"},
+            },
+            "required": ["athlete_id"],
         },
     ),
     Tool(
@@ -1850,6 +1923,25 @@ async def _h_create_zones(args):
 
 @_handler("tp_update_nutrition")
 async def _h_update_nutrition(args): return await tp_update_nutrition(planned_calories=args["planned_calories"])
+
+@_handler("tp_get_user_settings")
+async def _h_get_user_settings(args):
+    return await tp_get_user_settings(section=args.get("section"), scope=args.get("scope", "athlete"))
+
+@_handler("tp_update_user_settings")
+async def _h_update_user_settings(args):
+    return await tp_update_user_settings(
+        section=args["section"], changes=args["changes"], scope=args.get("scope", "athlete"),
+        dry_run=args.get("dry_run", False))
+
+@_handler("tp_get_notification_settings")
+async def _h_get_notification_settings(args): return await tp_get_notification_settings()
+
+@_handler("tp_update_notification_settings")
+async def _h_update_notification_settings(args):
+    return await tp_update_notification_settings(
+        athlete_id=args["athlete_id"], type=args.get("type"), in_app=args.get("in_app"),
+        mobile=args.get("mobile"), email=args.get("email"), dry_run=args.get("dry_run", False))
 
 @_handler("tp_get_pool_length_settings")
 async def _h_pool(args): return await tp_get_pool_length_settings()

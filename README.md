@@ -67,6 +67,10 @@ Ask your AI assistant things like:
 | `tp_get_zone_methods` | List available zone-calculation methods per metric (power/HR/pace) with each method's zone count and labels |
 | `tp_update_nutrition` | Update daily planned calories |
 | `tp_get_pool_length_settings` | Get pool length options |
+| `tp_get_user_settings` | Read calendar / layout / general settings (compliance colouring and metric order, landing page, ...), for the athlete or the account |
+| `tp_update_user_settings` | Change calendar, workout, general or metrics settings; returns `previous` so it can be undone; `dry_run` |
+| `tp_get_notification_settings` | Read the coach's per-athlete alert switches and the athlete's own |
+| `tp_update_notification_settings` | Change in-app / mobile / email alerts for one athlete or one alert type; `dry_run` |
 
 **Zone updates — how they work & one limitation.** The zone setters target the
 right per-sport zone set (by `workoutTypeId`) and recompute the bands with
