@@ -203,7 +203,7 @@ class TestTpGetWorkout:
             mock_instance = AsyncMock()
             mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
             mock_instance.get = AsyncMock(
-                side_effect=[workout_response, details_response]
+                side_effect=[workout_response, details_response, APIResponse(success=True, data={})]
             )
             mock_client.return_value.__aenter__.return_value = mock_instance
 
@@ -213,7 +213,8 @@ class TestTpGetWorkout:
         assert result["workout_comments"][0]["comment"] == "Great effort!"
         assert "coach_comments" not in result
         assert "athlete_comments" not in result
-        assert mock_instance.get.call_count == 2
+        # workout, structure details, and the athlete's compliance settings
+        assert mock_instance.get.call_count == 3
 
     @pytest.mark.asyncio
     async def test_get_workout_includes_subjective_feedback_fields(self, mock_api_responses):
@@ -855,3 +856,45 @@ class TestCompliance:
         comp = result["metrics"]["compliance"]
         assert comp["percent"]["tss"] == 120.3
         assert comp["color"] == "yellow"
+
+    @pytest.mark.asyncio
+    async def test_order_and_coloring_come_from_athlete_settings(self):
+        """The metric order and on/off switch are the athlete's calendar settings, not a fixed default."""
+        rows = [
+            {"workoutId": 1, "workoutDay": "2020-01-02T00:00:00", "tssPlanned": 10.0, "totalTimePlanned": 3600,
+             "totalTime": 1, "tssActual": 25.0, "complianceTssPercent": 250.0, "complianceDurationPercent": 100.0},
+        ]
+        settings = {"calendar": {"orderComplianceBy": ["Duration", "TSS", "Distance"], "showComplianceColoring": True}}
+
+        async def get(endpoint):
+            return APIResponse(success=True, data=settings if "/settings" in endpoint else rows)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            inst = AsyncMock()
+            inst.ensure_athlete_id = AsyncMock(return_value=123)
+            inst.get = AsyncMock(side_effect=get)
+            mock_client.return_value.__aenter__.return_value = inst
+            comp = (await tp_get_workouts("2020-01-01", "2020-01-31"))["workouts"][0]["compliance"]
+            assert (comp["basis"], comp["color"]) == ("duration", "green")
+            settings["calendar"]["showComplianceColoring"] = False
+            comp = (await tp_get_workouts("2020-01-01", "2020-01-31"))["workouts"][0]["compliance"]
+            assert comp["color"] is None and comp["basis"] == "duration"
+            inst.get.assert_any_call("/users/v1/user/123/settings")
+
+    @pytest.mark.asyncio
+    async def test_unreadable_settings_fall_back_to_defaults(self):
+        rows = [{"workoutId": 1, "workoutDay": "2020-01-02T00:00:00", "tssPlanned": 10.0, "tssActual": 10.0,
+                 "totalTime": 1, "complianceTssPercent": 100.0, "complianceDurationPercent": 10.0}]
+
+        async def get(endpoint):
+            if "/settings" in endpoint:
+                raise RuntimeError("boom")
+            return APIResponse(success=True, data=rows)
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            inst = AsyncMock()
+            inst.ensure_athlete_id = AsyncMock(return_value=123)
+            inst.get = AsyncMock(side_effect=get)
+            mock_client.return_value.__aenter__.return_value = inst
+            comp = (await tp_get_workouts("2020-01-01", "2020-01-31"))["workouts"][0]["compliance"]
+        assert (comp["basis"], comp["color"]) == ("tss", "green")

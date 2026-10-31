@@ -175,12 +175,36 @@ def _compliance_color(percent: float) -> str:
     return "orange"
 
 
-def _compliance(workout: Any) -> dict[str, Any]:
+_DEFAULT_COMPLIANCE_ORDER = ("tss", "duration", "distance")
+
+
+async def _compliance_prefs(client: Any, athlete_id: int) -> tuple[tuple[str, ...], bool]:
+    """The athlete's calendar compliance settings: (metric order, colouring on).
+
+    Read from ``/users/v1/user/{athleteId}/settings`` (``calendar.orderComplianceBy`` / ``showComplianceColoring``),
+    the same call the web calendar makes. Falls back to the TrainingPeaks defaults if it cannot be read.
+    """
+    try:
+        resp = await client.get(f"/users/v1/user/{athlete_id}/settings")
+        cal = (resp.data or {}).get("calendar") or {} if not resp.is_error and isinstance(resp.data, dict) else {}
+    except Exception:
+        logger.debug("Could not read compliance settings", exc_info=True)
+        return _DEFAULT_COMPLIANCE_ORDER, True
+    order = tuple(str(m).lower() for m in cal.get("orderComplianceBy") or [])
+    order = tuple(m for m in order if m in _DEFAULT_COMPLIANCE_ORDER) or _DEFAULT_COMPLIANCE_ORDER
+    order += tuple(m for m in _DEFAULT_COMPLIANCE_ORDER if m not in order)
+    return order, cal.get("showComplianceColoring") is not False
+
+
+def _compliance(
+    workout: Any, order: tuple[str, ...] = _DEFAULT_COMPLIANCE_ORDER, coloring: bool = True
+) -> dict[str, Any]:
     """Planned-vs-actual compliance as the web calendar shows it.
 
     Percentages come from the API (actual / planned * 100, null when nothing was planned). The colour follows
-    TrainingPeaks' documented bands. Per the Workout Card Overview help article the metric is TSS, then duration,
-    then distance by default (athletes can reorder it in Account Settings). `direction` is over/under plan.
+    TrainingPeaks' documented bands. The metric is the first of `order` (the athlete's Account Settings > Layout >
+    Calendar order; TSS, duration, distance by default) that has a percentage. `direction` is over/under plan.
+    With compliance colouring switched off, `color` is null.
     A planned workout from a past day that was never completed is "red" (skipped); completed work with no plan
     is "grey" (unplanned).
     """
@@ -189,7 +213,7 @@ def _compliance(workout: Any) -> dict[str, Any]:
         "duration": workout.compliance_duration_percent,
         "distance": workout.compliance_distance_percent,
     }
-    basis = next((k for k, v in pct.items() if v is not None), None)
+    basis = next((k for k in order if pct[k] is not None), None)
     done = bool(workout.completed) or workout.duration_actual is not None
     planned = any(v is not None for v in (workout.tss_planned, workout.duration_planned, workout.distance_planned))
     if basis is not None:
@@ -203,7 +227,7 @@ def _compliance(workout: Any) -> dict[str, Any]:
     direction = None
     if basis is not None:
         direction = "over" if pct[basis] > 100 else "under" if pct[basis] < 100 else "on_plan"
-    return {"color": color, "basis": basis, "direction": direction, "percent": pct}
+    return {"color": color if coloring else None, "basis": basis, "direction": direction, "percent": pct}
 
 
 async def tp_get_workouts(
@@ -245,6 +269,7 @@ async def tp_get_workouts(
 
         endpoint = f"/fitness/v6/athletes/{athlete_id}/workouts/{start_str}/{end_str}"
         response = await client.get(endpoint)
+        prefs = await _compliance_prefs(client, athlete_id)
 
         if response.is_error:
             return {
@@ -284,7 +309,7 @@ async def tp_get_workouts(
                     "tss": w.tss_actual or w.tss_planned,
                     "tss_planned": w.tss_planned,
                     "tss_actual": w.tss_actual,
-                    "compliance": _compliance(w),
+                    "compliance": _compliance(w, *prefs),
                     "description": w.description,
                 }
                 for w in workouts
@@ -366,6 +391,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                 raw_data["structure"] = structured_workout
             workout = parse_workout_detail(raw_data)
             workout_comments = raw_data.get("workoutComments") or []
+            prefs = await _compliance_prefs(client, athlete_id)
 
             return {
                 "id": str(workout.id),
@@ -384,7 +410,7 @@ async def tp_get_workout(workout_id: str) -> dict[str, Any]:
                     "duration_actual": workout.duration_actual,
                     "tss_planned": workout.tss_planned,
                     "tss_actual": workout.tss_actual,
-                    "compliance": _compliance(workout),
+                    "compliance": _compliance(workout, *prefs),
                     "if_planned": workout.if_planned,
                     "if_actual": workout.if_actual,
                     "distance_planned_km": workout.distance_planned / 1000 if workout.distance_planned else None,
