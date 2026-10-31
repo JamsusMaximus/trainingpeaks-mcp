@@ -818,9 +818,14 @@ class TestCompliance:
         ]
         ws = await self._list(rows)
         assert ws[0]["compliance"] == {
-            "color": "yellow", "basis": "tss", "percent": {"tss": 65.8, "duration": None, "distance": None}}
+            "color": "yellow",
+            "basis": "tss",
+            "direction": "under",
+            "percent": {"tss": 65.8, "duration": None, "distance": None},
+        }
         assert ws[1]["compliance"]["color"] == "green"
         assert ws[1]["compliance"]["basis"] == "duration"
+        assert ws[1]["compliance"]["direction"] == "over"
         # TSS wins when several are present
         assert ws[2]["compliance"]["basis"] == "tss"
         assert ws[2]["compliance"]["color"] == "orange"

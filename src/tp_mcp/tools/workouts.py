@@ -179,8 +179,9 @@ def _compliance(workout: Any) -> dict[str, Any]:
     """Planned-vs-actual compliance as the web calendar shows it.
 
     Percentages come from the API (actual / planned * 100, null when nothing was planned). The colour follows
-    TrainingPeaks' documented bands, based on TSS, else duration, else distance. A planned workout from a past
-    day that was never completed is "red" (skipped); completed work with no plan is "grey" (unplanned).
+    TrainingPeaks' documented bands. Per the Workout Card Overview help article the metric is TSS, then duration,
+    then distance by default (athletes can reorder it in Account Settings). `direction` is over/under plan.
+    A planned workout from a past day that was never completed is "red" (skipped); completed work with no plan is "grey" (unplanned).
     """
     pct = {
         "tss": workout.compliance_tss_percent,
@@ -198,7 +199,10 @@ def _compliance(workout: Any) -> dict[str, Any]:
         color = "grey"
     else:
         color = None
-    return {"color": color, "basis": basis, "percent": pct}
+    direction = None
+    if basis is not None:
+        direction = "over" if pct[basis] > 100 else "under" if pct[basis] < 100 else "on_plan"
+    return {"color": color, "basis": basis, "direction": direction, "percent": pct}
 
 
 async def tp_get_workouts(
