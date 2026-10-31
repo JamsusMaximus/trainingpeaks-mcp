@@ -273,8 +273,8 @@ class TestGetWorkoutDispatch:
 
         assert result["id"] == "1001"
         # Verify the URL used the validated integer, not the raw string
-        call_args = mock_instance.get.call_args[0][0]
-        assert "/workouts/1001" in call_args
+        urls = [c[0][0] for c in mock_instance.get.call_args_list]
+        assert any("/workouts/1001" in u for u in urls)
 
 
 # ---------------------------------------------------------------------------
