@@ -781,3 +781,72 @@ class TestTpPairWorkout:
 
         assert result["isError"] is True
         assert result["error_code"] == "API_ERROR"
+
+
+class TestCompliance:
+    """Planned-vs-actual compliance colours, per TrainingPeaks' documented calendar bands."""
+
+    @pytest.mark.parametrize(
+        ("percent", "color"),
+        [(100, "green"), (80, "green"), (120, "green"), (79.9, "yellow"), (50, "yellow"),
+         (120.1, "yellow"), (150, "yellow"), (49.9, "orange"), (150.1, "orange"), (0, "orange")],
+    )
+    def test_color_bands(self, percent, color):
+        from tp_mcp.tools.workouts import _compliance_color
+
+        assert _compliance_color(percent) == color
+
+    @staticmethod
+    async def _list(rows):
+        resp = APIResponse(success=True, data=rows)
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            inst = AsyncMock()
+            inst.ensure_athlete_id = AsyncMock(return_value=123)
+            inst.get = AsyncMock(return_value=resp)
+            mock_client.return_value.__aenter__.return_value = inst
+            return (await tp_get_workouts("2020-01-01", "2020-01-31"))["workouts"]
+
+    @pytest.mark.asyncio
+    async def test_list_exposes_percentages_and_color(self):
+        rows = [
+            {"workoutId": 1, "workoutDay": "2020-01-02T00:00:00", "tssPlanned": 6.0, "tssActual": 3.95,
+             "totalTime": 0.1, "complianceTssPercent": 65.8},
+            {"workoutId": 2, "workoutDay": "2020-01-03T00:00:00", "totalTimePlanned": 3600, "totalTime": 3700,
+             "complianceDurationPercent": 102.8},
+            {"workoutId": 3, "workoutDay": "2020-01-04T00:00:00", "tssPlanned": 50.0, "totalTime": 1,
+             "tssActual": 120.0, "complianceTssPercent": 240.0, "complianceDurationPercent": 100.0},
+        ]
+        ws = await self._list(rows)
+        assert ws[0]["compliance"] == {
+            "color": "yellow", "basis": "tss", "percent": {"tss": 65.8, "duration": None, "distance": None}}
+        assert ws[1]["compliance"]["color"] == "green"
+        assert ws[1]["compliance"]["basis"] == "duration"
+        # TSS wins when several are present
+        assert ws[2]["compliance"]["basis"] == "tss"
+        assert ws[2]["compliance"]["color"] == "orange"
+
+    @pytest.mark.asyncio
+    async def test_skipped_unplanned_and_future(self):
+        rows = [
+            {"workoutId": 1, "workoutDay": "2020-01-02T00:00:00", "tssPlanned": 40.0},
+            {"workoutId": 2, "workoutDay": "2020-01-03T00:00:00", "tssActual": 30.0, "totalTime": 0.5},
+            {"workoutId": 3, "workoutDay": "2999-01-01T00:00:00", "tssPlanned": 40.0},
+        ]
+        ws = await self._list(rows)
+        assert ws[0]["compliance"]["color"] == "red"  # planned, past, never completed
+        assert ws[1]["compliance"]["color"] == "grey"  # completed, nothing planned
+        assert ws[2]["compliance"]["color"] is None  # planned for the future
+
+    @pytest.mark.asyncio
+    async def test_detail_includes_compliance(self, mock_api_responses):
+        raw = dict(mock_api_responses["workout_detail"])
+        raw.update({"tssPlanned": 6.0, "tssActual": 7.2, "totalTime": 0.2, "complianceTssPercent": 120.3})
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            inst = AsyncMock()
+            inst.ensure_athlete_id = AsyncMock(return_value=123)
+            inst.get = AsyncMock(return_value=APIResponse(success=True, data=raw))
+            mock_client.return_value.__aenter__.return_value = inst
+            result = await tp_get_workout("1")
+        comp = result["metrics"]["compliance"]
+        assert comp["percent"]["tss"] == 120.3
+        assert comp["color"] == "yellow"

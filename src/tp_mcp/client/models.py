@@ -98,6 +98,9 @@ class WorkoutSummary(BaseModel):
     distance_planned: float | None = Field(default=None, alias="distancePlanned")
     distance_actual: float | None = Field(default=None, alias="distance")
     completed: bool | None = Field(default=None)
+    compliance_tss_percent: float | None = Field(default=None, alias="complianceTssPercent")
+    compliance_duration_percent: float | None = Field(default=None, alias="complianceDurationPercent")
+    compliance_distance_percent: float | None = Field(default=None, alias="complianceDistancePercent")
     description: str | None = None
 
     @property
@@ -173,6 +176,9 @@ class WorkoutDetail(BaseModel):
     avg_cadence: float | None = Field(default=None, alias="cadenceAverage")
     elevation_gain: float | None = Field(default=None, alias="elevationGain")
     completed: bool | None = Field(default=None)
+    compliance_tss_percent: float | None = Field(default=None, alias="complianceTssPercent")
+    compliance_duration_percent: float | None = Field(default=None, alias="complianceDurationPercent")
+    compliance_distance_percent: float | None = Field(default=None, alias="complianceDistancePercent")
     structure: dict[str, Any] | None = None
 
     @property
