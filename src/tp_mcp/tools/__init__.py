@@ -77,8 +77,12 @@ from tp_mcp.tools.strength import (
 )
 from tp_mcp.tools.structure import tp_validate_structure
 from tp_mcp.tools.user_settings import (
+    tp_get_atp_settings,
     tp_get_notification_settings,
     tp_get_user_settings,
+    tp_update_athlete_notification_settings,
+    tp_update_athlete_profile,
+    tp_update_atp_settings,
     tp_update_notification_settings,
     tp_update_user_settings,
 )
@@ -148,7 +152,11 @@ __all__ = [
     "tp_list_notes",
     "tp_get_nutrition",
     "tp_get_peaks",
+    "tp_get_atp_settings",
     "tp_get_notification_settings",
+    "tp_update_athlete_notification_settings",
+    "tp_update_athlete_profile",
+    "tp_update_atp_settings",
     "tp_get_pool_length_settings",
     "tp_get_user_settings",
     "tp_update_notification_settings",

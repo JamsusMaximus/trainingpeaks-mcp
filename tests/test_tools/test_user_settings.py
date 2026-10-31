@@ -6,8 +6,12 @@ import pytest
 
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.user_settings import (
+    tp_get_atp_settings,
     tp_get_notification_settings,
     tp_get_user_settings,
+    tp_update_athlete_notification_settings,
+    tp_update_athlete_profile,
+    tp_update_atp_settings,
     tp_update_notification_settings,
     tp_update_user_settings,
 )
@@ -146,3 +150,60 @@ class TestNotificationSettings:
             assert no_entry["error_code"] == "NOT_FOUND"
         finally:
             p.stop()
+
+
+@pytest.mark.asyncio
+class TestAthleteLevelSettings:
+    async def test_athlete_own_notifications_round_trip(self):
+        doc = {"athleteId": 7, "inAppEnabled": True, "mobileEnabled": False, "emailEnabled": False, "details": [
+            {"athleteId": 7, "type": "WorkoutComment", "inAppEnabled": True, "mobileEnabled": False,
+             "emailEnabled": False}]}
+        inst = _client(get=lambda e: APIResponse(success=True, data=copy_of(doc)))
+        p = _patch(inst)
+        try:
+            r = await tp_update_athlete_notification_settings(type="WorkoutComment", email=True)
+            assert r["previous"]["details"][0]["emailEnabled"] is False
+            inst.put.assert_called_once_with("/notification/v1/athletes/7/settings", json=r["updated"])
+            assert r["updated"]["details"][0]["emailEnabled"] is True and r["updated"]["inAppEnabled"] is True
+            assert (await tp_update_athlete_notification_settings(type="Nope", email=True))["isError"]
+            assert (await tp_update_athlete_notification_settings())["isError"]
+            assert (await tp_update_athlete_notification_settings(type="WorkoutUpload", email=True))["isError"]
+        finally:
+            p.stop()
+
+    async def test_profile_only_changes_allowed_fields_and_keeps_the_rest(self):
+        doc = {"athleteId": 7, "email": "a@b.c", "units": "Imperial", "city": "X", "powerZones": [{"zones": []}]}
+        inst = _client(get=lambda e: APIResponse(success=True, data=copy_of(doc)))
+        p = _patch(inst)
+        try:
+            r = await tp_update_athlete_profile({"units": "Metric"})
+            assert r["previous"] == {"units": "Imperial"} and r["updated"] == {"units": "Metric"}
+            sent = inst.put.call_args.kwargs["json"]
+            assert sent == {**doc, "units": "Metric"}  # everything else, zones included, sent back untouched
+            assert inst.put.call_args.args[0] == "/fitness/v1/athletes/7/settings"
+            for bad in ({"email": "x@y.z"}, {"powerZones": []}, {"athleteId": 9}):
+                assert (await tp_update_athlete_profile(bad))["error_code"] == "VALIDATION_ERROR"
+            assert (await tp_update_athlete_profile({}))["error_code"] == "VALIDATION_ERROR"
+            inst.put.reset_mock()
+            assert (await tp_update_athlete_profile({"city": "Y"}, dry_run=True))["dry_run"]
+            inst.put.assert_not_called()
+        finally:
+            p.stop()
+
+    async def test_atp_settings(self):
+        inst = _client(get=lambda e: APIResponse(success=True, data={"periodNameMappings": []}))
+        p = _patch(inst)
+        try:
+            assert (await tp_get_atp_settings())["atp_settings"] == {"periodNameMappings": []}
+            r = await tp_update_atp_settings([{"a": 1}])
+            assert r["previous"] == {"periodNameMappings": []} and r["updated"]["periodNameMappings"] == [{"a": 1}]
+            inst.put.assert_called_once_with("/fitness/v1/atp/settings", json=r["updated"])
+            assert (await tp_update_atp_settings("x"))["error_code"] == "VALIDATION_ERROR"
+        finally:
+            p.stop()
+
+
+def copy_of(obj):
+    import copy
+
+    return copy.deepcopy(obj)

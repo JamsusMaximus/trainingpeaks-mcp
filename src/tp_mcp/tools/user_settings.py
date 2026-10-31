@@ -5,7 +5,10 @@ Verified against the live API (read, and a no-change Save in the web app to capt
   • write  → PUT /users/v1/user/{id}/settings/{section}  for calendar, workout, general and metrics
              (the web app PUTs the whole section; 200/204)
   • notify → GET/PUT /notification/v1/coachSettings  (a list, one entry per athlete, each with per-type details)
-             GET /notification/v1/athletes/{id}/settings  (the athlete's own)
+             GET/PUT /notification/v1/athletes/{id}/settings  (the athlete's own)
+  • athlete → GET/PUT /fitness/v1/athletes/{id}/settings  (profile and preferences; zones have their own tools)
+  • atp    → GET/PUT /fitness/v1/atp/settings  (period name mappings)
+  • pool length is read-only: PUT and POST on /poollengthsettings both return 405.
 `{id}` is the coach/user id for the account dialog, and the athlete id for that athlete's own settings; the web
 calendar reads the athlete's document, so the compliance tools use that one.
 """
@@ -21,6 +24,15 @@ logger = logging.getLogger("tp-mcp")
 # Sections the web app saves with PUT /settings/{section}; others are read-only here.
 WRITABLE_SECTIONS = ("calendar", "workout", "general", "metrics")
 _SCOPES = ("athlete", "account")
+# Profile / preference fields of the athlete settings document that may be changed. Identity (email, ids,
+# hashes), dates the server owns and the zone sets (use tp_update_ftp / tp_update_hr_zones / ...) are excluded.
+ATHLETE_SETTINGS_WRITABLE = (
+    "firstName", "lastName", "gender", "birthday", "dateFormat", "timeZone", "units", "temperatureUnit",
+    "windSpeedUnit", "allowMarketingEmails", "address", "address2", "city", "state", "zipCode", "country",
+    "phone", "cellPhone", "language", "preferredRunningTssSource", "thresholdsAutoApply",
+    "thresholdsNotifyAthlete", "thresholdsNotifyCoach", "virtualCoachEmailHour", "enableVirtualCoachEmails",
+    "enableWorkoutCommentNotification", "enablePostWorkoutNotifications", "optedOutOfIcal",
+)
 _NOTIFY_TYPES = (
     "WorkoutUpload",
     "WorkoutComment",
@@ -206,6 +218,124 @@ async def tp_update_notification_settings(
         if dry_run:
             return {**result, "dry_run": True}
         put = await client.put("/notification/v1/coachSettings", json=entries)
+        if put.is_error:
+            return _api_err(put)
+        return result
+
+
+async def tp_update_athlete_notification_settings(
+    type: str | None = None,
+    in_app: bool | None = None,
+    mobile: bool | None = None,
+    email: bool | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Change the targeted athlete's own notification switches (athlete-wide, or one notification type).
+
+    Args:
+        type: One of the notification types (see tp_get_notification_settings), or omit for athlete-wide.
+        in_app / mobile / email: New values; leave out to keep.
+        dry_run: Show the before/after without saving.
+
+    Returns:
+        Dict with `previous` and `updated`.
+    """
+    if type is not None and type not in _NOTIFY_TYPES:
+        return _err("VALIDATION_ERROR", f"type must be one of {list(_NOTIFY_TYPES)}.")
+    values = {k: v for k, v in {"inAppEnabled": in_app, "mobileEnabled": mobile, "emailEnabled": email}.items()
+              if v is not None}
+    if not values:
+        return _err("VALIDATION_ERROR", "Set at least one of in_app, mobile, email.")
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return _err("AUTH_INVALID", "Could not get athlete ID. Re-authenticate.")
+        endpoint = f"/notification/v1/athletes/{athlete_id}/settings"
+        response = await client.get(endpoint)
+        if response.is_error:
+            return _api_err(response)
+        doc = response.data if isinstance(response.data, dict) else {}
+        previous = copy.deepcopy(doc)
+        target = doc
+        if type is not None:
+            target = next((d for d in doc.get("details") or [] if d.get("type") == type), None)
+            if target is None:
+                return _err("NOT_FOUND", f"No '{type}' notification entry for this athlete.")
+        target.update(values)
+        result: dict[str, Any] = {"athlete_id": athlete_id, "previous": previous, "updated": doc}
+        if dry_run:
+            return {**result, "dry_run": True}
+        put = await client.put(endpoint, json=doc)
+        if put.is_error:
+            return _api_err(put)
+        return result
+
+
+async def tp_update_athlete_profile(changes: dict[str, Any], dry_run: bool = False) -> dict[str, Any]:
+    """Change the targeted athlete's profile and preferences (units, time zone, address, coach alerts, ...).
+
+    Fetches the whole athlete settings document, applies `changes`, and saves it back. Zones and thresholds
+    are not changed here (use tp_update_ftp / tp_update_hr_zones / tp_update_speed_zones); neither is email.
+
+    Args:
+        changes: Field -> new value, from the writable list in the error message if a field is rejected.
+        dry_run: Show the before/after without saving.
+
+    Returns:
+        Dict with `previous` and `updated` for just the changed fields.
+    """
+    if not changes or not isinstance(changes, dict):
+        return _err("VALIDATION_ERROR", "changes is required (an object of field: value).")
+    bad = sorted(set(changes) - set(ATHLETE_SETTINGS_WRITABLE))
+    if bad:
+        return _err("VALIDATION_ERROR", f"Cannot change {bad}. Writable fields: {list(ATHLETE_SETTINGS_WRITABLE)}.")
+    async with TPClient() as client:
+        athlete_id = await client.ensure_athlete_id()
+        if not athlete_id:
+            return _err("AUTH_INVALID", "Could not get athlete ID. Re-authenticate.")
+        endpoint = f"/fitness/v1/athletes/{athlete_id}/settings"
+        response = await client.get(endpoint)
+        if response.is_error:
+            return _api_err(response)
+        doc = response.data if isinstance(response.data, dict) else {}
+        previous = {k: doc.get(k) for k in changes}
+        result: dict[str, Any] = {"athlete_id": athlete_id, "previous": previous, "updated": dict(changes)}
+        if dry_run:
+            return {**result, "dry_run": True}
+        put = await client.put(endpoint, json={**doc, **changes})
+        if put.is_error:
+            return _api_err(put)
+        return result
+
+
+async def tp_get_atp_settings() -> dict[str, Any]:
+    """Get annual training plan settings (period name mappings)."""
+    async with TPClient() as client:
+        response = await client.get("/fitness/v1/atp/settings")
+        if response.is_error:
+            return _api_err(response)
+        return {"atp_settings": response.data}
+
+
+async def tp_update_atp_settings(period_name_mappings: list[Any], dry_run: bool = False) -> dict[str, Any]:
+    """Replace the annual training plan period name mappings (send the complete list; `previous` is returned).
+
+    Args:
+        period_name_mappings: The full list of mappings, in the shape tp_get_atp_settings returns.
+        dry_run: Show the before/after without saving.
+    """
+    if not isinstance(period_name_mappings, list):
+        return _err("VALIDATION_ERROR", "period_name_mappings must be a list.")
+    async with TPClient() as client:
+        response = await client.get("/fitness/v1/atp/settings")
+        if response.is_error:
+            return _api_err(response)
+        doc = response.data if isinstance(response.data, dict) else {}
+        updated = {**doc, "periodNameMappings": period_name_mappings}
+        result: dict[str, Any] = {"previous": doc, "updated": updated}
+        if dry_run:
+            return {**result, "dry_run": True}
+        put = await client.put("/fitness/v1/atp/settings", json=updated)
         if put.is_error:
             return _api_err(put)
         return result

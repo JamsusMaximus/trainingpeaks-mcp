@@ -71,6 +71,10 @@ Ask your AI assistant things like:
 | `tp_update_user_settings` | Change calendar, workout, general or metrics settings; returns `previous` so it can be undone; `dry_run` |
 | `tp_get_notification_settings` | Read the coach's per-athlete alert switches and the athlete's own |
 | `tp_update_notification_settings` | Change in-app / mobile / email alerts for one athlete or one alert type; `dry_run` |
+| `tp_update_athlete_notification_settings` | Change the athlete's own in-app / mobile / email switches, athlete-wide or per type |
+| `tp_update_athlete_profile` | Change an athlete's profile and preferences (units, time zone, address, coach alerts, ...); not email or zones |
+| `tp_get_atp_settings` | Get annual training plan period name mappings |
+| `tp_update_atp_settings` | Replace the annual training plan period name mappings |
 
 **Zone updates — how they work & one limitation.** The zone setters target the
 right per-sport zone set (by `workoutTypeId`) and recompute the bands with
