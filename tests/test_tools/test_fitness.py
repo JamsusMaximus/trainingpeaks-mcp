@@ -17,9 +17,33 @@ class TestTpGetFitness:
         fitness_response = APIResponse(
             success=True,
             data=[
-                {"workoutDay": "2025-01-07T00:00:00", "tssActual": 50, "ctl": 45.2, "atl": 55.1, "tsb": -9.9, "ifActual": 0.71, "ifPlanned": 0.7},
-                {"workoutDay": "2025-01-08T00:00:00", "tssActual": 80, "ctl": 46.0, "atl": 60.3, "tsb": -14.3, "ifActual": 0.83, "ifPlanned": 0.8},
-                {"workoutDay": "2025-01-09T00:00:00", "tssActual": 0, "ctl": 45.5, "atl": 52.1, "tsb": -6.6, "ifActual": None, "ifPlanned": None},
+                {
+                    "workoutDay": "2025-01-07T00:00:00",
+                    "tssActual": 50,
+                    "ctl": 45.2,
+                    "atl": 55.1,
+                    "tsb": -9.9,
+                    "ifActual": 0.71,
+                    "ifPlanned": 0.7,
+                },
+                {
+                    "workoutDay": "2025-01-08T00:00:00",
+                    "tssActual": 80,
+                    "ctl": 46.0,
+                    "atl": 60.3,
+                    "tsb": -14.3,
+                    "ifActual": 0.83,
+                    "ifPlanned": 0.8,
+                },
+                {
+                    "workoutDay": "2025-01-09T00:00:00",
+                    "tssActual": 0,
+                    "ctl": 45.5,
+                    "atl": 52.1,
+                    "tsb": -6.6,
+                    "ifActual": None,
+                    "ifPlanned": None,
+                },
             ],
         )
 
