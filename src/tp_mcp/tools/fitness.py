@@ -100,6 +100,11 @@ async def tp_get_fitness(
                         "ctl": round(entry.get("ctl", 0), 1),
                         "atl": round(entry.get("atl", 0), 1),
                         "tsb": round(entry.get("tsb", 0), 1),
+                        # Daily IF: the endpoint's ifActual is TP's own daily
+                        # Intensity Factor (duration-weighted average of the
+                        # day's workout IFs). It was previously dropped here.
+                        "if_actual": round(entry.get("ifActual", 0) or 0, 3),
+                        "if_planned": round(entry.get("ifPlanned", 0) or 0, 3),
                     }
                 )
 
@@ -111,6 +116,7 @@ async def tp_get_fitness(
                     "ctl": latest["ctl"],
                     "atl": latest["atl"],
                     "tsb": latest["tsb"],
+                    "if_actual": latest["if_actual"],
                     "fitness_status": _get_fitness_status(latest["tsb"]),
                 }
 
