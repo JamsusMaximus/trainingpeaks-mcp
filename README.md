@@ -122,6 +122,7 @@ honoured exactly. They update a **threshold** (FTP / LTHR / threshold pace).
 | `tp_get_note_comments` | List all comments on a note |
 | `tp_add_note_comment` | Add a comment to a note |
 | `tp_get_availability` | List unavailable/limited periods |
+| `tp_get_notifications` | Notification feed (the bell icon): comments, availability, threshold changes |
 | `tp_create_availability` | Mark dates as unavailable or limited |
 | `tp_delete_availability` | Remove availability entry |
 

@@ -48,6 +48,7 @@ from tp_mcp.tools.library import (
     tp_update_library_item,
 )
 from tp_mcp.tools.metrics import tp_get_metrics, tp_get_nutrition, tp_log_metrics
+from tp_mcp.tools.notifications import tp_get_notifications
 from tp_mcp.tools.peaks import tp_get_peaks, tp_get_workout_prs
 from tp_mcp.tools.plans import (
     tp_apply_training_plan,
@@ -147,6 +148,7 @@ __all__ = [
     "tp_get_library_items",
     "tp_get_metrics",
     "tp_get_next_event",
+    "tp_get_notifications",
     "tp_get_note",
     "tp_get_note_comments",
     "tp_list_notes",
