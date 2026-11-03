@@ -66,6 +66,14 @@ class TestListTools:
             "tp_create_zones",
             "tp_update_nutrition",
             "tp_get_pool_length_settings",
+            "tp_get_user_settings",
+            "tp_update_user_settings",
+            "tp_get_notification_settings",
+            "tp_update_athlete_notification_settings",
+            "tp_update_athlete_profile",
+            "tp_get_atp_settings",
+            "tp_update_atp_settings",
+            "tp_update_notification_settings",
             "tp_log_metrics",
             "tp_get_metrics",
             "tp_get_nutrition",
@@ -123,6 +131,7 @@ class TestListTools:
             "tp_get_training_plan",
             "tp_get_training_plan_workouts",
             "tp_apply_training_plan",
+            "tp_get_notifications",
         }
         assert v2_tools.issubset(names)
         assert len(names) == len(core_tools) + len(v2_tools)
