@@ -951,6 +951,38 @@ class TestWorkoutComments:
         mock_instance.get.assert_called_once_with("/fitness/v6/athletes/123/workouts/1001")
 
     @pytest.mark.asyncio
+    async def test_get_comments_403_hints_at_strength_tool(self):
+        """Strength-builder IDs get 403 from /fitness/v6 - point at the strength tool, keep the code."""
+        response = APIResponse(success=False, error_code=ErrorCode.AUTH_INVALID, message="Access denied.")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_comments("30029659")
+
+        assert result["error_code"] == "AUTH_INVALID"
+        assert result["message"].startswith("Access denied.")
+        assert "tp_get_strength_workout_comments" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_get_comments_other_errors_unhinted(self):
+        response = APIResponse(success=False, error_code=ErrorCode.NOT_FOUND, message="Resource not found.")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_comments("1001")
+
+        assert result["error_code"] == "NOT_FOUND"
+        assert result["message"] == "Resource not found."
+
+    @pytest.mark.asyncio
     async def test_get_comments_empty(self):
         response = APIResponse(success=True, data={"workoutId": 1001, "workoutComments": []})
 
@@ -1037,6 +1069,21 @@ class TestWorkoutNote:
         assert result["workout_id"] == "1001"
         assert result["updated_at"] == "2026-03-01T10:00:00Z"
         mock_instance.get.assert_called_once_with("/fitness/v6/workouts/1001/privateWorkoutNote")
+
+    @pytest.mark.asyncio
+    async def test_get_note_403_hints_at_strength_tool(self):
+        response = APIResponse(success=False, error_code=ErrorCode.AUTH_INVALID, message="Access denied.")
+
+        with patch("tp_mcp.tools.workouts.TPClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.ensure_athlete_id = AsyncMock(return_value=123)
+            mock_instance.get = AsyncMock(return_value=response)
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            result = await tp_get_workout_note("30029659")
+
+        assert result["error_code"] == "AUTH_INVALID"
+        assert "tp_get_strength_workout_comments" in result["message"]
 
     @pytest.mark.asyncio
     async def test_get_note_empty(self):

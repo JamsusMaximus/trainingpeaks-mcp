@@ -16,6 +16,7 @@ from tp_mcp.tools.strength import (
     tp_delete_strength_workout,
     tp_get_strength_summary,
     tp_get_strength_workout,
+    tp_get_strength_workout_comments,
     tp_get_strength_workouts,
     tp_search_exercises,
     tp_update_strength_workout,
@@ -419,6 +420,136 @@ class TestListAndDetail:
                 mh.return_value.__aenter__.return_value = http
                 r = await tp_get_strength_workout(workout_id="999")
         assert r["error_code"] == "NOT_FOUND"
+
+
+# ── Comments (gym notes live here, not on the fitness API) ──────────────────
+
+
+def _mock_http_by_url(routes):
+    """GET mock that answers per URL suffix: {suffix: (status, json)}."""
+    def _resp(status, data):
+        resp = MagicMock()
+        resp.status_code = status
+        resp.json.return_value = data
+        resp.text = str(data)
+        return resp
+
+    async def _get(url, headers=None):
+        for suffix, (status, data) in routes.items():
+            if url.endswith(suffix):
+                return _resp(status, data)
+        raise AssertionError(f"unexpected GET {url}")
+
+    http = AsyncMock()
+    http.get = AsyncMock(side_effect=_get)
+    return http
+
+
+_COMMENTS_BODY = {
+    "workoutId": 30029659,
+    "comments": [
+        {
+            "id": 9001,
+            "comment": "Squat 5x5 @ 80 kg RPE 8",
+            "dateCreated": "2026-09-17T18:12:00",
+            "commenterPersonId": 6403183,
+            "isRead": True,
+            "isFirstUnread": False,
+        }
+    ],
+    "people": [{"id": 6403183, "name": "Samuel", "profilePhotoUrl": None}],
+}
+_SUMMARY_BODY = {"data": {"totalComments": 1, "hasPrivateWorkoutNoteForCaller": False}, "errors": {}}
+
+
+class TestGetStrengthWorkoutComments:
+    @pytest.mark.asyncio
+    async def test_success_resolves_names(self):
+        http = _mock_http_by_url({"/comments": (200, _COMMENTS_BODY), "/summary": (200, _SUMMARY_BODY)})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout_comments(workout_id="30029659")
+        assert r["workout_id"] == "30029659"
+        assert r["total_comments"] == 1
+        assert r["has_private_note"] is False
+        assert r["comments"] == [{
+            "id": 9001,
+            "comment": "Squat 5x5 @ 80 kg RPE 8",
+            "date_created": "2026-09-17T18:12:00",
+            "commenter_person_id": 6403183,
+            "commenter_name": "Samuel",
+        }]
+        urls = [c.args[0] for c in http.get.call_args_list]
+        assert urls == [
+            "https://api.peakswaresb.com/rx/activity/v1/workouts/30029659/comments",
+            "https://api.peakswaresb.com/rx/activity/v1/workouts/30029659/summary",
+        ]
+        assert http.get.call_args_list[0].kwargs["headers"]["Authorization"] == f"Bearer {TEST_ACCESS_TOKEN}"
+
+    @pytest.mark.asyncio
+    async def test_no_comments(self):
+        http = _mock_http_by_url({
+            "/comments": (200, {"workoutId": 1, "comments": [], "people": []}),
+            "/summary": (200, {"data": {"totalComments": 0, "hasPrivateWorkoutNoteForCaller": True}}),
+        })
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout_comments(workout_id="1")
+        assert r["comments"] == []
+        assert r["total_comments"] == 0
+        assert r["has_private_note"] is True
+
+    @pytest.mark.asyncio
+    async def test_summary_failure_is_best_effort(self):
+        http = _mock_http_by_url({"/comments": (200, _COMMENTS_BODY), "/summary": (500, {"message": "boom"})})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout_comments(workout_id="30029659")
+        assert "error_code" not in r
+        assert r["total_comments"] == 1  # falls back to len(comments)
+        assert r["has_private_note"] is False
+
+    @pytest.mark.asyncio
+    async def test_unknown_commenter_name_is_none(self):
+        body = dict(_COMMENTS_BODY, people=[])
+        http = _mock_http_by_url({"/comments": (200, body), "/summary": (200, _SUMMARY_BODY)})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout_comments(workout_id="30029659")
+        assert r["comments"][0]["commenter_name"] is None
+        assert r["comments"][0]["commenter_person_id"] == 6403183
+
+    @pytest.mark.asyncio
+    async def test_not_found(self):
+        http = _mock_http_by_url({"/comments": (404, {"message": "nope"})})
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workout_comments(workout_id="999")
+        assert r["error_code"] == "NOT_FOUND"
+        assert http.get.call_count == 1  # no summary call after a failed comments GET
+
+    @pytest.mark.asyncio
+    async def test_auth_failure(self):
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client(athlete_id=None)
+            r = await tp_get_strength_workout_comments(workout_id="1")
+        assert r["error_code"] == "AUTH_INVALID"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad", ["", "abc", "-1", "0", "12.5"])
+    async def test_invalid_id(self, bad):
+        r = await tp_get_strength_workout_comments(workout_id=bad)
+        assert r["error_code"] == "VALIDATION_ERROR"
 
 
 # ── Update (in-place upsert) ─────────────────────────────────────────────────

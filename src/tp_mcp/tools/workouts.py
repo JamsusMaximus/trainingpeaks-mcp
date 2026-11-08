@@ -9,6 +9,7 @@ from typing import Any, Literal, NamedTuple
 from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_detail, parse_workout_list
+from tp_mcp.client.http import APIResponse, ErrorCode
 from tp_mcp.tools._validation import (
     CreateWorkoutInput,
     DateRangeInput,
@@ -966,6 +967,24 @@ async def tp_reorder_workouts(workout_ids: list[int]) -> dict[str, Any]:
         }
 
 
+_STRENGTH_HINT = (
+    " If this is a strength-builder (gym) workout its comments live on the "
+    "strength API: use tp_get_strength_workout_comments instead."
+)
+
+
+def _strength_hint(response: APIResponse) -> str:
+    """Append the strength-tool hint to a fitness-API error when it is a 403.
+
+    Strength-builder workouts are not served by /fitness/v6, which answers 403
+    (mapped to AUTH_INVALID) for their IDs - indistinguishable from a real
+    permissions problem without this hint. The error code is left unchanged.
+    """
+    if response.error_code is ErrorCode.AUTH_INVALID:
+        return (response.message or "") + _STRENGTH_HINT
+    return response.message
+
+
 async def tp_get_workout_comments(workout_id: str) -> dict[str, Any]:
     """Get comments on a workout.
 
@@ -1001,7 +1020,7 @@ async def tp_get_workout_comments(workout_id: str) -> dict[str, Any]:
             return {
                 "isError": True,
                 "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
+                "message": _strength_hint(response),
             }
 
         raw = response.data if isinstance(response.data, dict) else {}
@@ -1122,7 +1141,7 @@ async def tp_get_workout_note(workout_id: str) -> dict[str, Any]:
             return {
                 "isError": True,
                 "error_code": response.error_code.value if response.error_code else "API_ERROR",
-                "message": response.message,
+                "message": _strength_hint(response),
             }
 
         data = response.data if isinstance(response.data, dict) else {}

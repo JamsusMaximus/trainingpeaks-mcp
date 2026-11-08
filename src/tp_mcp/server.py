@@ -75,6 +75,7 @@ from tp_mcp.tools import (
     tp_get_profile,
     tp_get_strength_summary,
     tp_get_strength_workout,
+    tp_get_strength_workout_comments,
     tp_get_strength_workouts,
     tp_get_training_plan,
     tp_get_training_plan_workouts,
@@ -1326,6 +1327,22 @@ TOOLS = [
         },
     ),
     Tool(
+        name="tp_get_strength_workout_comments",
+        description=(
+            "Get the comments on a strength/gym workout - where the athlete logs "
+            "loads, reps and RPE as free text. Strength workouts live on a separate "
+            "API, so tp_get_workout_comments / tp_get_workout_note return 403 for "
+            "their IDs; use this instead. Returns the comment list (text, date, "
+            "commenter name), total count and whether a private note exists. "
+            "Get IDs from tp_get_strength_workouts."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {"workout_id": {"type": "string", "description": "Strength workout ID."}},
+            "required": ["workout_id"],
+        },
+    ),
+    Tool(
         name="tp_update_strength_workout",
         description=(
             "Update an existing strength workout in place: replace or append blocks, "
@@ -1775,6 +1792,10 @@ async def _h_get_strength_workouts(args):
 @_handler("tp_get_strength_workout")
 async def _h_get_strength_workout(args):
     return await tp_get_strength_workout(workout_id=args["workout_id"])
+
+@_handler("tp_get_strength_workout_comments")
+async def _h_get_strength_workout_comments(args):
+    return await tp_get_strength_workout_comments(workout_id=args["workout_id"])
 
 @_handler("tp_update_strength_workout")
 async def _h_update_strength(args):

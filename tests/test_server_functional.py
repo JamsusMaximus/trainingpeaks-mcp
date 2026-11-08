@@ -117,6 +117,7 @@ class TestListTools:
             "tp_get_strength_summary",
             "tp_get_strength_workouts",
             "tp_get_strength_workout",
+            "tp_get_strength_workout_comments",
             "tp_update_strength_workout",
             "tp_delete_strength_workout",
             "tp_list_training_plans",
