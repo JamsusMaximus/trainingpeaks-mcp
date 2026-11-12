@@ -59,6 +59,7 @@ class TestListTools:
             "tp_get_zone_methods",
             "tp_get_atp",
             "tp_get_weekly_summary",
+            "tp_get_heat_sessions",
             "tp_get_athlete_settings",
             "tp_update_ftp",
             "tp_update_hr_zones",

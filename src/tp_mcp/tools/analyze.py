@@ -40,6 +40,7 @@ from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_analysis
 from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
+from tp_mcp.tools.heat import heat_summary
 
 logger = logging.getLogger("tp-mcp")
 
@@ -146,8 +147,11 @@ def _stop_timestamp(start_iso: str | None, elapsed_seconds: Any) -> str | None:
     return (start_dt + timedelta(seconds=float(elapsed_seconds))).isoformat()
 
 
-async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
+async def tp_analyze_workout(workout_id: str, *, light: bool = False) -> dict[str, Any]:
     """Get detailed workout analysis including metrics, zones, and lap data.
+
+    ``light`` (internal, not in the tool schema; used by tp_get_heat_sessions):
+    skip the laps request and the data file.
 
     Full time-series data is saved to a JSON file for further analysis.
 
@@ -218,7 +222,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
                 else:
                     return charts_err
 
-            laps, laps_err = await _post_analysis(http_client, _LAPS_PATH, headers, wid)
+            laps, laps_err = (None, None) if light else await _post_analysis(http_client, _LAPS_PATH, headers, wid)
             if laps_err:
                 if laps_err.get("error_code") == "NOT_FOUND":
                     logger.info("workout %s: no lap data available", wid)
@@ -286,7 +290,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         }
 
     # Save full raw data (including time-series) to file
-    data_file = _save_analysis_json(wid, raw_data)
+    data_file = None if light else _save_analysis_json(wid, raw_data)
 
     # Return summary inline, point to file for full data
     totals_out = {t.name: {"value": t.value, "unit": t.unit} for t in analysis.totals}
@@ -308,7 +312,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         for ch in analysis.data_elements
     ]
 
-    return {
+    result: dict[str, Any] = {
         "workoutId": analysis.workout_id,
         "startTimestamp": analysis.start_timestamp,
         "stopTimestamp": analysis.stop_timestamp,
@@ -319,3 +323,8 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         "time_series_points": len(analysis.data),
         "data_file": data_file,
     }
+    # Heat metrics from a CORE body-temperature sensor (core/skin temperature, HSI)
+    heat = heat_summary(time_series)
+    if heat is not None:
+        result["heat"] = heat
+    return result

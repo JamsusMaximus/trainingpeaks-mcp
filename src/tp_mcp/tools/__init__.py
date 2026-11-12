@@ -37,6 +37,7 @@ from tp_mcp.tools.groups import (
     tp_remove_athletes_from_group,
     tp_rename_group,
 )
+from tp_mcp.tools.heat_sessions import tp_get_heat_sessions
 from tp_mcp.tools.library import (
     tp_create_library,
     tp_create_library_item,
@@ -144,6 +145,7 @@ __all__ = [
     "tp_get_peaks",
     "tp_get_pool_length_settings",
     "tp_get_profile",
+    "tp_get_heat_sessions",
     "tp_get_weekly_summary",
     "tp_get_workout",
     "tp_get_workout_comments",
