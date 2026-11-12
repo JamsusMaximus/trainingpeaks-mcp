@@ -541,7 +541,12 @@ TOOLS = [
     ),
     Tool(
         name="tp_analyze_workout",
-        description="Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file.",
+        description=(
+            "Get workout analysis: metrics, zones, laps. Saves full time-series to JSON file. "
+            "With a dual-sided power meter the result has a 'pedaling' block: power-weighted "
+            "left/right balance, torque effectiveness and pedal smoothness over pedaling samples, "
+            "balance by 50 W power range and per quarter of the ride (fatigue drift)."
+        ),
         input_schema={
             "type": "object",
             "properties": {"workout_id": {"type": "string"}},
