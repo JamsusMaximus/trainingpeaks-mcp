@@ -382,3 +382,32 @@ class TestTpAnalyzeWorkout:
                 assert headers["Authorization"] == f"Bearer {TEST_ACCESS_TOKEN}"
                 assert "Cookie" not in headers
                 assert call_kwargs.kwargs["json"] == {"workoutId": 3553733903}
+
+
+class TestAnalysisFileSwitch:
+    """TP_MCP_NO_ANALYSIS_FILE=1 skips writing the time-series JSON (#205)."""
+
+    async def _run(self, monkeypatch, tmp_path, env_value):
+        from tp_mcp.tools import analyze
+
+        if env_value is None:
+            monkeypatch.delenv("TP_MCP_NO_ANALYSIS_FILE", raising=False)
+        else:
+            monkeypatch.setenv("TP_MCP_NO_ANALYSIS_FILE", env_value)
+        monkeypatch.setattr(analyze, "ANALYSIS_DATA_DIR", tmp_path / "analysis")
+        with patch("tp_mcp.tools.analyze.TPClient") as mock_tp:
+            mock_tp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.analyze.httpx.AsyncClient") as mock_httpx:
+                mock_httpx.return_value.__aenter__.return_value = _mock_post_sequence()
+                return await tp_analyze_workout("3553733903")
+
+    @pytest.mark.asyncio
+    async def test_file_written_by_default(self, monkeypatch, tmp_path):
+        result = await self._run(monkeypatch, tmp_path, None)
+        assert result["data_file"] and (tmp_path / "analysis").exists()
+
+    @pytest.mark.asyncio
+    async def test_switch_skips_file_but_keeps_result(self, monkeypatch, tmp_path):
+        result = await self._run(monkeypatch, tmp_path, "1")
+        assert result["data_file"] is None and not (tmp_path / "analysis").exists()
+        assert result["totals"]["TSS"]["value"] == 75.2

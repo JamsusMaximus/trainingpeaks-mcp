@@ -30,6 +30,7 @@ file — legitimately lack per-second/lap data while still having totals).
 
 import json
 import logging
+import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -286,7 +287,11 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         }
 
     # Save full raw data (including time-series) to file
-    data_file = _save_analysis_json(wid, raw_data)
+    # TP_MCP_NO_ANALYSIS_FILE=1 skips the file: on hosted/containerised servers
+    # nobody reads it, it is never cleaned up (#205), and it accumulates in a
+    # size-limited tmpfs that counts toward the container's memory.
+    skip_file = os.environ.get("TP_MCP_NO_ANALYSIS_FILE") == "1"
+    data_file = None if skip_file else _save_analysis_json(wid, raw_data)
 
     # Return summary inline, point to file for full data
     totals_out = {t.name: {"value": t.value, "unit": t.unit} for t in analysis.totals}
