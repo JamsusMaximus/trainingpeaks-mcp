@@ -49,7 +49,8 @@ Ask your AI assistant things like:
 ### Analysis & Performance
 | Tool | Description |
 |------|-------------|
-| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps |
+| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps; with a CORE body-temperature sensor also a `heat` block (core/skin temperature, Heat Strain Index and CORE Heat Zones, estimated Heat Training Load) |
+| `tp_get_heat_sessions` | Heat-training sessions over a date range from a CORE sensor: per-session heat metrics, minutes per Heat Zone, estimated Heat Training Load per day, effective sessions and gaps |
 | `tp_get_peaks` | Power PRs (5s-90min) and running PRs (400m-marathon) |
 | `tp_get_workout_prs` | PRs set during a specific session |
 | `tp_get_fitness` | CTL, ATL, and TSB trend (fitness, fatigue, form) |
