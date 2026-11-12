@@ -40,6 +40,7 @@ from pydantic import ValidationError
 
 from tp_mcp.client import TPClient, parse_workout_analysis
 from tp_mcp.tools._validation import WorkoutIdInput, format_validation_error
+from tp_mcp.tools.pedaling import pedaling_summary
 
 logger = logging.getLogger("tp-mcp")
 
@@ -308,7 +309,7 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         for ch in analysis.data_elements
     ]
 
-    return {
+    result: dict[str, Any] = {
         "workoutId": analysis.workout_id,
         "startTimestamp": analysis.start_timestamp,
         "stopTimestamp": analysis.stop_timestamp,
@@ -319,3 +320,8 @@ async def tp_analyze_workout(workout_id: str) -> dict[str, Any]:
         "time_series_points": len(analysis.data),
         "data_file": data_file,
     }
+    # Pedaling metrics from the time series (dual-sided power meters only)
+    pedaling = pedaling_summary(time_series)
+    if pedaling is not None:
+        result["pedaling"] = pedaling
+    return result

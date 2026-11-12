@@ -49,7 +49,7 @@ Ask your AI assistant things like:
 ### Analysis & Performance
 | Tool | Description |
 |------|-------------|
-| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps |
+| `tp_analyze_workout` | Detailed analysis with time-series data, zones, and laps; with a dual-sided power meter also a `pedaling` block (L/R balance, torque effectiveness, pedal smoothness, balance by power range and over the ride) |
 | `tp_get_peaks` | Power PRs (5s-90min) and running PRs (400m-marathon) |
 | `tp_get_workout_prs` | PRs set during a specific session |
 | `tp_get_fitness` | CTL, ATL, and TSB trend (fitness, fatigue, form) |
