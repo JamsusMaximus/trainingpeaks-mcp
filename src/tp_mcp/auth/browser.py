@@ -33,14 +33,14 @@ class BrowserCookieResult:
         )
 
 
-SUPPORTED_BROWSERS = ["chrome", "firefox", "safari", "edge", "chromium", "brave", "opera"]
+SUPPORTED_BROWSERS = ["chrome", "firefox", "safari", "edge", "chromium", "brave", "opera", "arc"]
 
 
 def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
     """Extract TrainingPeaks cookie from browser.
 
     Args:
-        browser: Browser name (chrome, firefox, safari, edge, chromium, brave, opera).
+        browser: Browser name (chrome, firefox, safari, edge, chromium, brave, opera, arc).
                  If None, tries all browsers in order.
 
     Returns:
@@ -63,6 +63,7 @@ def extract_tp_cookie(browser: str | None = None) -> BrowserCookieResult:
         "chromium": browser_cookie3.chromium,
         "brave": browser_cookie3.brave,
         "opera": browser_cookie3.opera,
+        "arc": browser_cookie3.arc,
     }
 
     def try_browser(name: str) -> BrowserCookieResult:
