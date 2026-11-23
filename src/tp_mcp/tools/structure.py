@@ -256,7 +256,10 @@ def parse_structure_input(structure_input: dict[str, Any] | str) -> SimpleWorkou
             raise ValueError(f"Invalid JSON in structure: {e}") from e
     else:
         data = structure_input
-
+ # Accept a bare list of steps (array) as well as an object with a "steps"
+    # key. Callers commonly pass just the steps array, so wrap it.
+    if isinstance(data, list):
+        data = {"steps": data}
     # Parse steps - distinguish between simple steps and repetition blocks
     raw_steps = data.get("steps", [])
     parsed_steps: list[SimpleStep | SimpleRepetitionBlock] = []
