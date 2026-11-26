@@ -625,3 +625,47 @@ class TestCatchAllErrorHandler:
         assert "secret" not in result["message"]
         assert "password" not in result["message"]
         assert "internal error" in result["message"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Strength start time / duration
+# ---------------------------------------------------------------------------
+
+
+class TestStrengthStartTimeAndDuration:
+    """start_time and duration_minutes are advertised and reach the tool functions."""
+
+    @pytest.mark.asyncio
+    async def test_strength_schemas_advertise_fields(self):
+        tools = await list_tools()
+        for name in ("tp_create_strength_workout", "tp_update_strength_workout"):
+            tool = next(t for t in tools if t.name == name)
+            props = tool.input_schema["properties"]
+            assert "start_time" in props
+            assert "HH:MM" in props["start_time"]["description"]
+            assert "duration_minutes" in props
+            assert "start_time" not in tool.input_schema.get("required", [])
+            assert "duration_minutes" not in tool.input_schema.get("required", [])
+
+    @pytest.mark.asyncio
+    async def test_create_handler_passes_fields(self):
+        fake = AsyncMock(return_value={"workout_id": "1"})
+        with patch("tp_mcp.server.tp_create_strength_workout", fake):
+            await call_tool(
+                "tp_create_strength_workout",
+                {"date": "2027-01-06", "title": "Day", "blocks": [],
+                 "start_time": "09:30", "duration_minutes": 45},
+            )
+        assert fake.call_args.kwargs["start_time"] == "09:30"
+        assert fake.call_args.kwargs["duration_minutes"] == 45
+
+    @pytest.mark.asyncio
+    async def test_update_handler_passes_fields(self):
+        fake = AsyncMock(return_value={"workout_id": "1"})
+        with patch("tp_mcp.server.tp_update_strength_workout", fake):
+            await call_tool(
+                "tp_update_strength_workout",
+                {"workout_id": "1", "start_time": "", "duration_minutes": 105},
+            )
+        assert fake.call_args.kwargs["start_time"] == ""
+        assert fake.call_args.kwargs["duration_minutes"] == 105
