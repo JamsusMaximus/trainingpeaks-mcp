@@ -1265,6 +1265,17 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "date": {"type": "string", "description": "Planned date YYYY-MM-DD."},
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional planned time of day, HH:MM or HH:MM:SS (24-hour). "
+                        "Separate from date, as in TrainingPeaks' strength API."
+                    ),
+                },
+                "duration_minutes": {
+                    "type": "integer",
+                    "description": "Optional planned duration in minutes (1-1440).",
+                },
                 "title": {"type": "string", "description": "Workout title, e.g. 'Upper Body'."},
                 "instructions": {"type": "string", "description": "Optional session instructions."},
                 "blocks": {
@@ -1329,7 +1340,7 @@ TOOLS = [
         name="tp_update_strength_workout",
         description=(
             "Update an existing strength workout in place: replace or append blocks, "
-            "retitle, or mark it complete. Preserves everything else, including "
+            "retitle, set the start time or duration, or mark it complete. Preserves everything else, including "
             "Garmin-derived TSS and the attached FIT file — so this is the correct "
             "way to fill in a device-synced workout that arrived with no structure. "
             "Never delete-and-recreate for that: exercise detail is rebuildable, "
@@ -1349,6 +1360,17 @@ TOOLS = [
                 },
                 "title": {"type": "string", "description": "Optional new title."},
                 "instructions": {"type": "string", "description": "Optional new instructions."},
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional planned time of day, HH:MM or HH:MM:SS (24-hour). "
+                        "Empty string clears it; omit to leave it unchanged."
+                    ),
+                },
+                "duration_minutes": {
+                    "type": "number",
+                    "description": "Optional planned duration in minutes (0-1440); omit to leave it unchanged.",
+                },
                 "mode": {
                     "type": "string",
                     "enum": ["replace", "append"],
@@ -1761,7 +1783,8 @@ async def _h_search_exercises(args):
 async def _h_create_strength(args):
     return await tp_create_strength_workout(
         date=args["date"], title=args["title"],
-        blocks=args.get("blocks") or [], instructions=args.get("instructions"))
+        blocks=args.get("blocks") or [], instructions=args.get("instructions"),
+        start_time=args.get("start_time"), duration_minutes=args.get("duration_minutes"))
 
 @_handler("tp_get_strength_summary")
 async def _h_get_strength_summary(args):
@@ -1781,6 +1804,7 @@ async def _h_update_strength(args):
     return await tp_update_strength_workout(
         workout_id=args["workout_id"], blocks=args.get("blocks"),
         title=args.get("title"), instructions=args.get("instructions"),
+        start_time=args.get("start_time"), duration_minutes=args.get("duration_minutes"),
         mode=args.get("mode", "replace"),
         mark_complete=bool(args.get("mark_complete", False)),
         dry_run=bool(args.get("dry_run", False)))

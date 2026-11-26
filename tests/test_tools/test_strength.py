@@ -7,10 +7,12 @@ import pytest
 from tp_mcp.client.http import APIResponse
 from tp_mcp.tools.strength import (
     _build_payload,
+    _check_duration_minutes,
     _fmt_set,
     _fmt_workout_detail,
     _input_format,
     _min,
+    _norm_start_time,
     _validate_blocks,
     tp_create_strength_workout,
     tp_delete_strength_workout,
@@ -621,3 +623,191 @@ class TestUpdateStrength:
         r = await self._run(http, workout_id="24373159", blocks=_BLOCKS)
         assert r["error_code"] == "API_ERROR"
         assert "bad" in r["message"]
+
+
+# -- Start time and planned duration ------------------------------------------
+#
+# The strength API keeps the planned time of day in `prescribedStartTime`
+# ("HH:MM:SS", separate from `prescribedDate`) and the planned duration in
+# `prescribedDurationInSeconds`. The tools expose them as `start_time` and
+# `duration_minutes` (same name and units as the endurance tools).
+
+
+class TestStartTimeAndDurationHelpers:
+    def test_norm_start_time_accepts(self):
+        assert _norm_start_time("09:00") == "09:00:00"
+        assert _norm_start_time("09:09:30") == "09:09:30"
+        assert _norm_start_time("23:59:59") == "23:59:59"
+        assert _norm_start_time(" 07:45 ") == "07:45:00"
+
+    @pytest.mark.parametrize(
+        "value", ["9:00", "24:00", "09:60", "09:00:60", "9am", "", ":", "09:00:00:00"]
+    )
+    def test_norm_start_time_rejects(self, value):
+        assert _norm_start_time(value) is None
+
+    def test_check_duration_minutes(self):
+        assert _check_duration_minutes(90, 1) is None
+        assert _check_duration_minutes("45", 1) is None
+        assert _check_duration_minutes(0, 0) is None
+        assert _check_duration_minutes(1440, 1) is None
+        assert _check_duration_minutes(0, 1) is not None
+        assert _check_duration_minutes(1441, 0) is not None
+        assert _check_duration_minutes(-5, 0) is not None
+        assert _check_duration_minutes("x", 0) is not None
+        assert _check_duration_minutes(True, 0) is not None
+
+    def test_build_payload_carries_start_time_and_duration(self):
+        blocks = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "5"}]}]}]
+        p = _build_payload(1, "2027-01-06", "x", blocks, None, "09:30:00", 105)
+        assert p["prescribedStartTime"] == "09:30:00"
+        assert p["prescribedDurationInSeconds"] == 6300
+
+    def test_build_payload_omits_unset_start_time_and_duration(self):
+        blocks = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "5"}]}]}]
+        p = _build_payload(1, "2027-01-06", "x", blocks, None)
+        assert "prescribedStartTime" not in p
+        assert "prescribedDurationInSeconds" not in p
+
+    def test_fmt_workout_detail_start_time(self):
+        assert _fmt_workout_detail({"id": "1", "prescribedStartTime": "13:00:00"})["start_time"] == "13:00:00"
+        assert _fmt_workout_detail({"id": "1"})["start_time"] is None
+
+
+_ONE_SET = [{"type": "SingleExercise", "exercises": [{"id": "1", "sets": [{"Reps": "5"}]}]}]
+
+
+async def _create(http, **kwargs):
+    with patch("tp_mcp.tools.strength.TPClient") as mtp:
+        mtp.return_value.__aenter__.return_value = _mock_tp_client()
+        with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+            mh.return_value.__aenter__.return_value = http
+            return await tp_create_strength_workout(**kwargs)
+
+
+async def _update(http, **kwargs):
+    with patch("tp_mcp.tools.strength.TPClient") as mtp:
+        mtp.return_value.__aenter__.return_value = _mock_tp_client()
+        with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+            mh.return_value.__aenter__.return_value = http
+            return await tp_update_strength_workout(**kwargs)
+
+
+class TestCreateStartTimeAndDuration:
+    @pytest.mark.asyncio
+    async def test_reach_payload_and_result(self):
+        http = _mock_http(200, {"data": {
+            "id": "555", "snapshot": {"totalBlocks": 1, "totalSets": 1},
+            "prescribedStartTime": "09:30:00", "prescribedDurationInSeconds": 2700,
+        }})
+        r = await _create(http, date="2027-01-06", title="Day", blocks=_ONE_SET,
+                          start_time="09:30", duration_minutes=45)
+        body = http.post.call_args.kwargs["json"]
+        assert body["prescribedStartTime"] == "09:30:00"
+        assert body["prescribedDurationInSeconds"] == 2700
+        assert r["start_time"] == "09:30:00"
+        assert r["prescribed_duration_min"] == 45.0
+
+    @pytest.mark.asyncio
+    async def test_omitted_fields_not_sent(self):
+        http = _mock_http(200, {"data": {"id": "555", "snapshot": {"totalBlocks": 1, "totalSets": 1}}})
+        r = await _create(http, date="2027-01-06", title="Day", blocks=_ONE_SET)
+        body = http.post.call_args.kwargs["json"]
+        assert "prescribedStartTime" not in body
+        assert "prescribedDurationInSeconds" not in body
+        assert r["start_time"] is None
+        assert r["prescribed_duration_min"] is None
+
+    @pytest.mark.asyncio
+    async def test_empty_start_time_means_no_time(self):
+        http = _mock_http(200, {"data": {"id": "555", "snapshot": {"totalBlocks": 1, "totalSets": 1}}})
+        await _create(http, date="2027-01-06", title="Day", blocks=_ONE_SET, start_time="")
+        assert "prescribedStartTime" not in http.post.call_args.kwargs["json"]
+
+    @pytest.mark.asyncio
+    async def test_bad_start_time_rejected_before_network(self):
+        r = await tp_create_strength_workout(date="2027-01-06", title="x", blocks=_ONE_SET, start_time="9am")
+        assert r["error_code"] == "VALIDATION_ERROR"
+        assert "start_time" in r["message"]
+
+    @pytest.mark.asyncio
+    async def test_zero_duration_rejected_before_network(self):
+        r = await tp_create_strength_workout(date="2027-01-06", title="x", blocks=_ONE_SET, duration_minutes=0)
+        assert r["error_code"] == "VALIDATION_ERROR"
+        assert "duration_minutes" in r["message"]
+
+
+class TestUpdateStartTimeAndDuration:
+    @pytest.mark.asyncio
+    async def test_start_time_only(self):
+        http = _mock_get_then_post(_garmin_doc())
+        r = await _update(http, workout_id="24373159", start_time="10:15")
+        body = _posted(http)
+        assert body["prescribedStartTime"] == "10:15:00"
+        assert body["blocks"] == []          # structure untouched
+        assert r["changed"] == ["start_time"]
+        assert r["start_time"] == "10:15:00"
+
+    @pytest.mark.asyncio
+    async def test_empty_start_time_clears(self):
+        doc = _garmin_doc()
+        doc["prescribedStartTime"] = "09:00:00"
+        http = _mock_get_then_post(doc)
+        r = await _update(http, workout_id="24373159", start_time="")
+        assert _posted(http)["prescribedStartTime"] is None
+        assert r["start_time"] is None
+
+    @pytest.mark.asyncio
+    async def test_omitted_start_time_and_duration_preserved(self):
+        doc = _garmin_doc()
+        doc["prescribedStartTime"] = "07:45:00"
+        doc["prescribedDurationInSeconds"] = 4500
+        http = _mock_get_then_post(doc)
+        r = await _update(http, workout_id="24373159", title="Renamed")
+        body = _posted(http)
+        assert body["prescribedStartTime"] == "07:45:00"
+        assert body["prescribedDurationInSeconds"] == 4500
+        assert r["changed"] == ["title"]
+
+    @pytest.mark.asyncio
+    async def test_duration_only(self):
+        http = _mock_get_then_post(_garmin_doc())
+        r = await _update(http, workout_id="24373159", duration_minutes=105)
+        assert _posted(http)["prescribedDurationInSeconds"] == 6300
+        assert r["changed"] == ["duration_minutes"]
+        assert r["prescribed_duration_min"] == 105.0
+
+    @pytest.mark.asyncio
+    async def test_zero_duration_allowed(self):
+        http = _mock_get_then_post(_garmin_doc())
+        await _update(http, workout_id="24373159", duration_minutes=0)
+        assert _posted(http)["prescribedDurationInSeconds"] == 0
+
+    @pytest.mark.asyncio
+    async def test_bad_start_time_rejected_before_network(self):
+        r = await tp_update_strength_workout(workout_id="1", start_time="24:00")
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_bad_duration_rejected_before_network(self):
+        r = await tp_update_strength_workout(workout_id="1", duration_minutes=-5)
+        assert r["error_code"] == "VALIDATION_ERROR"
+
+
+class TestListStartTime:
+    @pytest.mark.asyncio
+    async def test_list_includes_start_time(self):
+        items = [
+            {"id": "1", "prescribedDate": "2026-11-30", "title": "A", "workoutType": "StructuredStrength",
+             "prescribedStartTime": "10:00:00", "prescribedDurationInSeconds": 6300, "sequenceSummary": []},
+            {"id": "2", "prescribedDate": "2026-12-04", "title": "B", "workoutType": "StructuredStrength",
+             "sequenceSummary": []},
+        ]
+        http = _mock_http(200, items)
+        with patch("tp_mcp.tools.strength.TPClient") as mtp:
+            mtp.return_value.__aenter__.return_value = _mock_tp_client()
+            with patch("tp_mcp.tools.strength.httpx.AsyncClient") as mh:
+                mh.return_value.__aenter__.return_value = http
+                r = await tp_get_strength_workouts(start_date="2026-11-30", end_date="2026-12-06")
+        assert [w["start_time"] for w in r["workouts"]] == ["10:00:00", None]
+        assert r["workouts"][0]["prescribed_duration_min"] == 105.0

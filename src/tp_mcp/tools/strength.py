@@ -45,6 +45,17 @@ Update semantics (probed 2026-08-02, live API):
     compliance correctly (`Compliant` / 100%).
   • Sets carry an undocumented `setOrigin` field; it round-trips harmlessly.
 
+Planned start time and duration (verified 2026-11-25, live API and web-app capture):
+  - The planned time of day is `prescribedStartTime` ("HH:MM:SS", no date, no
+    zone), a field of its own separate from `prescribedDate`. The web app sets
+    it in the same /workouts/save upsert; there is no separate endpoint. Null
+    means no time. Exposed as `start_time`: HH:MM or HH:MM:SS in, HH:MM:SS out,
+    and "" on update clears it.
+  - The planned duration is `prescribedDurationInSeconds`. Exposed as
+    `duration_minutes` on create/update (same name, units and bounds as the
+    endurance tools) and read back as `prescribed_duration_min`.
+  - Both are preserved untouched by an update that does not supply them.
+
 This tool is intentionally unit-agnostic: it passes through whatever weight
 parameter the caller supplies (`WeightKg`, `WeightLb`, `WeightPercentage`, …).
 Choosing a default unit (e.g. kg) is the caller's concern, not the connector's.
@@ -216,6 +227,46 @@ def _u() -> str:
     return str(uuid.uuid4())
 
 
+def _norm_start_time(value: str) -> str | None:
+    """Normalize HH:MM or HH:MM:SS to the strength API's HH:MM:SS, or None if invalid.
+
+    The strength API keeps the planned time of day in its own field,
+    `prescribedStartTime` ("HH:MM:SS", no date, no zone), separate from
+    `prescribedDate`. This mirrors that rather than the endurance API's
+    combined `startTimePlanned` datetime.
+    """
+    parts = str(value).strip().split(":")
+    if len(parts) not in (2, 3) or not all(p.isdigit() and len(p) == 2 for p in parts):
+        return None
+    h, m = int(parts[0]), int(parts[1])
+    sec = int(parts[2]) if len(parts) == 3 else 0
+    if h > 23 or m > 59 or sec > 59:
+        return None
+    return f"{h:02d}:{m:02d}:{sec:02d}"
+
+
+def _check_duration_minutes(value: Any, minimum: float) -> str | None:
+    """Validate a planned duration in minutes; return an error message or None.
+
+    Same units and bounds as the endurance tools' `duration_minutes`
+    (create: >= 1, update: >= 0, both <= 1440). Stored by the strength API as
+    `prescribedDurationInSeconds`; read back as `prescribed_duration_min`.
+    """
+    if isinstance(value, bool):
+        return "duration_minutes must be a number of minutes."
+    try:
+        minutes = float(value)
+    except (TypeError, ValueError):
+        return "duration_minutes must be a number of minutes."
+    if minutes < minimum or minutes > 1440:
+        return f"duration_minutes must be between {minimum:g} and 1440."
+    return None
+
+
+def _minutes_to_seconds(value: Any) -> int:
+    return int(round(float(value) * 60))
+
+
 def _build_prescription(ex: dict[str, Any], catalogue: dict[str, Any]) -> dict[str, Any]:
     eid = str(ex["id"])
     meta = catalogue[eid]
@@ -259,6 +310,8 @@ def _build_payload(
     title: str,
     blocks: list[dict[str, Any]],
     instructions: str | None,
+    start_time: str | None = None,
+    duration_minutes: float | None = None,
 ) -> dict[str, Any]:
     catalogue = _catalogue()
     blocks_out = []
@@ -275,7 +328,7 @@ def _build_payload(
                 "prescriptions": prescs,
             }
         )
-    return {
+    payload: dict[str, Any] = {
         "id": _u(),
         "workoutType": "StructuredStrength",
         "calendarId": athlete_id,
@@ -290,6 +343,11 @@ def _build_payload(
             "completedSets": 0,
         },
     }
+    if start_time is not None:
+        payload["prescribedStartTime"] = start_time
+    if duration_minutes is not None:
+        payload["prescribedDurationInSeconds"] = _minutes_to_seconds(duration_minutes)
+    return payload
 
 
 # ── Auth boilerplate (mirrors analyze.py — strength API is a different host) ──
@@ -338,6 +396,8 @@ async def tp_create_strength_workout(
     title: str,
     blocks: list[dict[str, Any]],
     instructions: str | None = None,
+    start_time: str | None = None,
+    duration_minutes: int | None = None,
 ) -> dict[str, Any]:
     """Create a structured strength (gym) workout on the athlete's calendar.
 
@@ -355,9 +415,13 @@ async def tp_create_strength_workout(
             For Superset / Circuit blocks every exercise must have the same
             number of sets.
         instructions: Optional free-text instructions for the whole session.
+        start_time: Optional planned time of day, HH:MM or HH:MM:SS (stored as
+            `prescribedStartTime`, separate from the date). Omit for no time.
+        duration_minutes: Optional planned duration in minutes (1-1440).
 
     Returns:
-        Dict with the created `workout_id`, date, title, and block/set counts.
+        Dict with the created `workout_id`, date, start_time,
+        prescribed_duration_min, title, and block/set counts.
     """
     if not str(date).strip():
         return _err("VALIDATION_ERROR", "date is required (YYYY-MM-DD).")
@@ -368,12 +432,24 @@ async def tp_create_strength_workout(
     invalid = _validate_blocks(blocks)
     if invalid:
         return _err("VALIDATION_ERROR", invalid)
+    norm_time = None
+    if start_time is not None and str(start_time).strip():
+        norm_time = _norm_start_time(start_time)
+        if norm_time is None:
+            return _err("VALIDATION_ERROR", "start_time must be HH:MM or HH:MM:SS (24-hour).")
+    if duration_minutes is not None:
+        bad = _check_duration_minutes(duration_minutes, 1)
+        if bad:
+            return _err("VALIDATION_ERROR", bad)
 
     async with TPClient() as client:
         athlete_id, access, err = await _access(client)
         if err:
             return err
-        payload = _build_payload(athlete_id, date.strip(), title.strip(), blocks, instructions)
+        payload = _build_payload(
+            athlete_id, date.strip(), title.strip(), blocks, instructions, norm_time,
+            duration_minutes,
+        )
         try:
             async with httpx.AsyncClient(timeout=STRENGTH_TIMEOUT) as h:
                 r = await h.post(
@@ -403,6 +479,10 @@ async def tp_create_strength_workout(
         return {
             "workout_id": str(data.get("id")),
             "date": date.strip(),
+            "start_time": data.get("prescribedStartTime", norm_time),
+            "prescribed_duration_min": _min(
+                data.get("prescribedDurationInSeconds", payload.get("prescribedDurationInSeconds"))
+            ),
             "title": title.strip(),
             "total_blocks": snap.get("totalBlocks"),
             "total_sets": snap.get("totalSets"),
@@ -466,6 +546,8 @@ async def tp_update_strength_workout(
     blocks: list[dict[str, Any]] | None = None,
     title: str | None = None,
     instructions: str | None = None,
+    start_time: str | None = None,
+    duration_minutes: float | None = None,
     mode: str = "replace",
     mark_complete: bool = False,
     dry_run: bool = False,
@@ -486,6 +568,10 @@ async def tp_update_strength_workout(
             when only retitling, or only marking an existing plan complete).
         title: Optional new title.
         instructions: Optional new session instructions.
+        start_time: Optional planned time of day, HH:MM or HH:MM:SS. An empty
+            string clears it. Omit to leave the existing time unchanged.
+        duration_minutes: Optional planned duration in minutes (0-1440). Omit
+            to leave the existing duration unchanged.
         mode: "replace" (default) swaps the block list for `blocks`; "append"
             adds them after the existing blocks.
         mark_complete: Mark every set complete and copy prescribed values into
@@ -510,10 +596,27 @@ async def tp_update_strength_workout(
         invalid = _validate_blocks(blocks)
         if invalid:
             return _err("VALIDATION_ERROR", invalid)
-    if blocks is None and title is None and instructions is None and not mark_complete:
+    norm_time = None
+    if start_time is not None and str(start_time).strip():
+        norm_time = _norm_start_time(start_time)
+        if norm_time is None:
+            return _err("VALIDATION_ERROR", "start_time must be HH:MM or HH:MM:SS (24-hour).")
+    if duration_minutes is not None:
+        bad = _check_duration_minutes(duration_minutes, 0)
+        if bad:
+            return _err("VALIDATION_ERROR", bad)
+    if (
+        blocks is None
+        and title is None
+        and instructions is None
+        and start_time is None
+        and duration_minutes is None
+        and not mark_complete
+    ):
         return _err(
             "VALIDATION_ERROR",
-            "Nothing to update: provide blocks, title, instructions or mark_complete.",
+            "Nothing to update: provide blocks, title, instructions, start_time, "
+            "duration_minutes or mark_complete.",
         )
 
     async with TPClient() as client:
@@ -561,6 +664,13 @@ async def tp_update_strength_workout(
                 if instructions is not None:
                     doc["instructions"] = instructions
                     changed.append("instructions")
+                if start_time is not None:
+                    # "" clears; otherwise the normalized HH:MM:SS.
+                    doc["prescribedStartTime"] = norm_time
+                    changed.append("start_time")
+                if duration_minutes is not None:
+                    doc["prescribedDurationInSeconds"] = _minutes_to_seconds(duration_minutes)
+                    changed.append("duration_minutes")
                 if mark_complete:
                     _mark_complete(doc.get("blocks") or [])
                     changed.append("mark_complete")
@@ -604,6 +714,10 @@ async def tp_update_strength_workout(
         result = {
             "workout_id": returned,
             "title": doc.get("title"),
+            "start_time": data.get("prescribedStartTime", doc.get("prescribedStartTime")),
+            "prescribed_duration_min": _min(
+                data.get("prescribedDurationInSeconds", doc.get("prescribedDurationInSeconds"))
+            ),
             "changed": changed,
             "blocks_before": before.get("totalBlocks"),
             "blocks_after": snap.get("totalBlocks"),
@@ -721,6 +835,7 @@ def _fmt_workout_detail(d: dict[str, Any]) -> dict[str, Any]:
     return {
         "workout_id": str(d.get("id")),
         "date": d.get("prescribedDate"),
+        "start_time": d.get("prescribedStartTime"),
         "title": d.get("title"),
         "workout_type": d.get("workoutType"),
         "instructions": d.get("instructions"),
@@ -784,6 +899,7 @@ async def tp_get_strength_workouts(start_date: str, end_date: str) -> dict[str, 
             {
                 "workout_id": str(w.get("id")),
                 "date": w.get("prescribedDate"),
+                "start_time": w.get("prescribedStartTime"),
                 "title": w.get("title"),
                 "workout_type": w.get("workoutType"),
                 "prescribed_duration_min": _min(w.get("prescribedDurationInSeconds")),
